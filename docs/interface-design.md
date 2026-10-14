@@ -12,7 +12,7 @@ scale, eligibility, basis and provider health, and holds the scenario controls.
 Quotes ranks every quote for one model and opens its cost breakdown. **Price this
 quote** carries the selected ask to Pricing, which loads the labelled example in
 the editor only; nothing is evaluated or saved until the person presses Evaluate.
-Policies, inference, cash, portfolio and the other earlier tools stay under **More**.
+There is no other page: the earlier advanced tools were removed from the browser (their API routes remain).
 
 Changing page starts at the top of the new page. Choosing the page already showing
 leaves the scroll position alone.

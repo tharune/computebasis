@@ -1,15 +1,5 @@
 # Third-party notices
 
-## Local land geometry
-
-The map packages simplified land geometry from Natural Earth 1:110m data.
-Natural Earth places its vector and raster datasets in the public domain and
-permits commercial use and modification under its [terms of use](https://www.naturalearthdata.com/about/terms-of-use/).
-Only land geometry is retained; no live position, source price, site identifier
-or user record is part of that asset. It is served locally without external tiles.
-
-Made with Natural Earth. [Dataset repository](https://github.com/nvkelso/natural-earth-vector).
-
 ## US state outlines and projection
 
 The US capacity map draws state outlines from `us-atlas` 3.0.1 (`states-albers-10m`), which redistributes the US Census Bureau's cartographic
