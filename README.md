@@ -27,7 +27,7 @@ This is a local read-only and paper development release. Source and qualificatio
 
 The [workbench guide](docs/workbench.md) runs a local browser UI with current source admission, native prices, freshness and immutable provenance. It includes manual scoped refresh and actual retained-reference evaluation; pricing/cash/inference editors keep synthetic examples separate. Four source roles are available: weekly GPU references, regional cloud VM retail meters, informational FX and bounded model discovery. They are not four interchangeable GPU-price feeds.
 
-After installation, start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json`, then open `http://127.0.0.1:8000`. Retrieve your locally generated development key with the explicit `scripts/local.py key` command and paste it into the page. Startup makes no live request; choose **Refresh admitted feeds** to index the configured scopes.
+After installation, start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json`, then open `http://127.0.0.1:8000`. Retrieve your locally generated development key with the explicit `scripts/local.py key` command and paste it into the page. Startup makes no live request; choose **Read admitted feeds** to index the configured scopes.
 
 ## Try the current control plane
 
@@ -73,3 +73,7 @@ The tool does not presume a universal US premium or turn every additional factor
 - [Domain JSON Schema](docs/contracts/domain-v1.schema.json) and [generated TypeScript source](docs/contracts/domain-v1.types.txt)
 
 MIT licensed. Public samples are invented; credentials, customer records, evidence documents and raw or licensed vendor payloads belong outside Git. Only the maintainer publishes to the default branch.
+
+## Analyst workspace and flexible intake
+
+The [quality and intake guide](docs/quality-and-intake.md) covers the responsive analyst layout, exact native-unit sorting, bounded collection and schema-neutral local table evidence. Unknown columns and source meanings remain visible; arbitrary input never becomes approved pricing evidence automatically. Offline validation requires Node 24 for the dependency-free frontend behavior tests; serving the app requires no JavaScript build.

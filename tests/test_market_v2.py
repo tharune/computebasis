@@ -104,7 +104,7 @@ class MarketTests(unittest.TestCase):
             collect.assert_not_called()
 
     def test_integrity_failure_is_not_returned_as_indexed_data(self):
-        with patch.object(self.app.state.store, "latest_collections", side_effect=SnapshotStoreError("snapshot_integrity_failed")):
+        with patch.object(self.app.state.store, "latest_collection_scan", side_effect=SnapshotStoreError("snapshot_integrity_failed")):
             response = self.client.get("/v1/market/index", headers=AUTH)
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json()["detail"], "snapshot_store_unavailable")
@@ -135,6 +135,81 @@ class MarketTests(unittest.TestCase):
         self.assertNotEqual(first["snapshot_id"], last["snapshot_id"])
         self.assertEqual(result["last_refresh"]["snapshot_id"], last["snapshot_id"])
         self.assertEqual(result["last_refresh"]["document"]["output"]["failed"][0]["reason"], "network_request_failed")
+
+    def test_bounded_history_declares_possible_hidden_independent_scopes(self):
+        store = self.app.state.store
+        store.put(kind="market_collection", input_payload={"filters": {"region": "invented-older-region"}},
+                  output_payload=batch("azure", "99").to_dict(), versions={"adapter": "invented"})
+        for number in range(512):
+            store.put(kind="market_collection", input_payload={"filters": {}},
+                      output_payload=batch(price=str(number)).to_dict(), versions={"adapter": "invented"})
+        scan = store.latest_collection_scan(scan_limit=2)
+        self.assertTrue(scan.has_older_history)
+        self.assertEqual(scan.rows_scanned, 2)
+        result = self.client.get("/v1/market/index", headers=AUTH).json()
+        self.assertTrue(result["coverage"]["history_scan_truncated"])
+        self.assertTrue(result["coverage"]["possible_missing_scopes"])
+        self.assertEqual(result["coverage"]["history_rows_scanned"], 512)
+        self.assertIn("collection_history_scan_truncated_scopes_may_be_missing", result["warnings"])
+        azure = next(source for source in result["sources"] if source["source_id"] == "azure")
+        self.assertEqual(azure["observed_liveness"], "not_found_in_bounded_history")
+
+    def test_exact_scan_boundary_does_not_falsely_claim_truncation(self):
+        for number in range(2):
+            self.app.state.store.put(kind="market_collection", input_payload={"filters": {}},
+                output_payload=batch(price=str(number)).to_dict(), versions={"adapter": "invented"})
+        scan = self.app.state.store.latest_collection_scan(scan_limit=2)
+        self.assertFalse(scan.has_older_history)
+        self.assertEqual(scan.rows_scanned, 2)
+        self.assertEqual(len(scan.snapshots), 1)
+
+    def test_malformed_or_mismatched_collection_packets_fail_closed(self):
+        packets = []
+        invalid = batch().to_dict()
+        invalid["observations"] = [None]
+        packets.append(({}, invalid))
+        invalid = batch().to_dict()
+        invalid["observations"][0]["source_id"] = "azure"
+        packets.append(({}, invalid))
+        packets.append(({"source_id": "azure"}, batch().to_dict()))
+        invalid = batch().to_dict()
+        invalid["execution_enabled"] = True
+        packets.append(({}, invalid))
+        packets.append(({"filters": []}, batch().to_dict()))
+        for number, (inputs, output) in enumerate(packets):
+            with self.subTest(number=number):
+                app = create_app(api_key=KEY, store_path=Path(self.folder.name) / f"invalid-{number}.sqlite",
+                                 source_policies={"getdeploying": policy()})
+                app.state.store.put(kind="market_collection", input_payload=inputs, output_payload=output, versions={"adapter": "invented"})
+                with TestClient(app) as client:
+                    response = client.get("/v1/market/index", headers=AUTH)
+                self.assertEqual(response.status_code, 503)
+                self.assertEqual(response.json(), {"detail": "snapshot_store_unavailable"})
+
+    def test_malformed_refresh_packet_cannot_crash_or_enter_index(self):
+        self.app.state.store.put(kind="market_refresh", input_payload={},
+            output_payload={"failed": "invented malformed packet", "execution_enabled": False}, versions={"adapter": "invented"})
+        response = self.client.get("/v1/market/index", headers=AUTH)
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"detail": "snapshot_store_unavailable"})
+
+    def test_current_policy_metadata_age_is_distinct_from_repository_age(self):
+        now = dt.datetime.now(dt.timezone.utc)
+        stamp = lambda value: value.isoformat().replace("+00:00", "Z")
+        output = {"source_id": "huggingface", "raw_metadata": {"captured_at": stamp(now)}, "observations": [],
+                  "catalog_records": [{"id": "invented-old-observation", "kind": "model_metadata", "observed_at": stamp(now - dt.timedelta(days=2)),
+                        "expires_at": stamp(now + dt.timedelta(days=10))},
+                      {"id": "invented-current-observation", "kind": "model_metadata", "observed_at": stamp(now),
+                        "repository_last_modified_at": "2021-01-01T00:00:00Z", "expires_at": stamp(now + dt.timedelta(days=10))}],
+                  "execution_enabled": False}
+        self.app.state.store.put(kind="market_collection", input_payload={"filters": {}}, output_payload=output, versions={"adapter": "invented"})
+        import dataclasses
+        app = create_app(api_key=KEY, store_path=self.path,
+            source_policies={"huggingface": dataclasses.replace(policy("huggingface"), max_age_s=86400)})
+        with TestClient(app) as client:
+            records = client.get("/v1/market/index", headers=AUTH).json()["catalog_records"]
+        self.assertTrue(records[0]["index_stale"])
+        self.assertFalse(records[1]["index_stale"])
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ import os
 import re
 import urllib.parse
 import xml.etree.ElementTree as ET
+import xml.parsers.expat
 from decimal import Decimal, InvalidOperation
 from typing import Any, Mapping
 
@@ -269,15 +270,28 @@ def parse_ecb(raw: RawResponse, policy: SourcePolicy) -> ConnectorBatch:
     if raw.source_id != "ecb" or policy.source_id != "ecb":
         raise ConnectorError("source_policy_mismatch")
     policy.require("benchmark", parse_utc(raw.captured_at))
-    if len(raw.body) > 256 * 1024 or b"<!DOCTYPE" in raw.body.upper() or b"<!ENTITY" in raw.body.upper():
+    if len(raw.body) > 256 * 1024:
         raise ConnectorError("ecb_xml_resource_or_entity_forbidden")
+    def refuse_declaration(*_args):
+        raise ConnectorError("ecb_xml_resource_or_entity_forbidden")
+    validator = xml.parsers.expat.ParserCreate()
+    validator.StartDoctypeDeclHandler = refuse_declaration
+    validator.EntityDeclHandler = refuse_declaration
+    validator.UnparsedEntityDeclHandler = refuse_declaration
+    validator.ExternalEntityRefHandler = refuse_declaration
     try:
+        # Encoding-aware callbacks run before any DTD/entity expansion. A byte
+        # substring scan misses UTF-16 declarations accepted by XML parsers.
+        validator.Parse(raw.body, True)
         root = ET.fromstring(raw.body)
-    except ET.ParseError:
+    except (xml.parsers.expat.ExpatError, ET.ParseError):
         raise ConnectorError("invalid_ecb_xml") from None
     namespace = "{http://www.ecb.int/vocabulary/2002-08-01/eurofxref}"
-    periods = root.findall(".//" + namespace + "Cube[@time]")
-    if len(periods) != 1:
+    if root.tag != "{http://www.gesmes.org/xml/2002-08-01}Envelope":
+        raise ConnectorError("ecb_daily_envelope_shape_changed")
+    containers = root.findall(namespace + "Cube")
+    periods = containers[0].findall(namespace + "Cube") if len(containers) == 1 else []
+    if len(periods) != 1 or "time" not in periods[0].attrib:
         raise ConnectorError("ecb_daily_period_shape_changed")
     period = periods[0]
     try:
@@ -289,6 +303,8 @@ def parse_ecb(raw: RawResponse, policy: SourcePolicy) -> ConnectorBatch:
         raise ConnectorError("future_source_observation")
     currencies, rows = set(), []
     for cube in period.findall(namespace + "Cube"):
+        if len(cube):
+            raise ConnectorError("ecb_currency_shape_changed")
         currency = cube.attrib.get("currency")
         if not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency) or currency == "EUR" or currency in currencies:
             raise ConnectorError("ecb_currency_duplicate_or_invalid")
@@ -302,6 +318,8 @@ def parse_ecb(raw: RawResponse, policy: SourcePolicy) -> ConnectorBatch:
             "attribution": policy.attribution, "raw_sha256": raw.sha256, "rights": _permission(policy),
             "source_free_notice": "ECB reference data is available free of charge from the ECB website",
             "derived_or_modified": False})
+    if len(period) != len(rows):
+        raise ConnectorError("ecb_currency_shape_changed")
     if not rows:
         raise ConnectorError("empty_ecb_rates")
     return ConnectorBatch("ecb", raw.metadata(), (), catalog_records=tuple(rows),

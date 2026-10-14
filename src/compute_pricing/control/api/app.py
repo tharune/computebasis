@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import re
 import secrets
+import threading
 from typing import Any, Mapping
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -21,8 +22,77 @@ from compute_pricing.control.domain.generate import json_schema
 from compute_pricing.control.reporting import SnapshotStore, SnapshotStoreError
 from compute_pricing.control.treasury import evaluate_cash_payload
 
-SERVICE_VERSION = "0.2.0"
+SERVICE_VERSION = "0.3.0"
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
+# Leave room for the canonical snapshot envelope and evaluation output wrappers.
+MAX_REQUEST_DEPTH = 24
+MAX_REQUEST_NODES = 50000
+MAX_CONCURRENT_COLLECTIONS = 2
+
+
+def _request_tree(payload: Any) -> None:
+    """Bound work before dispatch; reject strings that cannot be stored as UTF-8."""
+    pending, nodes = [(payload, 0)], 0
+    while pending:
+        value, depth = pending.pop()
+        nodes += 1
+        if depth > MAX_REQUEST_DEPTH:
+            raise ValueError("request_nesting_limit")
+        if nodes > MAX_REQUEST_NODES:
+            raise ValueError("request_structure_limit")
+        if isinstance(value, dict):
+            pending.extend((item, depth + 1) for item in value.values())
+            pending.extend((key, depth + 1) for key in value)
+        elif isinstance(value, list):
+            pending.extend((item, depth + 1) for item in value)
+        elif isinstance(value, str):
+            try:
+                value.encode("utf-8")
+            except UnicodeError:
+                raise ValueError("invalid_json_unicode") from None
+
+
+def _connector_code(error: ConnectorError) -> str:
+    """An unexpected connector diagnostic must not become a response-body leak."""
+    code = error.code
+    if not isinstance(code, str) or len(code) > 256 or not re.fullmatch(r"[a-z][a-z0-9_]*(?::[a-z][a-z0-9_]*(?:,[a-z][a-z0-9_]*)*)?", code):
+        return "source_collection_failed"
+    return code
+
+
+def _source_id(value: Any) -> bool:
+    return isinstance(value, str) and bool(re.fullmatch(r"[a-z][a-z0-9_]{0,63}", value))
+
+
+class _CollectionAdmission:
+    """Keep a permit until the worker actually stops, even if HTTP is cancelled."""
+    def __init__(self, slots: threading.BoundedSemaphore):
+        if not slots.acquire(blocking=False):
+            raise HTTPException(429, detail="collection_capacity_exceeded", headers={"Retry-After": "1"})
+        self._slots, self._guard = slots, threading.Lock()
+        self._workers, self._closed, self._released = 0, False, False
+
+    def _release_if_finished(self):
+        if self._closed and not self._workers and not self._released:
+            self._slots.release()
+            self._released = True
+
+    def run(self, function, *args):
+        with self._guard:
+            if self._closed:
+                raise ConnectorError("collection_request_cancelled")
+            self._workers += 1
+        try:
+            return function(*args)
+        finally:
+            with self._guard:
+                self._workers -= 1
+                self._release_if_finished()
+
+    def close(self):
+        with self._guard:
+            self._closed = True
+            self._release_if_finished()
 
 
 def _evaluate_pricing(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -74,6 +144,10 @@ async def _json_body(request: Request, *, optional: bool = False) -> dict[str, A
         raise HTTPException(400, detail="invalid_json") from None
     if not isinstance(payload, dict):
         raise HTTPException(422, detail="json_object_required")
+    try:
+        _request_tree(payload)
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from None
     return payload
 
 
@@ -89,7 +163,8 @@ def _latest_collection(batch: Any) -> dict[str, Any]:
         result["selection"] = {"method": "latest_complete_week", "selected_observed_at": newest,
                                "history_rows_received": len(observations), "returned_rows": len(selected)}
     else:
-        result["selection"] = {"method": "catalog_response", "returned_rows": len(observations)}
+        result["selection"] = {"method": "catalog_response", "returned_rows": len(observations),
+                               "returned_catalog_records": len(result.get("catalog_records", []))}
     return result
 
 
@@ -101,15 +176,27 @@ def create_app(*, api_key: str, store_path: Path,
     if not isinstance(api_key, str) or not 32 <= len(api_key) <= 256 or not re.fullmatch(r"[!-~]+", api_key):
         raise ValueError("API key must be an explicit 32-256 character printable ASCII secret without whitespace")
     store = SnapshotStore(store_path)
-    if local_instance_id is not None and not re.fullmatch(r"[a-f0-9]{32}", local_instance_id):
+    if local_instance_id is not None and (not isinstance(local_instance_id, str) or not re.fullmatch(r"[a-f0-9]{32}", local_instance_id)):
         raise ValueError("invalid local instance ID")
+    if source_policies is not None and not isinstance(source_policies, Mapping):
+        raise ValueError("source policies require an explicit identity mapping")
     policies = dict(source_policies or {})
+    if any(not _source_id(name) or not isinstance(policy, SourcePolicy) or name != policy.source_id for name, policy in policies.items()):
+        raise ValueError("source policy keys must match admitted source identities")
     collector_transport = transport or ReadOnlyTransport()
-    plan = json.loads(json.dumps(collection_plan or [], allow_nan=False))
-    if not isinstance(plan, list) or len(plan) > 32 or any(not isinstance(row, dict) or set(row) != {"source_id", "filters"} or not isinstance(row["source_id"], str) or not isinstance(row["filters"], dict) for row in plan):
+    try:
+        _request_tree(collection_plan if collection_plan is not None else [])
+        plan = json.loads(json.dumps(collection_plan if collection_plan is not None else [], allow_nan=False))
+    except (ValueError, TypeError, RecursionError):
+        raise ValueError("collection plan requires bounded explicit source/filter records") from None
+    if not isinstance(plan, list) or len(plan) > 32 or any(not isinstance(row, dict) or set(row) != {"source_id", "filters"} or not _source_id(row["source_id"]) or not isinstance(row["filters"], dict) for row in plan):
         raise ValueError("collection plan requires bounded explicit source/filter records")
     app = FastAPI(title="Compute Pricing", version=SERVICE_VERSION, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.store = store
+    # Per-process request admission complements the transport's per-host lock.
+    # Reject before entering the worker queue; a refresh holds one slot for its
+    # complete bounded sequence, including pacing and persistence.
+    collection_slots = threading.BoundedSemaphore(MAX_CONCURRENT_COLLECTIONS)
     versions = {"api": SERVICE_VERSION, "domain": SCHEMA_VERSION, "snapshot": "1.0"}
 
     async def authenticated(request: Request) -> None:
@@ -172,16 +259,24 @@ def create_app(*, api_key: str, store_path: Path,
             policy.require(scope)
         # Multiple explicitly requested regions share a host quota. Wait only
         # inside the configured budget; long Retry-After holds remain enforced.
-        collector_transport.wait_for_source(source_id, max_wait_s=collector_transport.max_wait_s)
-        batch = collect_source(source_id, policies, transport=collector_transport, filters=filters)
-        if batch.source_id != source_id:
-            raise ConnectorError("source_policy_mismatch")
+        try:
+            collector_transport.wait_for_source(source_id, max_wait_s=collector_transport.max_wait_s)
+            batch = collect_source(source_id, policies, transport=collector_transport, filters=filters)
+            if batch.source_id != source_id:
+                raise ConnectorError("source_policy_mismatch")
+            output = _latest_collection(batch)
+        except ConnectorError:
+            raise
+        except Exception:
+            # External parsing/transport failures stay local to this source. No
+            # response body, endpoint, credentials or exception text is exposed.
+            raise ConnectorError("source_collection_failed") from None
         for scope in ("observe", "retain", "benchmark"):
             policy.require(scope)
         admitted_input = {"source_id": source_id, "filters": filters,
                           "source_policy": {field.name: dict(policy.permissions) if field.name == "permissions" else getattr(policy, field.name)
                                             for field in dataclasses.fields(policy)}}
-        return save("market_collection", admitted_input, _latest_collection(batch))
+        return save("market_collection", admitted_input, output)
 
     @app.post("/v1/market/refresh", dependencies=[Depends(authenticated)])
     async def refresh(request: Request) -> dict[str, Any]:
@@ -193,36 +288,41 @@ def create_app(*, api_key: str, store_path: Path,
             requests = payload["requests"]
         else:
             source_ids = payload.get("source_ids")
-            if source_ids is not None and (not isinstance(source_ids, list) or not 1 <= len(source_ids) <= 32 or any(not isinstance(source, str) for source in source_ids) or len(set(source_ids)) != len(source_ids)):
+            if "source_ids" in payload and (not isinstance(source_ids, list) or not 1 <= len(source_ids) <= 32 or any(not _source_id(source) for source in source_ids) or len(set(source_ids)) != len(source_ids)):
                 raise HTTPException(422, detail="invalid_refresh_input")
             selected = source_ids if source_ids is not None else [name for name, policy in policies.items() if policy.enabled]
             requests = [row for row in plan if row["source_id"] in selected]
             planned_sources = {row["source_id"] for row in requests}
             requests += [{"source_id": source, "filters": {}} for source in selected if source not in planned_sources]
-        if not isinstance(requests, list) or not 1 <= len(requests) <= 32 or any(not isinstance(row, dict) or set(row) != {"source_id", "filters"} or not isinstance(row["source_id"], str) or not isinstance(row["filters"], dict) for row in requests):
+        if not isinstance(requests, list) or not 1 <= len(requests) <= 32 or any(not isinstance(row, dict) or set(row) != {"source_id", "filters"} or not _source_id(row["source_id"]) or not isinstance(row["filters"], dict) for row in requests):
             raise HTTPException(422, detail="invalid_refresh_input")
         keys = [(row["source_id"], json.dumps(row["filters"], sort_keys=True)) for row in requests]
         if len(set(keys)) != len(keys):
             raise HTTPException(422, detail="duplicate_refresh_scope")
-        updated, held, failed = [], [], []
-        for row in requests:
-            try:
-                result = await run_in_threadpool(collect_and_save, row["source_id"], row["filters"])
-                updated.append({"source_id": row["source_id"], "filters": row["filters"], "snapshot_id": result["snapshot_id"],
-                                "observation_count": len(result["result"].get("observations", [])),
-                                "catalog_record_count": len(result["result"].get("catalog_records", [])),
-                                "coverage": result["result"].get("coverage", {})})
-            except ConnectorError as exc:
-                destination = held if exc.code.startswith("admission_blocked") or exc.code in {"source_not_admitted", "authentication_missing", "source_cooldown_active", "source_collection_in_progress"} else failed
-                destination.append({"source_id": row["source_id"], "filters": row["filters"], "reason": exc.code})
-            except HTTPException:
-                failed.append({"source_id": row["source_id"], "reason": "snapshot_store_unavailable"})
-        output = {"updated": updated, "held": held, "failed": failed, "execution_enabled": False,
-                  "refresh_mode": "explicit_manual_read", "partial_refresh": bool(held or failed),
-                  "refresh_event_id": secrets.token_hex(16), "attempted_at": attempted_at,
-                  "completed_at": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")}
-        receipt = await run_in_threadpool(save, "market_refresh", {"requests": requests}, output)
-        return {**output, "snapshot_id": receipt["snapshot_id"], "created_at": receipt["created_at"]}
+        admission = _CollectionAdmission(collection_slots)
+        try:
+            updated, held, failed = [], [], []
+            for row in requests:
+                try:
+                    result = await run_in_threadpool(admission.run, collect_and_save, row["source_id"], row["filters"])
+                    updated.append({"source_id": row["source_id"], "filters": row["filters"], "snapshot_id": result["snapshot_id"],
+                                    "observation_count": len(result["result"].get("observations", [])),
+                                    "catalog_record_count": len(result["result"].get("catalog_records", [])),
+                                    "coverage": result["result"].get("coverage", {})})
+                except ConnectorError as exc:
+                    code = _connector_code(exc)
+                    destination = held if code.startswith("admission_blocked") or code in {"source_not_admitted", "authentication_missing", "source_cooldown_active", "source_collection_in_progress"} else failed
+                    destination.append({"source_id": row["source_id"], "filters": row["filters"], "reason": code})
+                except HTTPException:
+                    failed.append({"source_id": row["source_id"], "filters": row["filters"], "reason": "snapshot_store_unavailable"})
+            output = {"updated": updated, "held": held, "failed": failed, "execution_enabled": False,
+                      "refresh_mode": "explicit_manual_read", "partial_refresh": bool(held or failed),
+                      "refresh_event_id": secrets.token_hex(16), "attempted_at": attempted_at,
+                      "completed_at": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")}
+            receipt = await run_in_threadpool(admission.run, save, "market_refresh", {"requests": requests}, output)
+            return {**output, "snapshot_id": receipt["snapshot_id"], "created_at": receipt["created_at"]}
+        finally:
+            admission.close()
 
     @app.post("/v1/sources/{source_id}/collect", dependencies=[Depends(authenticated)])
     async def collect(source_id: str, request: Request) -> dict[str, Any]:
@@ -231,12 +331,16 @@ def create_app(*, api_key: str, store_path: Path,
             raise HTTPException(422, detail="invalid_collection_input")
         if source_id not in policies:
             raise HTTPException(409, detail="source_not_admitted")
+        admission = _CollectionAdmission(collection_slots)
         try:
-            return await run_in_threadpool(collect_and_save, source_id, payload.get("filters", {}))
+            return await run_in_threadpool(admission.run, collect_and_save, source_id, payload.get("filters", {}))
         except ConnectorError as exc:
-            status = 429 if exc.code in {"source_collection_in_progress", "source_cooldown_active"} else 409 if exc.code.startswith("admission_blocked") or exc.code in {"authentication_missing", "unknown_or_unadmitted_source", "source_transport_not_implemented"} else 502
+            code = _connector_code(exc)
+            status = 429 if code in {"source_collection_in_progress", "source_cooldown_active"} else 409 if code.startswith("admission_blocked") or code in {"authentication_missing", "unknown_or_unadmitted_source", "source_transport_not_implemented"} else 502
             # Codes are generated by the connector and contain no input values.
-            raise HTTPException(status, detail=exc.code) from None
+            raise HTTPException(status, detail=code) from None
+        finally:
+            admission.close()
 
     @app.post("/v1/pricing/evaluate", dependencies=[Depends(authenticated)])
     async def pricing(request: Request) -> dict[str, Any]:

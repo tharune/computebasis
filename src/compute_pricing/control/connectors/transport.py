@@ -113,12 +113,24 @@ class SourcePolicy:
 
 
 def load_policies(path: str | Path) -> dict[str, SourcePolicy]:
+    def unique_keys(values):
+        result = {}
+        for key, value in values:
+            if key in result:
+                raise ConnectorError("duplicate_source_config_key")
+            result[key] = value
+        return result
     try:
-        content = json.loads(Path(path).read_text(), parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
-        if content.get("schema") != "computebasis-source-admission/1.0" or not isinstance(content.get("sources"), dict):
+        with Path(path).open("rb") as handle:
+            encoded = handle.read(256 * 1024 + 1)
+        if len(encoded) > 256 * 1024:
+            raise ConnectorError("source_config_size_limit")
+        content = json.loads(encoded.decode("utf-8"), object_pairs_hook=unique_keys,
+                             parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
+        if not isinstance(content, dict) or content.get("schema") != "computebasis-source-admission/1.0" or not isinstance(content.get("sources"), dict):
             raise ConnectorError("unsupported_source_config")
         return {name: SourcePolicy(source_id=name, **values) for name, values in content["sources"].items()}
-    except (TypeError, json.JSONDecodeError, OSError, ValueError) as exc:
+    except (TypeError, json.JSONDecodeError, OSError, ValueError, RecursionError) as exc:
         if isinstance(exc, ConnectorError):
             raise
         raise ConnectorError("invalid_source_config") from None
@@ -384,7 +396,7 @@ class ReadOnlyTransport:
         if self._cooldown.get(host, 0) > self.monotonic():
             raise ConnectorError("source_cooldown_active")
         headers = {"Accept": ", ".join(sorted(request.spec.content_types)),
-                   "Accept-Encoding": "identity", "User-Agent": "ComputeBasisReadOnly/1.0"}
+                   "Accept-Encoding": "identity", "User-Agent": "RelayReadOnly/1.0"}
         if request.spec.secret_env:
             secret = os.environ.get(request.spec.secret_env)
             if not secret:

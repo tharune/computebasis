@@ -72,7 +72,7 @@ class WorkbenchV2Tests(unittest.TestCase):
         parser.feed(self.client.get("/").text)
         self.assertEqual(parser.inline_scripts, 0)
         self.assertEqual(parser.inline_handlers, [])
-        self.assertTrue(all(url.startswith("/") for url in parser.asset_urls))
+        self.assertTrue(all(url.startswith(("/", "#")) for url in parser.asset_urls))
         self.assertEqual(len(parser.password_fields), 1)
         self.assertNotIn("value", parser.password_fields[0])
         self.assertNotIn("name", parser.password_fields[0])
@@ -111,7 +111,16 @@ class WorkbenchV2Tests(unittest.TestCase):
         self.assertIn("commercial: null", self.script)
         self.assertIn("live_source_global_reference", self.script)
         self.assertIn("uncalibrated_exploration_weights", self.script)
-        self.assertIn("FX references excluded", self.script)
+        self.assertIn("prices exclude FX / model metadata", self.script)
+
+    def test_frontend_distinguishes_price_sources_and_fx_native_quote_units(self):
+        html = self.client.get("/").text
+        self.assertIn("SOURCES WITH PRICES", html)
+        self.assertIn('id="metric-source-total"', html)
+        self.assertIn('id="coverage-note"', html)
+        self.assertIn("record.quote_per_base", self.script)
+        self.assertIn("Price ascending within currency / unit", html)
+        self.assertIn('id="cancel-request"', html)
 
     def test_original_editor_body_is_sent_without_json_round_trip(self):
         self.assertIn('body: raw', self.script)

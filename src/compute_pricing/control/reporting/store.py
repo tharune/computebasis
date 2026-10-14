@@ -29,7 +29,13 @@ class SnapshotStoreError(ValueError):
 def _json_tree(value: Any, *, depth: int = 0) -> None:
     if depth > 32:
         raise SnapshotStoreError("snapshot_nesting_limit")
-    if value is None or isinstance(value, (str, int, bool)):
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeError:
+            raise SnapshotStoreError("snapshot_invalid_json") from None
+        return
+    if value is None or isinstance(value, (int, bool)):
         return
     if isinstance(value, float):
         if not math.isfinite(value):
@@ -38,6 +44,8 @@ def _json_tree(value: Any, *, depth: int = 0) -> None:
     if isinstance(value, Mapping):
         if not all(isinstance(key, str) for key in value):
             raise SnapshotStoreError("snapshot_invalid_json")
+        for key in value:
+            _json_tree(key, depth=depth + 1)
         for item in value.values():
             _json_tree(item, depth=depth + 1)
         return
@@ -87,6 +95,14 @@ class Snapshot:
     def to_dict(self) -> dict[str, Any]:
         return {"snapshot_id": self.digest, "created_at": self.created_at,
                 "document": _plain_json(self.document)}
+
+
+@dataclasses.dataclass(frozen=True)
+class CollectionScan:
+    snapshots: tuple[Snapshot, ...]
+    scan_limit: int
+    rows_scanned: int
+    has_older_history: bool
 
 
 class SnapshotStore:
@@ -174,6 +190,9 @@ class SnapshotStore:
         return Snapshot(digest, row[0], document)
 
     def latest_collections(self, *, scan_limit: int = 512) -> tuple[Snapshot, ...]:
+        return self.latest_collection_scan(scan_limit=scan_limit).snapshots
+
+    def latest_collection_scan(self, *, scan_limit: int = 512) -> CollectionScan:
         """Latest verified result per explicit source/filter scope, bounded scan.
 
         A scoped cloud response never replaces another region's observation.
@@ -183,21 +202,27 @@ class SnapshotStore:
             raise SnapshotStoreError("invalid_collection_scan_limit")
         try:
             with self._connect() as connection:
-                rows = connection.execute("SELECT digest FROM snapshots WHERE json_extract(canonical_document,'$.kind')='market_collection' ORDER BY created_at DESC, digest DESC LIMIT ?", (scan_limit,)).fetchall()
+                rows = connection.execute("SELECT digest FROM snapshots WHERE json_extract(canonical_document,'$.kind')='market_collection' ORDER BY created_at DESC, digest DESC LIMIT ?", (scan_limit + 1,)).fetchall()
         except sqlite3.Error:
             raise SnapshotStoreError("snapshot_store_unavailable") from None
         latest, seen = [], set()
-        for (digest,) in rows:
+        for (digest,) in rows[:scan_limit]:
             snapshot = self.get(digest)
+            if snapshot is None:
+                raise SnapshotStoreError("snapshot_integrity_failed")
             packet = snapshot.to_dict()["document"]
+            if not isinstance(packet, dict) or not isinstance(packet.get("input"), dict) or not isinstance(packet.get("output"), dict) or not isinstance(packet["input"].get("filters", {}), dict):
+                raise SnapshotStoreError("snapshot_integrity_failed")
             source = packet["output"].get("source_id")
             filters = {key: value for key, value in packet["input"].get("filters", {}).items() if key not in {"max_pages"}}
             scope = (source, json.dumps(filters, sort_keys=True, separators=(",", ":")))
-            if not isinstance(source, str) or not source or scope in seen:
+            if not isinstance(source, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", source):
+                raise SnapshotStoreError("snapshot_integrity_failed")
+            if scope in seen:
                 continue
             seen.add(scope)
             latest.append(snapshot)
-        return tuple(latest)
+        return CollectionScan(tuple(latest), scan_limit, min(len(rows), scan_limit), len(rows) > scan_limit)
 
     def latest_refresh(self) -> Snapshot | None:
         try:

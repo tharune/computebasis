@@ -94,3 +94,5 @@ Current lookup/display budgets are explicit in the index, not claims of complete
 worldwide market coverage. Firm procurement still needs admitted verified physical
 offers, complete contracts/buyer demand, independently validated risk inputs and
 durable capacity/treasury/execution acceptance described in the broader plan.
+
+The [quality/intake release](quality-and-intake.md) adds precise native-price ordering, explicit draft/result states and bounded-history coverage.

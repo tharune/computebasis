@@ -3,9 +3,29 @@ import datetime as dt
 
 from compute_pricing.control.connectors import source_status
 from compute_pricing.control.connectors.transport import parse_utc
+from compute_pricing.control.reporting import SnapshotStoreError
+
+
+def _collection_packet(snapshot):
+    packet = snapshot.to_dict()
+    document = packet.get("document")
+    if not isinstance(document, dict) or not isinstance(document.get("input"), dict) or not isinstance(document.get("output"), dict):
+        raise SnapshotStoreError("snapshot_integrity_failed")
+    output, inputs = document["output"], document["input"]
+    source = output.get("source_id")
+    if not isinstance(source, str) or inputs.get("source_id", source) != source or not isinstance(inputs.get("filters", {}), dict):
+        raise SnapshotStoreError("snapshot_integrity_failed")
+    for key in ("observations", "catalog_records"):
+        if not isinstance(output.get(key, []), list) or any(not isinstance(row, dict) or row.get("source_id", source) != source or row.get("execution_enabled") is True for row in output.get(key, [])):
+            raise SnapshotStoreError("snapshot_integrity_failed")
+    if output.get("execution_enabled") is not False or not isinstance(output.get("raw_metadata", {}), dict):
+        raise SnapshotStoreError("snapshot_integrity_failed")
+    return packet, output, inputs, source
 
 
 def market_index(store, policies, collection_plan, *, row_limit=5000):
+    if type(row_limit) is not int or not 1 <= row_limit <= 10000:
+        raise ValueError("invalid_index_row_limit")
     now = dt.datetime.now(dt.timezone.utc)
     sources = source_status(policies, now)
     by_source = {item["source_id"]: item for item in sources}
@@ -14,15 +34,21 @@ def market_index(store, policies, collection_plan, *, row_limit=5000):
     refresh = store.latest_refresh()
     receipt = refresh.to_dict() if refresh else None
     if receipt:
-        for status, records in receipt["document"]["output"].items():
-            if status in {"updated", "held", "failed"}:
-                for row in records:
-                    if row["source_id"] in by_source:
-                        by_source[row["source_id"]].setdefault("last_attempts", []).append({**row, "status": status, "at": receipt["created_at"]})
-    for snapshot in store.latest_collections():
-        packet = snapshot.to_dict()
-        output, inputs = packet["document"]["output"], packet["document"]["input"]
-        source = output["source_id"]
+        if not isinstance(receipt.get("document"), dict):
+            raise SnapshotStoreError("snapshot_integrity_failed")
+        output = receipt["document"].get("output")
+        if not isinstance(output, dict) or output.get("execution_enabled") is not False:
+            raise SnapshotStoreError("snapshot_integrity_failed")
+        for status in ("updated", "held", "failed"):
+            records = output.get(status, [])
+            if not isinstance(records, list) or any(not isinstance(row, dict) or not isinstance(row.get("source_id"), str) for row in records):
+                raise SnapshotStoreError("snapshot_integrity_failed")
+            for row in records:
+                if row["source_id"] in by_source:
+                    by_source[row["source_id"]].setdefault("last_attempts", []).append({**row, "status": status, "at": receipt["created_at"]})
+    scan = store.latest_collection_scan()
+    for snapshot in scan.snapshots:
+        packet, output, inputs, source = _collection_packet(snapshot)
         if source not in by_source:
             continue
         policy = policies.get(source)
@@ -74,13 +100,19 @@ def market_index(store, policies, collection_plan, *, row_limit=5000):
     for source in sources:
         scopes = source.get("scopes", [])
         source["latest"] = scopes[0] if scopes else None
-        source["observed_liveness"] = "not_probed" if not scopes else "stale" if all(scope["stale"] for scope in scopes) else "recent_success"
+        source["observed_liveness"] = ("not_found_in_bounded_history" if scan.has_older_history else "not_probed") if not scopes else "stale" if all(scope["stale"] for scope in scopes) else "recent_success"
+    warnings = ["catalog_references_are_not_verified_executable_inventory",
+                "source_timestamp_and_scope_control_price_use"]
+    if scan.has_older_history:
+        warnings.append("collection_history_scan_truncated_scopes_may_be_missing")
     return {"as_of": now.isoformat().replace("+00:00", "Z"), "sources": sources,
             "observations": observations, "catalog_records": catalog_records, "snapshots": snapshots,
             "collection_plan": collection_plan, "last_refresh": receipt, "execution_enabled": False,
-            "coverage": {"history_scan_limit": 512, "observation_row_limit": row_limit,
+            "coverage": {"history_scan_limit": scan.scan_limit, "history_rows_scanned": scan.rows_scanned,
+                         "history_scan_truncated": scan.has_older_history,
+                         "possible_missing_scopes": scan.has_older_history,
+                         "distinct_scopes_returned": len(scan.snapshots), "observation_row_limit": row_limit,
                          "catalog_row_limit": row_limit, "total_observations": total_observations,
                          "total_catalog_records": total_catalog,
                          "display_truncated": total_observations > len(observations) or total_catalog > len(catalog_records)},
-            "warnings": ["catalog_references_are_not_verified_executable_inventory",
-                         "source_timestamp_and_scope_control_price_use"]}
+            "warnings": warnings}
