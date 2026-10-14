@@ -101,7 +101,8 @@
   }
 
   /* ---- Share bars, split by grade on an ordinal ramp: A is the strongest tone. Each row fills the width; the total is printed at the right ---- */
-  function gradeStack({ rows, width, description, enter = false, labelWidth = 72, barHeight = 16, rowHeight = 38, gap = 2 }) {
+  function gradeStack({ rows, width, description, enter = false, barHeight = 16, rowHeight = 38, gap = 2 }) {
+    const labelWidth = Math.ceil(Math.max(0, ...rows.map((row) => String(row.label).length)) * 7.8) + 14;
     const trailWidth = Math.ceil(Math.max(0, ...rows.map((row) => String(row.trail || "").length)) * 7.2) + 14; const height = rows.length * rowHeight; const chart = root(width, Math.max(height, 4), description, "ov-stack" + (enter ? " ov-in" : ""));
     const x0 = labelWidth; const x1 = width - trailWidth; const span = x1 - x0;
     rows.forEach((row, index) => {
@@ -122,7 +123,7 @@
 
   /* ---- A signed bar on a shared scale, drawn small enough to sit in a table cell. Zero sits where the data puts it. ---- */
   function signedBar({ value, low, high, width = 120, height = 14, title = "" }) {
-    const chart = svg("svg", { viewBox: "0 0 " + width + " " + height, class: "ov-signed", width, height, role: "img", "aria-label": title, focusable: "false" });
+    const chart = svg("svg", { viewBox: "0 0 " + width + " " + height, class: "ov-signed", width, height, "aria-hidden": "true", focusable: "false" });  // the figure beside it says the same in words
     if (!finite(value)) return chart;
     const reach = (Math.max(0, high) + Math.max(0, -low)) || 1; const zero = r2((Math.max(0, -low) / reach) * (width - 2) + 1);
     const w = Math.max(2, (Math.abs(value) / reach) * (width - 2)); const positive = value >= 0;

@@ -88,7 +88,7 @@
 
   /* ---- Eligible supply by grade: each model's eligible GPUs, split by seller grade ---- */
   function renderSupply(ctx) {
-    const data = state.data; const width = fit("desk-supply", 560); const narrow = width < 440;
+    const data = state.data; const width = fit("desk-supply", 560);
     const eligible = new Map(data.models.map((m) => [m.model, { A: 0, B: 0, C: 0, D: 0, U: 0 }]));
     data.quotes.forEach((q) => { const row = eligible.get(q.gpu); if (row && q.eligible && Number.isFinite(q.gpus)) row[GRADES.includes(q.grade) ? q.grade : "U"] += q.gpus; });
     const offered = (model) => Object.values(data.supply[model] || {}).reduce((sum, v) => sum + (Number.isFinite(v) ? v : 0), 0);
@@ -100,7 +100,7 @@
     const caption = totalOffered ? int(totalEligible) + " of " + int(totalOffered) + " GPUs on offer (" + pct(totalEligible / totalOffered, 0) + ") are in eligible quotes." + (ab !== null && leader ? " Grade A and B sellers hold " + pct(ab, 0) + " of them. " + leader.model + " has the most eligible GPUs, " + int(sum(eligible.get(leader.model))) + "." : "") : "No GPUs are on offer.";
     const parts = (g) => (g === "U" ? "Sellers not rated" : "Grade " + g);
     replace("desk-supply",
-      C.gradeStack({ rows, width, enter: ctx.enter("supply"), labelWidth: narrow ? 62 : 70, description: "Eligible GPUs by seller grade for each model, as a share of that model's eligible GPUs. " + rows.map((r) => r.label + " " + r.trail).join("; ") + "." }),
+      C.gradeStack({ rows, width, enter: ctx.enter("supply"), description: "Eligible GPUs by seller grade for each model, as a share of that model's eligible GPUs. " + rows.map((r) => r.label + " " + r.trail).join("; ") + "." }),
       C.legend(letters.map((g) => ({ label: parts(g), className: GRADE_CLASS[g] }))), h("p", "ov-caption", caption),
       C.twin("Eligible GPUs by model and seller grade", ["Model", ...letters.map(parts), "Eligible GPUs", "GPUs on offer"], data.models.map((m) => [m.model, ...letters.map((g) => int(eligible.get(m.model)[g])), int(sum(eligible.get(m.model))), int(offered(m.model))])));
   }

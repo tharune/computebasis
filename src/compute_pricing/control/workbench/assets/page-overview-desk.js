@@ -45,7 +45,7 @@
     const body = h("tbody");
     desk.positions.forEach((p, index) => {
       const site = sites.get(p.site_id); const unrealized = printed(p, "unrealized_usd", 2, { sign: true });
-      const gap = C.finite(p.unrealized_usd) ? C.signedBar({ value: p.unrealized_usd, low, high, width: 132, title: unrealized + " unrealized, " + p.id }) : null;
+      const gap = C.finite(p.unrealized_usd) ? C.signedBar({ value: p.unrealized_usd, low, high, width: 112, title: unrealized + " unrealized, " + p.id }) : null;
       body.append(labelled(h("tr", "ov-r" + Math.min(index + 1, 8),
         h("th", "ov-first", h("span", "ov-model", p.model), h("span", "ov-id", p.id)),
         h("td", "", site ? h("div", "ov-two", h("span", "ov-place", place(site)), seller(site.provider, site.grade)) : h("span", "ov-unrated", "Site not in the ledger")),
@@ -67,8 +67,8 @@
 
   function renderBidSummary(desk, ctx) {
     const slot = "desk-bid-fill"; const chart = "desk-bid-status";
-    if (!desk) { replace(slot, h("p", "ov-note", "Fill rate needs the desk ledger.")); replace(chart, absent(D.state, "Bids")); return; }
-    if (!desk.bids.length) { replace(slot, h("p", "ov-note", "No bids brokered yet.")); replace(chart); return; }
+    D.byId("desk-bid-top").hidden = !desk || !desk.bids.length;  // without a ledger, or without bids, one message stands in for the summary and the table
+    if (!desk || !desk.bids.length) { replace(slot); replace(chart); return; }
     const by = (status) => desk.bids.filter((bid) => bid.status === status); const decided = by("filled").length + by("declined").length + by("expired").length;
     const rate = desk.summary.fill_rate;
     replace(slot, h("p", "ov-figure", rate === null ? "—" : pct(rate, 0)), h("p", "ov-figure-note", rate === null ? "No bid has been decided yet." : by("filled").length + " of " + decided + " decided bids were filled."),
@@ -81,9 +81,9 @@
 
   function renderBids(ctx) {
     const { state } = D; const desk = state.desk; renderBidSummary(desk, ctx);
-    if (!desk) { replace("desk-bids"); D.text("desk-bids-lede", "Bids the desk placed with sellers on behalf of buyers."); return; }
+    if (!desk) { replace("desk-bids", absent(state, "Bids")); D.text("desk-bids-lede", "Bids the desk placed with sellers on behalf of buyers."); return; }
     D.text("desk-bids-lede", "Bids the desk placed with sellers on behalf of buyers, each against a quote in the book. Fill rate counts filled bids over decided bids; open bids are left out.");
-    if (!desk.bids.length) { replace("desk-bids"); return; }
+    if (!desk.bids.length) { replace("desk-bids", h("div", "ov-absent", h("p", "", "No bids brokered yet."))); return; }
     const sites = new Map(desk.sites.map((site) => [site.id, site])); const quotes = new Map(state.data.quotes.map((quote) => [quote.id, quote]));
     const ordered = desk.bids.slice().sort((a, b) => String(b.placed).localeCompare(String(a.placed)) || String(a.id).localeCompare(String(b.id)));
     const body = h("tbody");

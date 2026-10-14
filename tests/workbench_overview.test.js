@@ -4,8 +4,9 @@
 const { test } = require("node:test");
 const { assert, fs, path, assets, findAll, classes, byClass, byTag, settle, assertClean, makePage, base, war, reset, book, normalize, deskFixture } = require("./demo_harness.js");
 
+const read = (name) => fs.readFileSync(path.join(assets, name), "utf8");
 const SLOTS = ["desk-kpis", "desk-positions", "desk-bid-fill", "desk-bid-status", "desk-bids", "desk-basis", "desk-trend", "desk-supply", "desk-reasons", "desk-providers", "desk-activity"];
-const TEXTS = ["desk-lede", "desk-positions-lede", "desk-bids-lede", "desk-market-lede", "desk-capacity-lede", "desk-trend-title", "desk-map-note"];
+const TEXTS = ["desk-lede", "desk-clock", "desk-positions-lede", "desk-bids-lede", "desk-market-lede", "desk-capacity-lede", "desk-trend-title", "desk-map-note"];
 const grouped = (digits) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 /* The expected printing of a server decimal: its own digits, separators, a real minus sign. */
 const money = (exact, sign = false) => { const negative = exact.startsWith("-"); const [whole, fraction] = exact.replace("-", "").split("."); return (negative ? "−" : sign ? "+" : "") + "$" + grouped(whole) + (fraction ? "." + fraction : ""); };
@@ -20,8 +21,9 @@ test("every section draws from a real book and the ledger, with nothing broken",
   SLOTS.forEach((id) => { assertClean(page.el(id), id); assert.ok(page.el(id).children.length > 0, id + " is empty"); });
   TEXTS.forEach((id) => assert.doesNotMatch(page.el(id).textContent, /\b(NaN|undefined|Infinity)\b|\[object/, id));
   assert.equal(byClass(page.el("desk-kpis"), "ov-kpi").length, 6);
-  assert.match(page.el("desk-lede").textContent, /Simulated data/);
-  assert.match(page.el("desk-lede").textContent, /executes a trade/);
+  const lede = /<p id="desk-lede">([^<]*)<\/p>/.exec(read("index.html"))[1];  // static, so it is there before the book is
+  assert.match(lede, /Simulated data/); assert.match(lede, /executes a trade/); assert.ok(lede.length < 120, "the statement is one line");
+  assert.match(page.el("desk-clock").textContent, new RegExp("Market time " + book.base.meta.as_of));
   assert.equal(page.deskCalls().length, 1, "the ledger is read once on opening");
   assert.equal(page.notices.length, 0);
 });
@@ -97,8 +99,7 @@ test("a ledger with no positions and no bids says so", async () => {
   const desk = clone(deskFixture); desk.positions = []; desk.bids = []; Object.assign(desk.summary, { positions: 0, position_gpus: 0, unrealized_usd: "0.00", bids: 0, bids_open: 0, bids_filled: 0, bids_declined: 0, bids_expired: 0, bid_gpus: 0, filled_gpus: 0, open_gpus: 0, fill_rate: null });
   const page = await open(base, { desk });
   assert.match(page.el("desk-positions").textContent, /holds no positions/);
-  assert.match(page.el("desk-bid-fill").textContent, /No bids brokered yet/);
-  assert.equal(page.el("desk-bids").children.length, 0);
+  assert.match(page.el("desk-bids").textContent, /No bids brokered yet/); assert.equal(page.el("desk-bid-top").hidden, true);
   SLOTS.forEach((id) => assertClean(page.el(id), id));
   assert.ok(page.el("desk-basis").children.length > 0, "the market still draws");
 });
@@ -110,7 +111,7 @@ test("when the ledger cannot be read the market still draws and the desk section
   ]) {
     const page = await make();
     assert.match(page.el("desk-positions").textContent, /desk ledger is unavailable/);
-    assert.match(page.el("desk-bids").textContent + page.el("desk-bid-status").textContent, /desk ledger is unavailable/);
+    assert.match(page.el("desk-bids").textContent, /desk ledger is unavailable/); assert.equal(page.el("desk-bid-top").hidden, true, "no empty fill-rate panel without a ledger");
     assert.match(page.el("desk-kpis").textContent, /Ledger unavailable/);
     assert.equal(byClass(page.el("desk-kpis"), "ov-kpi").length, 6);
     ["desk-basis", "desk-trend", "desk-supply", "desk-reasons", "desk-providers", "desk-activity"].forEach((id) => assert.ok(page.el(id).children.length > 0, id + " draws without the ledger"));
@@ -329,7 +330,6 @@ test("a moving book never prints a malformed price", async () => {
 });
 
 /* ---- what the files themselves must obey ---- */
-const read = (name) => fs.readFileSync(path.join(assets, name), "utf8");
 const OVERVIEW_JS = fs.readdirSync(assets).filter((name) => /^page-overview(-[a-z]+)?\.js$/.test(name));
 const withoutComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 

@@ -14,7 +14,6 @@
   const ctx = Object.freeze({ enter });
 
   const stamp = (iso) => { const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(iso || ""); return m ? m[1] + " " + m[2] + " UTC" : ""; };
-  const TOP = "Simulated data: every position, bid and quote here is invented, and nothing here executes a trade.";
 
   /* ---- Key figures ---- */
   /* Change in a market series over the readings the book holds (at most 48), named in minutes of simulated time. Nothing is shown without history. */
@@ -71,7 +70,7 @@
   function renderDesk() {
     if (!live()) { replace("desk-kpis", empty(state.error || "Opening the simulated book…")); byId("desk-kpis").classList.remove("ov-in"); return; }
     const data = state.data; const D_ = window.OverviewDesk; const M = window.OverviewMarket; if (!D_ || !M) return;
-    text("desk-lede", TOP + " Market time " + stamp(data.meta.time) + ".");
+    text("desk-clock", "Market time " + stamp(data.meta.time) + (data.meta.paused ? ", paused." : ", one simulated minute every " + (data.meta.tick_seconds || 3) + " seconds."));
     text("desk-market-lede", int(data.kpis.live_quotes) + " live quotes from " + data.kpis.providers_quoting + " of " + data.kpis.providers_total + " sellers, " + int(data.kpis.eligible_quotes) + " of them eligible to rank. Prices are dollars per GPU-hour.");
     renderKpis(); D_.renderPositions(ctx); D_.renderBids(ctx);
     M.renderBasis(ctx); M.renderTrend(ctx); M.renderSupply(ctx); M.renderReasons(ctx); M.renderProviders(); M.renderActivity();
