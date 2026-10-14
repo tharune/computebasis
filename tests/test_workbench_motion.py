@@ -7,22 +7,28 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from compute_pricing.control.workbench.routes import ASSETS
 
-CSS = re.sub(r"/\*.*?\*/", "", (ASSETS / "workbench.css").read_text(encoding="utf-8"), flags=re.S)  # comments mention the selectors
+def stripped(name):
+    return re.sub(r"/\*.*?\*/", "", (ASSETS / name).read_text(encoding="utf-8"), flags=re.S)  # comments mention the selectors
+
+
+CSS = stripped("landing.css")
+GLOBAL_CSS = stripped("workbench.css")  # the all-pages reduced-motion switch lives here
 ENTRANCE_KEYFRAMES = ("bf-rise", "bf-fade", "bf-rule", "bf-grow", "view-in", "menu-in")
 
 
-def block_after(marker):
+def block_after(marker, css=None):
     """The text between the braces of the block that opens with `marker`, and where it starts."""
-    start = CSS.index(marker)
-    depth, index = 0, CSS.index("{", start)
+    css = CSS if css is None else css
+    start = css.index(marker)
+    depth, index = 0, css.index("{", start)
     begin = index + 1
     while True:
-        if CSS[index] == "{":
+        if css[index] == "{":
             depth += 1
-        elif CSS[index] == "}":
+        elif css[index] == "}":
             depth -= 1
             if depth == 0:
-                return CSS[begin:index], begin
+                return css[begin:index], begin
         index += 1
 
 
@@ -49,7 +55,7 @@ class MotionRulesTests(unittest.TestCase):
             self.assertLessEqual(properties, {"opacity", "transform"}, name + " animates " + ", ".join(sorted(properties)))
 
     def test_reduced_motion_still_stops_everything_else(self):
-        body, _ = block_after("@media (prefers-reduced-motion: reduce)")
+        body, _ = block_after("@media (prefers-reduced-motion: reduce)", GLOBAL_CSS)
         self.assertIn("animation: none !important", body)
         self.assertIn("transition: none !important", body)
 

@@ -11,7 +11,7 @@ from compute_pricing.control.workbench.routes import ASSETS
 HTML = (ASSETS / "index.html").read_text(encoding="utf-8")
 ROUTE = (ASSETS / "route.js").read_text(encoding="utf-8")
 SCRIPT = (ASSETS / "workbench.js").read_text(encoding="utf-8")
-CSS = (ASSETS / "workbench.css").read_text(encoding="utf-8")
+CSS = (ASSETS / "workbench.css").read_text(encoding="utf-8") + (ASSETS / "landing.css").read_text(encoding="utf-8")
 
 
 class Tags(HTMLParser):
