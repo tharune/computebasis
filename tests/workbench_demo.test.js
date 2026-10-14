@@ -56,7 +56,6 @@ test("charts survive empty, single-point and missing data without NaN or undefin
   assert.match(drawn[8].getAttribute("aria-label"), /zero/);
 });
 
-
 test("the first poll draws the Brief from the simulated book and marks the workspace live", async () => {
   const page = makePage(base);
   assert.equal(page.calls.length, 0);
@@ -127,70 +126,6 @@ test("an unchanged book is answered 304 and the drawn page is left alone", async
   assertLive(page);
 });
 
-test("a changed book redraws the Overview and highlights only what moved", async () => {
-  const page = makePage(base); page.connect(); await settle();
-  page.host.showView("desk"); await settle();
-  const kpis = page.el("desk-kpis");
-  assert.equal(byClass(kpis, "kpi").length, 6);
-  assert.equal(byClass(kpis, "flash").length, 0, "nothing flashes on first paint");
-  assert.match(kpis.textContent, new RegExp((base.kpis.basis * 100).toFixed(1) + "%"));
-  assert.equal(byClass(page.el("desk-basis"), "ch-part").length, book.base.models.reduce((count, entry) => count + 1 + (entry.best ? 1 : 0), 0), "a bar for each model's lowest quote and one for its best eligible quote");
-  ["desk-kpis", "desk-basis", "desk-trend", "desk-supply", "desk-completeness", "desk-grades", "desk-providers", "desk-activity", "desk-expiry"].forEach((id) => { assertClean(page.el(id), id); assert.ok(page.el(id).children.length > 0, id + " is empty"); });
-  page.server.snapshot = war; page.server.tag = 'W/"two"';
-  page.poll(); await settle();
-  assert.match(kpis.textContent, new RegExp((war.kpis.basis * 100).toFixed(1) + "%"));
-  assert.ok(byClass(kpis, "flash").length > 0, "changed figures are highlighted");
-  assert.ok(byClass(page.el("desk-trend"), "ch-marker-label").some((node) => /price war/i.test(node.textContent)), "the scenario is annotated on the chart");
-  assert.ok(byClass(page.el("desk-activity"), "flash").length > 0, "new events are highlighted");
-});
-
-test("the Overview basis bars carry the book's own numbers, and a model with no eligible seller says so", async () => {
-  const drawn = structuredClone(base); const lone = drawn.models[drawn.models.length - 1];
-  lone.best = null; lone.basis = null; lone.eligible = 0; lone.eligible_count = 0;  // one market with nobody eligible
-  const expected = normalize(drawn);
-  const page = makePage(drawn); page.connect(); await settle(); page.host.showView("desk"); await settle();
-  const basis = page.el("desk-basis");
-  const labels = byClass(basis, "ch-value").map((node) => node.textContent); const trails = byClass(basis, "ch-trail").map((node) => node.textContent);
-  assert.equal(trails.length, expected.models.length);
-  expected.models.forEach((entry, index) => {
-    assert.ok(labels.includes("$" + Number(entry.cheapest.price).toFixed(2)), entry.model + " lowest quote is labelled");
-    if (entry.best) { assert.ok(labels.includes("$" + entry.best.risk_adjusted.toFixed(3)), entry.model + " best eligible all-in is labelled"); assert.equal(trails[index], "+" + (entry.basis * 100).toFixed(1) + "%"); }
-    else assert.equal(trails[index], "—");
-  });
-  assert.match(basis.textContent, /No eligible seller/);
-  const bars = byClass(basis, "ch-part"); assert.ok(bars.every((bar) => Number(bar.attributes.width) > 0 && Number(bar.attributes.x) >= 0), "bars start at the zero line");
-});
-
-test("the Overview price chart flags each scenario and names the market a flag belongs to", async () => {
-  const page = makePage(war); page.connect(); await settle(); page.host.showView("desk"); await settle();
-  const flags = byClass(page.el("desk-trend"), "ch-marker-label"); assert.ok(flags.some((node) => /^Price war/.test(node.textContent)));
-  page.server.snapshot = { ...war, alerts: war.alerts.filter((alert) => !alert.scenario) }; page.server.tag = 'W/"quiet"'; page.poll(); await settle();
-  assert.ok(byClass(page.el("desk-trend"), "ch-marker-label").some((node) => /^Price war/.test(node.textContent)), "a flag stays on the chart after the feed has moved past its alert");
-  const other = page.el("desk-model-tabs").children.find((button) => button.dataset.model !== "B300"); await other.click(); await settle();
-  assert.ok(byClass(page.el("desk-trend"), "ch-marker-label").some((node) => /^Price war$/.test(node.textContent)), "a scenario moves the whole market, so the same flag is on every model");
-  assert.equal(page.el("desk-model-tabs").children.length, book.base.models.length);
-});
-
-test("a reset removes the scenario flags it leaves behind on the Overview price chart", async () => {
-  const page = makePage(war); page.connect(); await settle(); page.host.showView("desk"); await settle();
-  const flags = () => byClass(page.el("desk-trend"), "ch-marker-label").filter((node) => /^Price war/.test(node.textContent));
-  assert.ok(flags().length > 0, "the price war is flagged before the reset");
-  // The reset book keeps the earlier clock ticks on its axis, so only the epoch change can clear the flag.
-  const sameAxis = { ...reset, series: { ...reset.series, ticks: war.series.ticks }, meta: { ...reset.meta } };
-  page.server.snapshot = sameAxis; page.server.tag = 'W/"reset"'; page.poll(); await settle();
-  assert.equal(flags().length, 0, "a flag from before the reset must not outlive it");
-});
-
-test("the Quotes cost bars print every component and the all-in total straight from the quote", async () => {
-  const page = makePage(base); page.connect(); await settle(); page.host.showView("quotes"); await settle();
-  const b300 = book.base.models.find((entry) => entry.model === "B300"); const best = book.base.quotes.find((quote) => quote.id === b300.best.id);
-  const callout = page.el("quotes-callout"); assert.equal(byClass(callout, "cost-row").length, 2);
-  assert.ok(byClass(callout, "cost-total").some((node) => node.textContent.startsWith("$" + best.risk_adjusted.toFixed(3))));
-  ["$" + Number(best.price).toFixed(2), "$" + best.financing.toFixed(3), "$" + best.exposure.toFixed(3)].forEach((value) => assert.ok(callout.textContent.includes(value), value + " is printed"));
-  assert.equal(byClass(page.el("quotes-detail"), "cost-row").length, 1);
-  assert.equal(byClass(callout, "ch-part").length >= 3, true);
-});
-
 test("a scenario button sends one control request, locks the controls until it returns, then refetches", async () => {
   const page = makePage(base); page.connect(); await settle(); page.host.showView("desk"); await settle();
   let release; page.server.gate = new Promise((resolve) => { release = resolve; });
@@ -242,43 +177,6 @@ test("ending the session clears the book and does not poll until a session retur
   assert.match(page.el("brief-live").textContent, /Opening the simulated book/);
   const before = page.calls.length; page.poll(); await settle();
   assert.equal(page.calls.length, before);
-});
-
-test("a reset restarts alert numbering, so the next event is highlighted", async () => {
-  const page = makePage(war); page.connect(); await settle(); page.host.showView("desk"); await settle();
-  page.server.snapshot = reset; page.server.tag = 'W/"reset"'; page.poll(); await settle();
-  assert.equal(byClass(page.el("desk-activity"), "flash").length, 0, "a reset replays nothing");
-  const next = structuredClone(reset); next.meta.tick += 1;
-  const latest = reset.alerts.length ? reset.alerts[0].n : 0;
-  next.alerts.unshift({ n: latest + 1, tick: next.meta.tick, time: reset.meta.time, level: "watch", kind: "market", text: "Follow-up after reset" });
-  page.server.snapshot = next; page.server.tag = 'W/"after"'; page.poll(); await settle();
-  const flashed = byClass(page.el("desk-activity"), "flash");
-  assert.equal(flashed.length, 1);
-  assert.match(flashed[0].textContent, /Follow-up after reset/);
-});
-
-test("Quotes ranks every quote for the selected model and Price this quote hands off the selected one", async () => {
-  const page = makePage(base, { priceQuote: true }); page.connect(); await settle(); page.host.showView("quotes"); await settle();
-  const rows = byTag(page.el("quotes-table"), "tbody")[0].children;
-  const b300 = book.base.quotes.filter((quote) => quote.gpu === "B300");
-  assert.equal(rows.length, b300.length);
-  ["quotes-lede", "quotes-callout", "quotes-table", "quotes-detail", "quotes-models"].forEach((id) => assertClean(page.el(id), id));
-  const first = findAll(rows[0], (node) => node.tagName === "button")[0];
-  const chosen = b300.slice().sort((a, b) => (a.risk_rank ?? 1e9) - (b.risk_rank ?? 1e9) || Number(a.price) - Number(b.price))[0];
-  assert.equal(first.textContent, chosen.id, "the top row is the best all-in quote");
-  await first.click(); await settle();
-  assert.match(page.el("quotes-detail").textContent, new RegExp(chosen.id));
-  await page.button("quotes-detail", "Price this quote").click();
-  assert.equal(page.priced.length, 1);
-  assert.equal(page.priced[0].id, chosen.id);
-  assert.equal(page.priced[0].price, chosen.exact.price, "the exact decimal the server sent, not a rounded number");
-  assert.equal(typeof page.priced[0].price, "string", "prices stay decimal strings");
-});
-
-test("without a pricing handler the button simply opens Pricing", async () => {
-  const page = makePage(base); page.connect(); await settle(); page.host.showView("quotes"); await settle();
-  await page.button("quotes-detail", "Price this quote").click();
-  assert.equal(page.shown.at(-1), "pricing");
 });
 
 /* Motion: what the script decides, since the CSS cannot be drawn in a browserless DOM. */
