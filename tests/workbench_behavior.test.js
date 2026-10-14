@@ -36,7 +36,7 @@ class Node {
   scrollIntoView() { this.scrolled = true; }
 }
 
-function harness() {
+function harness({ prefersDark = false } = {}) {
   const nodes = new Map();
   for (const tag of html.matchAll(/<([a-z][a-z0-9]*)\b([^>]*)>/g)) {
     const attributes = Object.fromEntries([...tag[2].matchAll(/([a-z-]+)="([^"]*)"/g)].map((match) => [match[1], match[2]]));
@@ -49,9 +49,9 @@ function harness() {
     for (const option of match[2].matchAll(/<option\b[^>]*value="([^"]*)"[^>]*>([^<]*)<\/option>/g)) { const node = new Node("option"); node.value = option[1]; node.textContent = option[2]; select.append(node); }
   }
   const nav = [...html.matchAll(/data-view="([^"]+)"/g)].map((match) => { const node = new Node("button"); node.dataset.view = match[1]; node.root = true; return node; });
-  const window = new Node("window"); const calls = []; const responses = []; const timers = new Map(); const intervals = []; let timerId = 0;
+  const window = new Node("window"); window.matchMedia = () => ({ matches: prefersDark }); const documentElement = new Node("html"); const calls = []; const responses = []; const timers = new Map(); const intervals = []; let timerId = 0;
   const fetch = (url, options) => { calls.push({ url, options }); const response = responses.shift(); assert.ok(response, "Unexpected request: " + url); return response(options); };
-  const context = vm.createContext({ document: { getElementById: (id) => { assert.ok(nodes.has(id), "Missing DOM element " + id); return nodes.get(id); }, createElement: (tag) => new Node(tag), createElementNS: (_, tag) => new Node(tag), querySelectorAll: () => nav }, window, fetch, AbortController, structuredClone, crypto: { randomUUID }, setTimeout: (fn, delay) => { timers.set(++timerId, { fn, delay }); return timerId; }, clearTimeout: (id) => timers.delete(id), setInterval: (fn) => intervals.push(fn), console });
+  const context = vm.createContext({ document: { documentElement, getElementById: (id) => { assert.ok(nodes.has(id), "Missing DOM element " + id); return nodes.get(id); }, createElement: (tag) => new Node(tag), createElementNS: (_, tag) => new Node(tag), querySelectorAll: () => nav }, window, fetch, AbortController, structuredClone, crypto: { randomUUID }, setTimeout: (fn, delay) => { timers.set(++timerId, { fn, delay }); return timerId; }, clearTimeout: (id) => timers.delete(id), setInterval: (fn) => intervals.push(fn), console });
   vm.runInContext(script, context, { filename: "workbench.js" });
   function reply(body, status = 200) { responses.push(async () => ({ ok: status >= 200 && status < 300, status, json: async () => structuredClone(body), text: async () => typeof body === "string" ? body : JSON.stringify(body) })); }
   function pending(ignoreAbort = false) {
@@ -60,7 +60,7 @@ function harness() {
     return { resolve: (body, status = 200) => resolve({ ok: status >= 200 && status < 300, status, json: async () => body, text: async () => body }), reject };
   }
   async function connect(index = indexFixture()) { reply(index); nodes.get("api-key").value = "test-key-" + "k".repeat(40); await nodes.get("session-form").emit("submit"); }
-  return { node: (id) => nodes.get(id), calls, reply, pending, timers, intervals, window, connect, nav };
+  return { node: (id) => nodes.get(id), calls, reply, pending, timers, intervals, window, documentElement, connect, nav };
 }
 
 const observation = (id, amount, overrides = {}) => ({ id, source_id: "feed:prices", kind: "listing_ask", hardware: { model: id, accelerator_count: "1" }, price: { amount, currency: "USD", unit: "gpu_hour" }, observed_at: "2026-01-01T00:00:00Z", expires_at: "2099-01-01T00:00:00Z", status: "claimed", region: { country_code: "US" }, ...overrides });
@@ -73,6 +73,27 @@ const renderedPrices = (h) => h.node("records-body").children.map((row) => row.c
 
 test("startup is locked and performs no fetch or sample insertion", () => {
   const h = harness(); assert.equal(h.calls.length, 0); assert.equal(h.node("pricing-input").value, ""); assert.equal(h.node("reload-index").disabled, true); assert.equal(h.node("refresh-market").disabled, true);
+});
+
+test("theme starts from system preference and toggles without fetch or session retention", async () => {
+  const h = harness({ prefersDark: true });
+  assert.equal(h.documentElement.attributes["data-theme"], "dark");
+  assert.equal(h.node("theme-toggle").attributes["aria-pressed"], "true");
+  await h.node("theme-toggle").emit("click");
+  assert.equal(h.documentElement.attributes["data-theme"], "light");
+  assert.equal(h.node("theme-toggle").attributes["aria-pressed"], "false");
+  assert.equal(h.calls.length, 0);
+  await h.connect(); await h.node("theme-toggle").emit("click"); await h.node("disconnect").emit("click");
+  assert.equal(h.documentElement.attributes["data-theme"], "dark");
+  assert.equal(h.node("api-key").value, "");
+  const fresh = harness(); assert.equal(fresh.documentElement.attributes["data-theme"], "light");
+});
+
+test("each workspace navigation action has one handler and updates current page", async () => {
+  const h = harness(); const nav = h.nav.find((button) => button.dataset.view === "inventory");
+  assert.equal(nav.listeners.get("click").length, 1); await nav.emit("click");
+  assert.equal(h.node("inventory-view").hidden, false); assert.equal(h.node("market-view").hidden, true);
+  assert.equal(nav.attributes["aria-current"], "page");
 });
 
 test("actual ECB quote_per_base is exact, separate from prices and model metadata", async () => {
@@ -265,4 +286,51 @@ test("policy transformations reject duplicate keys and unsafe numeric literals w
 
 test("policy apply cannot overwrite a draft edited during the strict boundary check", async () => {
   const h = harness(); await h.connect(); await loadSavedPolicy(h); h.node("pricing-input").value = '{"market":{}}'; const delayed = h.pending(true); const applying = h.node("policy-apply").emit("click"); await tick(); h.node("pricing-input").value = '{"market":{"edited":true}}'; delayed.resolve({ request: { market: {} } }); await applying; assert.equal(h.node("pricing-input").value, '{"market":{"edited":true}}'); assert.match(h.node("notice").textContent, /draft changed/);
+});
+
+const underwritingTemplate = () => {
+  const requirements = [{ requirement_id: "custom:memory", title: "Invented memory proof", group: "hardware", required: true, subject_kind: "lot", owning_path: "constraint", owner_model: "review:invented" }];
+  return { requirements_version: "1.0.0", scope_options: ["inference", "resale"], requirements, request: { schema_version: "underwriting-assessment/1.0", request_id: null, as_of: null, requirements_version: "1.0.0", scopes: [], subjects: {}, requirements, evidence: [] } };
+};
+const underwritingReport = () => ({ status: "held", assessment_hash: "c".repeat(64), summary: { required_total: 1, required_covered: 0, required_blocked: 1, required_not_applicable: 0 }, rows: [{ requirement_id: "custom:memory", title: "Invented memory proof", group: "hardware", required: true, applicable: true, status: "missing", subject_kind: "lot", subject_id: null, unit: "GiB", value: null, blockers: ["missing_subject_identity", "missing_requirement_evidence"], evidence_ids: [] }], warnings: ["caller_verified_evidence_pointers_not_independent_authenticity_verification"], execution_enabled: false, monetary_effects_enabled: false });
+
+test("underwriting template adds no evidence and path controls preserve custom scopes and exact inputs", async () => {
+  const h = harness(); await h.connect(); h.reply(underwritingTemplate()); await h.node("underwriting-template").emit("click");
+  let draft = JSON.parse(h.node("underwriting-input").value); assert.deepEqual(draft.evidence, []); assert.deepEqual(draft.subjects, {}); assert.deepEqual(draft.scopes, []); assert.match(draft.request_id, /^request:/); assert.match(draft.as_of, /Z$/);
+  draft.scopes = ["custom-path"]; draft.extras = { exact: "1.00000000000000000000001" }; h.node("underwriting-input").value = JSON.stringify(draft); await h.node("underwriting-input").emit("input");
+  const control = h.node("underwriting-scopes").children[0].children[0]; control.checked = true; await control.emit("change");
+  draft = JSON.parse(h.node("underwriting-input").value); assert.deepEqual(draft.scopes, ["custom-path", "inference"]); assert.equal(draft.extras.exact, "1.00000000000000000000001");
+  const original = h.node("underwriting-input").value; h.reply(underwritingTemplate()); await h.node("underwriting-template").emit("click"); assert.equal(h.node("underwriting-input").value, original);
+  h.node("underwriting-input").value = '{"scopes":["resale"],"scopes":[]}'; const raw = h.node("underwriting-input").value;
+  const newControl = h.node("underwriting-scopes").children[0].children[0]; newControl.checked = true; await newControl.emit("change");
+  assert.equal(h.node("underwriting-input").value, raw); assert.match(h.node("notice").textContent, /Duplicate JSON key/);
+});
+
+test("underwriting sends original bytes, exposes gaps and invalidates changed drafts", async () => {
+  const h = harness(); await h.connect(); const raw = '{"scopes":["resale"],"custom_exact":"1.00000000000000000001"}'; h.node("underwriting-input").value = raw; await h.node("underwriting-input").emit("input");
+  const pending = h.pending(); const action = h.node("underwriting-assess").emit("click"); await tick(); assert.equal(h.calls.at(-1).url, "/v1/underwriting/assess"); assert.equal(h.calls.at(-1).options.body, raw);
+  h.node("underwriting-input").value = '{"new_draft":true}'; await h.node("underwriting-input").emit("input"); pending.resolve(underwritingReport()); await action;
+  assert.match(h.node("underwriting-groups").textContent, /Declare the subject identity/); assert.match(h.node("underwriting-summary").textContent, /Required evidence gaps/); assert.equal(h.node("underwriting-result-state").textContent, "Previous input");
+  h.node("underwriting-query").value = "absent"; await h.node("underwriting-query").emit("input"); assert.match(h.node("underwriting-groups").textContent, /No requirements match/);
+});
+
+test("underwriting response after logout cannot restore cleared evidence or drafts", async () => {
+  const h = harness(); await h.connect(); h.node("underwriting-input").value = '{"scopes":["resale"],"declared":true}'; await h.node("underwriting-input").emit("input");
+  const pending = h.pending(true); const action = h.node("underwriting-assess").emit("click"); await tick(); await h.node("disconnect").emit("click"); pending.resolve(underwritingReport()); await action;
+  assert.equal(h.node("underwriting-input").value, ""); assert.equal(h.node("underwriting-output").textContent, ""); assert.equal(h.node("underwriting-result-state").textContent, "Not assessed"); assert.equal(h.node("underwriting-assess").disabled, true);
+  assert.doesNotMatch(h.node("underwriting-groups").textContent, /Invented memory/);
+});
+
+test("underwriting requires a path and preserves supplied units without converting values", async () => {
+  const h = harness(); await h.connect(); h.node("underwriting-input").value = '{"scopes":[]}'; await h.node("underwriting-input").emit("input"); const count = h.calls.length; await h.node("underwriting-assess").emit("click"); assert.equal(h.calls.length, count); assert.match(h.node("notice").textContent, /Select at least one path/);
+  h.node("underwriting-input").value = '{"scopes":["resale"]}'; await h.node("underwriting-input").emit("input");
+  const report = underwritingReport(); report.rows[0].value = "48.135791357913579"; report.rows[0].supplied_unit = "GB"; report.rows[0].blockers = ["registered_unit_mismatch"];
+  h.reply(report); await h.node("underwriting-assess").emit("click");
+  assert.match(h.node("underwriting-groups").textContent, /Declared value: 48\.135791357913579 GB/); assert.match(h.node("underwriting-groups").textContent, /Registered unit: GiB/); assert.match(h.node("underwriting-groups").textContent, /no conversion performed/);
+});
+
+test("model recipe search exposes unpriced metadata without adding GPU price observations", async () => {
+  const h = harness(); await h.connect(indexFixture({ catalog_records: [{ kind: "model_recipe_metadata", model_id: "invented/Example", source_id: "feed:recipes", price_eligible: false, license_claim: "invented-license", recipes: [{ engine: "vllm", accelerator: "gpu" }] }] }));
+  assert.equal(h.node("metric-observations").textContent, "1"); h.node("model-query").value = "vllm"; await h.node("model-query").emit("input"); assert.match(h.node("model-records").textContent, /invented\/Example/); assert.match(h.node("model-records").textContent, /invented-license/); assert.match(h.node("model-records").textContent, /Configuration claims only/);
+  h.node("model-query").value = "unknown-engine"; await h.node("model-query").emit("input"); assert.match(h.node("model-records").textContent, /No catalog records match/); assert.equal(h.calls.length, 1);
 });

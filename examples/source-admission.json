@@ -280,6 +280,23 @@
       "liveness": "not_verified",
       "attribution": "",
       "verified_by": null
+    },
+    "huggingface_catalog": {
+      "enabled": true,
+      "rights_status": "allowed",
+      "rights_evidence": "https://huggingface.co/docs/inference-endpoints/en/api_reference explicitly documents unauthenticated public Catalog listing, separate Bearer-only deployment routes; https://endpoints.huggingface.co/api/openapi.json and official huggingface_hub list_inference_catalog define GET /api/v1/catalog/list and recipe schema. Intended service local selected recipe metadata discovery only; https://huggingface.co/terms-of-service proprietary Materials, attached model licenses and supplemental terms remain separate; no raw public redistribution, executable configs, namespace/quota access, deployment, weights, inference, pricing or performance approval; reviewed 2026-10-14",
+      "permissions": {
+        "observe": "PASS",
+        "retain": "PASS",
+        "benchmark": "PASS",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 86400,
+      "min_interval_s": 1,
+      "liveness": "not_verified",
+      "attribution": "Hugging Face public Inference Endpoints Model Catalog; publisher recipe metadata claims, not independent serving or model-license qualification",
+      "verified_by": "documented-public-recipe-discovery-review"
     }
   }
 }

@@ -40,8 +40,8 @@ def azure_raw(items, next_page=None):
 class LiveSourceV2Tests(unittest.TestCase):
     def test_admission_keeps_pending_feeds_disabled(self):
         config = load_policies(Path(__file__).resolve().parents[1] / "examples/source-admission.json")
-        self.assertEqual({name for name, p in config.items() if p.enabled}, {"azure", "ecb", "getdeploying", "huggingface", "aws_public_pricing", "openrouter"})
-        for name in ("azure", "ecb", "getdeploying", "huggingface", "aws_public_pricing", "openrouter"):
+        self.assertEqual({name for name, p in config.items() if p.enabled}, {"azure", "ecb", "getdeploying", "huggingface", "aws_public_pricing", "openrouter", "huggingface_catalog"})
+        for name in ("azure", "ecb", "getdeploying", "huggingface", "aws_public_pricing", "openrouter", "huggingface_catalog"):
             self.assertEqual(config[name].permissions["execution"], "FAIL")
         self.assertFalse(config["oracle"].enabled)
         self.assertFalse(config["scaleway"].enabled)

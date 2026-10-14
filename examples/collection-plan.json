@@ -73,5 +73,129 @@
       "limit": 50,
       "max_pages": 1
     }
+  },
+  {
+    "source_id": "huggingface_catalog",
+    "filters": {
+      "task": "text-generation",
+      "accelerator": "gpu",
+      "engine": "vllm",
+      "limit": 50
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AWSLambda",
+      "region": "us-east-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AWSLambda",
+      "region": "eu-west-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AWSLambda",
+      "region": "ap-southeast-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonS3",
+      "region": "us-east-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonS3",
+      "region": "eu-west-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonS3",
+      "region": "ap-southeast-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonLightsail",
+      "region": "eu-west-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonLightsail",
+      "region": "ap-southeast-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonECS",
+      "region": "eu-west-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonECS",
+      "region": "ap-southeast-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonBedrock",
+      "region": "eu-west-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonBedrock",
+      "region": "ap-southeast-1"
+    }
+  },
+  {
+    "source_id": "azure",
+    "filters": {
+      "region": "westeurope",
+      "sku_prefix": "Standard_D",
+      "max_pages": 1
+    }
+  },
+  {
+    "source_id": "azure",
+    "filters": {
+      "region": "southeastasia",
+      "sku_prefix": "Standard_D",
+      "max_pages": 1
+    }
+  },
+  {
+    "source_id": "azure",
+    "filters": {
+      "region": "eastus",
+      "sku_prefix": "Standard_E",
+      "max_pages": 1
+    }
+  },
+  {
+    "source_id": "openrouter",
+    "filters": {
+      "limit": 100,
+      "max_pages": 3
+    }
   }
 ]

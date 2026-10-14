@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fastapi.testclient import TestClient
+from compute_pricing.control import __version__
 from compute_pricing.control.api import create_app
 from compute_pricing.control.connectors import ReadOnlyTransport, SourcePolicy
 from compute_pricing.control.reporting import SnapshotStoreError
@@ -48,6 +49,7 @@ class APITests(unittest.TestCase):
     def test_health_is_metadata_only_startup_does_not_collect(self):
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["version"], __version__)
         self.assertFalse(response.json()["execution_enabled"])
         self.assertEqual(self.calls, [])
         self.assertNotIn(str(self.path), response.text)

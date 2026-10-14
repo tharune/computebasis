@@ -83,3 +83,5 @@ The [quality and intake guide](docs/quality-and-intake.md) covers the responsive
 The [inventory and policy guide](docs/inventory-and-policy.md) covers versioned local holdings, source controls and factor registration. Public demos are independently invented; listings never automatically become inventory. Map outlines are packaged [public-domain Natural Earth geometry](docs/third-party-notices.md), with no external tile or location request.
 
 The [interface design guide](docs/interface-design.md) records typography, action hierarchy, accessible controls and visual review criteria.
+
+The [underwriting coverage guide](docs/underwriting-assessment.md) describes the 112 neutral requirements, dynamic scopes and caller-qualified evidence checks. Missing evidence remains explicit; checklist coverage does not calibrate price factors or approve a transaction. The workspace now uses top navigation and light/dark themes.

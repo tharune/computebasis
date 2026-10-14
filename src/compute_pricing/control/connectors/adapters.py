@@ -500,6 +500,9 @@ class SourceAdapter:
         if self.source_id == "openrouter":
             from .openrouter import openrouter_request
             return openrouter_request(filters)
+        if self.source_id == "huggingface_catalog":
+            from .huggingface_catalog import catalog_request
+            return catalog_request(filters)
         if self.source_id == "oracle":
             options = dict(filters or {})
             if set(options) != {"partNumber", "currencyCode"} or not isinstance(options["partNumber"], str) or not re.fullmatch(r"B[0-9]{3,12}", options["partNumber"]) or not isinstance(options["currencyCode"], str) or not re.fullmatch(r"[A-Z]{3}", options["currencyCode"]):
@@ -539,6 +542,7 @@ class SourceAdapter:
 
 
 ADAPTERS = {adapter.source_id: adapter for adapter in (
+    SourceAdapter("huggingface_catalog", "model_recipe_metadata", "https://huggingface.co/docs/inference-endpoints/en/api_reference", "implemented"),
     SourceAdapter("aws_public_pricing", "native_cloud_meter_tariff", "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html", "implemented"),
     SourceAdapter("aws_ec2", "cloud_vm_list_price", "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/using-the-aws-price-list-bulk-api-fetching-price-list-files-manually.html", "not_implemented", "bounded_file_or_authenticated_query_required"),
     SourceAdapter("oracle", "native_product_price_catalog", "https://docs.oracle.com/en-us/iaas/Content/Billing/Tasks/signingup_topic-Estimating_Costs.htm", "rights_review_pending", "commercial_retention_use_permission_required"),
@@ -580,7 +584,7 @@ def source_status(policies: Mapping[str, SourcePolicy], now: dt.datetime | None 
                        "auth_required": bool(spec and spec.secret_env), "auth_present": auth_ready,
                        "auth_state": "not_required" if not (spec and spec.secret_env) else "present" if auth_ready else "missing",
                        "max_age_s": policy.max_age_s if policy else None,
-                       "collection_parameters": {"required": ["region"], "optional": ["sku", "sku_prefix", "max_pages"], "max_pages": 5, "default_sku_prefix": "Standard_N"} if name == "azure" else {"required": ["service", "region"], "optional": ["sku"], "approved_services": ["AmazonLightsail", "AmazonECS", "AmazonBedrock"], "native_units_not_gpu_hours": True} if name == "aws_public_pricing" else {"required": [], "optional": ["q", "input_modalities", "output_modalities", "offset", "limit", "max_pages"], "max_limit": 100, "max_pages": 3, "price_scope": "current_default_conditions_only"} if name == "openrouter" else {"required": ["partNumber", "currencyCode"], "optional": []} if name == "oracle" else {"required": ["author", "pipeline_tag", "limit", "full"], "optional": [], "max_limit": 100} if name == "huggingface" else {"required": [], "optional": []},
+                       "collection_parameters": {"required": ["region"], "optional": ["sku", "sku_prefix", "max_pages"], "max_pages": 5, "default_sku_prefix": "Standard_N"} if name == "azure" else {"required": ["service", "region"], "optional": ["sku"], "approved_services": ["AWSLambda", "AmazonBedrock", "AmazonECS", "AmazonLightsail", "AmazonS3", "AmazonSageMaker"], "native_units_not_gpu_hours": True} if name == "aws_public_pricing" else {"required": [], "optional": ["q", "input_modalities", "output_modalities", "offset", "limit", "max_pages"], "max_limit": 100, "max_pages": 3, "price_scope": "current_default_conditions_only"} if name == "openrouter" else {"required": ["partNumber", "currencyCode"], "optional": []} if name == "oracle" else {"required": ["limit"], "at_least_one_scope": ["task", "accelerator", "engine", "license", "search"], "optional": ["task", "accelerator", "engine", "license", "search"], "max_limit": 100, "price_eligible": False} if name == "huggingface_catalog" else {"required": ["author", "pipeline_tag", "limit", "full"], "optional": [], "max_limit": 100} if name == "huggingface" else {"required": [], "optional": []},
                        "can_attempt_read": not blocked, "blockers": blocked, "execution_enabled": False})
     return result
 
@@ -596,6 +600,9 @@ def collect_source(source_id: str, policies: Mapping[str, SourcePolicy], *,
     # purposes before constructing a request or processing user query filters.
     for purpose in ("observe", "retain", "benchmark"):
         policy.require(purpose, client.clock())
+    if source_id == "huggingface_catalog":
+        from .huggingface_catalog import collect_catalog
+        return collect_catalog(policy, client, filters)
     if source_id == "aws_public_pricing":
         from .aws import collect_aws
         return collect_aws(policy, client, filters)

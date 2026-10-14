@@ -118,7 +118,7 @@ class WorkbenchV2Tests(unittest.TestCase):
 
     def test_frontend_distinguishes_price_sources_and_fx_native_quote_units(self):
         html = self.client.get("/").text
-        self.assertIn("SOURCES WITH PRICES", html)
+        self.assertIn("LOADED PRICE SOURCES", html)
         self.assertIn('id="metric-source-total"', html)
         self.assertIn('id="coverage-note"', html)
         self.assertIn("record.quote_per_base", self.script)

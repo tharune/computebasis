@@ -149,8 +149,10 @@ class SourceSpec:
 
 
 SOURCE_SPECS = {
+    "huggingface_catalog": SourceSpec("huggingface_catalog", "endpoints.huggingface.co", r"/api/v1/catalog/list",
+        query_keys=frozenset({"task", "accelerator", "engine", "license", "search", "limit"})),
     "aws_public_pricing": SourceSpec("aws_public_pricing", "pricing.us-east-1.amazonaws.com",
-        r"/offers/v1\.0/aws/(?:AmazonLightsail|AmazonECS|AmazonBedrock)/(?:current|[0-9]{14})/(?:region_index\.json|[a-z0-9-]+/index\.json)",
+        r"/offers/v1\.0/aws/(?:AmazonLightsail|AmazonECS|AmazonBedrock|AWSLambda|AmazonS3|AmazonSageMaker)/(?:current|[0-9]{14})/(?:region_index\.json|[a-z0-9-]+/index\.json)",
         content_types=frozenset({"application/json", "application/octet-stream", "binary/octet-stream"})),
     "oracle": SourceSpec("oracle", "apexapps.oracle.com", r"/pls/apex/cetools/api/v1/products/",
         query_keys=frozenset({"partNumber", "currencyCode"})),
@@ -340,10 +342,13 @@ class ReadOnlyTransport:
             length = response_headers.get("content-length")
             if length is not None:
                 try:
-                    if not 0 <= int(length) <= self.max_bytes:
-                        raise ConnectorError("response_too_large")
+                    parsed_length = int(length)
                 except ValueError:
                     raise ConnectorError("invalid_content_length") from None
+                if parsed_length < 0:
+                    raise ConnectorError("invalid_content_length")
+                if parsed_length > self.max_bytes:
+                    raise ConnectorError("response_too_large")
             chunks, size = [], 0
             while True:
                 remaining = deadline - self.monotonic()

@@ -1,9 +1,17 @@
 (() => {
   "use strict";
   const byId = (id) => document.getElementById(id);
-  const state = { key: "", epoch: 0, index: null, rows: [], sources: [], snapshots: [], page: 0, synthetic: false, busy: false, action: null, controllers: new Map(), detailOrigin: null, inventory: null, inventoryDemo: false, inventorySite: "", selectedLot: "", land: null, policyEntries: [], policyCatalog: [], policyRows: [], policySaved: null, policyDirty: true, policyControlsDirty: false };
+  const state = { key: "", epoch: 0, index: null, rows: [], sources: [], snapshots: [], page: 0, synthetic: false, busy: false, action: null, controllers: new Map(), detailOrigin: null, inventory: null, inventoryDemo: false, inventorySite: "", selectedLot: "", land: null, policyEntries: [], policyCatalog: [], policyRows: [], policySaved: null, policyDirty: true, policyControlsDirty: false, underwritingRows: [], underwritingCatalog: null };
   const PAGE_SIZE = 100;
   const EMPTY = "—";
+  let underwritingScopeFields = [];
+  let darkMode = window.matchMedia?.("(prefers-color-scheme: dark)").matches === true;
+  function applyTheme() {
+    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+    byId("theme-toggle").setAttribute("aria-pressed", String(darkMode));
+  }
+  applyTheme();
+  byId("theme-toggle").addEventListener("click", () => { darkMode = !darkMode; applyTheme(); });
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -34,10 +42,12 @@
     byId("inventory-save").disabled = busy || !state.key || state.inventoryDemo || !byId("inventory-input").value.trim();
     ["policy-update-json", "policy-save"].forEach((id) => { byId(id).disabled = busy || !state.key || !byId("policy-input").value.trim(); });
     byId("policy-apply").disabled = busy || !state.key || !state.policySaved || state.policyDirty;
+    byId("underwriting-template").disabled = busy || !state.key;
+    byId("underwriting-assess").disabled = busy || !state.key || !byId("underwriting-input").value.trim();
     if (byId("evaluate-live-reference")) byId("evaluate-live-reference").disabled = busy || !state.key || !byId("live-model").value || !byId("live-terms").value;
   }
   function showView(name, focus = true) {
-    ["market", "inventory", "pricing", "policy", "inference", "cash"].forEach((view) => { byId(view + "-view").hidden = view !== name; });
+    ["market", "inventory", "underwriting", "pricing", "policy", "inference", "cash"].forEach((view) => { byId(view + "-view").hidden = view !== name; });
     document.querySelectorAll("[data-view]").forEach((button) => {
       const selected = button.dataset.view === name;
       button.classList.toggle("active", selected);
@@ -60,8 +70,14 @@
       byId(kind + "-input-state").className = "field-help";
     });
     text("pricing-mode", "Declared input · no example loaded");
+    state.underwritingRows = []; state.underwritingCatalog = null;
+    underwritingScopeFields = []; byId("underwriting-scopes").replaceChildren(element("p", "Load the catalog to select contract and workload paths.", "muted"));
+    byId("underwriting-input").value = ""; byId("underwriting-output").textContent = ""; byId("underwriting-output").hidden = true; byId("underwriting-query").value = "";
+    text("underwriting-result-state", "Not assessed"); byId("underwriting-result-state").className = "pill";
+    text("underwriting-catalog-version", "No catalog loaded"); text("underwriting-input-state", "No input supplied.");
+    byId("underwriting-summary").replaceChildren(element("p", "Load the versioned catalog or supply explicit requirements and evidence.", "empty-state")); renderUnderwritingRows();
     byId("record-detail-json").textContent = ""; byId("record-detail").hidden = true;
-    byId("record-query").value = ""; state.detailOrigin = null;
+    byId("record-query").value = ""; byId("model-query").value = ""; state.detailOrigin = null;
     state.inventory = null; state.inventoryDemo = false; state.inventorySite = ""; state.selectedLot = "";
     ["inventory-input", "inventory-at", "inventory-query", "inventory-status", "policy-input"].forEach((id) => { byId(id).value = ""; });
     ["inventory-output", "policy-output"].forEach((id) => { byId(id).textContent = ""; byId(id).hidden = true; });
@@ -150,11 +166,13 @@
       if (source.coverage?.complete === false || latest.scopes.some((scope) => scope.coverage?.complete === false)) card.append(element("p", "Partial coverage within configured scopes", "blocker"));
       if (source.coverage?.price_coverage_complete === false || latest.scopes.some((scope) => scope.coverage?.price_coverage_complete === false)) card.append(element("p", "Pricing coverage is partial; some model catalogs have missing or invalid advertised rate dimensions.", "blocker"));
       if (latest.scopes.some((scope) => scope.stale)) card.append(element("p", "One or more retained scopes are stale", "blocker"));
+      if (latest.scopes.some((scope) => scope.display_truncated)) card.append(element("p", "Some retained rows are outside this bounded display; scope counts include them.", "blocker"));
       const detail = element("details"); detail.append(element("summary", "Permissions, scope & last attempt"));
       const meta = element("div", undefined, "source-meta");
       [source.implementation_state || "implementation unknown", "rights: " + (source.rights_status || "unknown"), "auth: " + (source.auth_state || "unknown"), "observed: " + (source.observed_liveness || "not probed")].forEach((label) => meta.append(element("span", label, "pill")));
       detail.append(meta);
       latest.scopes.forEach((scope) => detail.append(element("p", JSON.stringify(scope.filters || {}) + " · " + (scope.stale ? "stale" : "within collection policy") + " · " + (scope.captured_at || scope.created_at || EMPTY))));
+      latest.scopes.filter((scope) => scope.display_truncated).forEach((scope) => detail.append(element("p", "Loaded " + scope.returned_observation_count + " / " + scope.observation_count + " observations and " + scope.returned_catalog_record_count + " / " + scope.catalog_record_count + " catalog rows for " + JSON.stringify(scope.filters || {}) + ". Display selection is separate from benchmark weighting.", "muted")));
       if (source.blockers?.length) detail.append(element("p", source.blockers.join(" · "), "blocker"));
       (source.last_attempts || []).forEach((attempt) => detail.append(element("p", "Last attempt " + attempt.status + " · " + (attempt.filters?.region || "configured scope") + " · " + (attempt.reason || attempt.at || "Review source receipt"), attempt.status === "updated" ? "muted" : "blocker")));
       card.append(detail);
@@ -257,16 +275,20 @@
     const isUnpriced = (record) => record.price_eligible === false || record.price_status?.startsWith("unpriced_") || !record.metadata?.pricing || (record.metadata.pricing.prompt === undefined && record.metadata.pricing.completion === undefined);
     const unpriced = priceCatalogs.filter(isUnpriced).length;
     text("model-record-count", records.length + " catalog records / " + (priceCatalogs.length - unpriced) + " advertised rate catalogs / " + unpriced + " unpriced model catalogs / " + (records.length - priceCatalogs.length) + " metadata only");
-    records.slice(0, 100).forEach((record) => {
+    const query = byId("model-query").value.trim().toLowerCase();
+    const filtered = records.filter((record) => [record.model_id, record.id, record.source_id, record.kind, record.task, record.card_license, record.license_claim, ...(record.license_tags || []), ...(record.recipes || []).map((recipe) => recipe.engine)].filter(Boolean).join(" ").toLowerCase().includes(query));
+    filtered.slice(0, 100).forEach((record) => {
       const row = element("div", undefined, "snapshot-row");
       const description = element("div", record.model_id || record.id || "Model metadata");
-      description.append(element("br"), element("code", "Revision " + (record.repository_revision || "unknown") + " · License declared: " + (record.card_license || record.license_tags?.join(", ") || "unknown")));
+      description.append(element("br"), element("code", "Revision " + (record.repository_revision || "unknown") + " · License declared: " + (record.card_license || record.license_claim || record.license_tags?.join(", ") || "unknown")));
+      if (Array.isArray(record.recipes)) description.append(element("p", record.source_id + " · " + record.recipes.length + " selected recipes · " + [...new Set(record.recipes.map((recipe) => recipe.engine + " / " + recipe.accelerator))].join(", ") + " · Configuration claims only", "muted"));
       const scope = record.kind === "model_price_catalog" ? isUnpriced(record) ? "UNPRICED / " + (record.price_status === "unpriced_invalid_advertised_dimensions" ? "invalid advertised dimensions quarantined" : "input/output token rates not published") : (record.price_status === "partial_token_rates" ? "Partial current-default token rates" : "Advertised current-default token rates") + " / " + (record.conditional_pricing_present ? "conditional pricing retained, unapplied" : "other billing dimensions require workload qualification") : record.gated ? "Gated access; permission review required" : "Public metadata; serving permissions unverified";
       description.append(element("p", scope + " · " + freshness(record) + " · No measured runtime qualification", "muted"));
       const inspect = element("button", "Inspect metadata", "quiet-button"); inspect.addEventListener("click", () => showRecord(record, inspect));
       row.append(description, inspect); container.append(row);
     });
-    if (records.length > 100) container.append(element("p", "Showing 100 of " + records.length + " catalog records.", "muted"));
+    if (!filtered.length) container.append(element("p", "No catalog records match this filter.", "empty-state"));
+    container.append(element("p", "Showing " + Math.min(100, filtered.length) + " of " + filtered.length + " matching records / " + records.length + " retained catalogs. Source coverage remains bounded.", "muted"));
   }
   function aggregateRows() {
     return state.rows.filter((record) => {
@@ -320,6 +342,78 @@
     state.page = 0; renderIndex(); return index;
   }
   function metric(container, label, value) { const card = element("div", undefined, "result-metric"); card.append(element("span", label), element("strong", value ?? EMPTY)); container.append(card); }
+  function coverageReason(code) {
+    const reasons = { missing_subject_identity: "Declare the subject identity", missing_requirement_evidence: "Add supporting evidence", missing_value: "Supply the declared value", registered_unit_mismatch: "Supplied and registered units differ", whole_decimal_string_required: "Supply a whole number as an exact string", below_registered_bound: "Value is below the declared bound", above_registered_bound: "Value is above the declared bound", registered_boolean_required: "Supply an explicit true or false", registered_nonempty_string_required: "Supply a nonempty declaration", outside_registered_categories: "Value is outside the declared categories", exact_decimal_string_required: "Supply an exact decimal string", evidence_subject_mismatch: "Evidence describes a different or missing subject", not_applicable_requires_allowed_reviewed_reason_and_null_value: "N/A needs permission, a reviewed reason and no asserted value", missing_review_owner: "Identify the reviewer", missing_evidence_validity_interval: "Declare the evidence validity interval", evidence_not_yet_valid: "Evidence is not yet valid", expired_evidence_interval: "Evidence validity has expired", no_current_scope_matching_qualified_evidence: "Add current evidence matching the required subject, scope and use rights" };
+    if (reasons[code]) return reasons[code];
+    if (code.startsWith("evidence_status:")) return "Evidence remains " + code.split(":")[1];
+    if (code.startsWith("scope_has_no_required_requirements:")) return "Add required entries for the selected path: " + code.split(":")[1];
+    return code.replaceAll("_", " ");
+  }
+  function renderUnderwritingRows() {
+    const container = byId("underwriting-groups"); container.replaceChildren();
+    const query = byId("underwriting-query").value.trim().toLowerCase();
+    const rows = state.underwritingRows.filter((row) => [row.title, row.group, row.requirement_id, row.status, row.owner_model, row.owning_path, ...(row.blockers || [])].filter(Boolean).join(" ").toLowerCase().includes(query));
+    text("underwriting-count", rows.length + " / " + state.underwritingRows.length + " requirements");
+    if (!rows.length) { container.append(element("p", state.underwritingRows.length ? "No requirements match this filter." : "No assessment or catalog loaded.", "empty-state")); return; }
+    rows.forEach((row) => {
+      const card = element("article", undefined, "requirement-row"); const heading = element("div", undefined, "section-heading");
+      heading.append(element("strong", row.title || row.requirement_id), element("span", (row.status || "not_assessed").replaceAll("_", " "), "pill " + (row.status === "verified" ? "good" : !row.status || row.applicable === false ? "" : "warn")));
+      card.append(heading, element("p", (row.group || "Custom") + " / " + row.requirement_id + " / " + (row.required ? "Required" : "Optional"), "muted"));
+      if (row.description) card.append(element("p", row.description, "muted"));
+      const subject = row.subject_id || row.subject_kind || "Subject not supplied";
+      const owner = [row.owning_path, row.owner_model].filter(Boolean).join(" / ");
+      card.append(element("p", "Subject: " + subject + (owner ? " · Owner: " + owner : ""), "field-help"));
+      if (row.value !== undefined && row.value !== null) {
+        const suppliedUnit = Object.prototype.hasOwnProperty.call(row, "supplied_unit") ? row.supplied_unit : row.unit;
+        const value = typeof row.value === "object" ? "Composite value; inspect the complete report" : String(row.value);
+        card.append(element("p", "Declared value: " + value + (suppliedUnit ? " " + suppliedUnit : ""), "field-help"));
+        if (suppliedUnit !== row.unit) card.append(element("p", "Registered unit: " + (row.unit || "unitless") + " · Supplied unit differs; no conversion performed.", "requirement-blockers"));
+      }
+      if (row.blockers?.length) card.append(element("p", row.blockers.map(coverageReason).join(" · "), "requirement-blockers"));
+      if (row.evidence_ids?.length) card.append(element("p", "Evidence: " + row.evidence_ids.join(" · "), "field-help"));
+      container.append(card);
+    });
+  }
+  function syncUnderwritingScopes() {
+    try { const draft = JSON.parse(byId("underwriting-input").value); if (Array.isArray(draft.scopes)) underwritingScopeFields.forEach(({ scope, input }) => { input.checked = draft.scopes.includes(scope); }); } catch (_) { /* Preserve the explicit unfinished draft. */ }
+  }
+  function underwritingEdited() {
+    syncUnderwritingScopes();
+    text("underwriting-input-state", byId("underwriting-input").value.trim() ? "Draft changed. Assess explicitly; any displayed result belongs to the previous input." : "No input supplied.");
+    if (!byId("underwriting-output").hidden) { text("underwriting-result-state", "Previous input"); byId("underwriting-result-state").className = "pill warn"; }
+    setBusy(state.busy);
+  }
+  function renderUnderwritingScopes(options) {
+    const container = byId("underwriting-scopes"); container.replaceChildren(); underwritingScopeFields = [];
+    options.forEach((scope) => {
+      const input = element("input"); input.type = "checkbox"; input.setAttribute("aria-label", "Assess " + scope);
+      const labels = { resale: "Node resale", forward: "Forward delivery", securitization: "Receivable financing", hedging: "Hedging", inference: "Inference serving" };
+      const label = element("label", labels[scope] || scope); label.append(input); container.append(label); underwritingScopeFields.push({ scope, input });
+      input.addEventListener("change", () => {
+        try {
+          const draft = safeEditableJson(byId("underwriting-input").value);
+          if (!Array.isArray(draft.scopes) || draft.scopes.some((value) => typeof value !== "string") || new Set(draft.scopes).size !== draft.scopes.length) throw new Error("Correct malformed or duplicate scope values before using path controls.");
+          draft.scopes = [...draft.scopes.filter((value) => !options.includes(value)), ...underwritingScopeFields.filter(({ input: field }) => field.checked).map(({ scope: value }) => value)];
+          byId("underwriting-input").value = JSON.stringify(draft, null, 2); underwritingEdited();
+        } catch (error) { underwritingEdited(); notify(error.message, true); }
+      });
+    });
+    syncUnderwritingScopes();
+  }
+  function renderUnderwriting(result) {
+    if (!Array.isArray(result.rows) || !result.summary || typeof result.assessment_hash !== "string") throw new Error("Unexpected coverage response. No assessment was displayed.");
+    state.underwritingRows = result.rows; const summary = byId("underwriting-summary"); summary.replaceChildren();
+    metric(summary, "Required variables", result.summary.required_total); metric(summary, "Current qualifying declarations", result.summary.required_covered);
+    metric(summary, "Required evidence gaps", result.summary.required_blocked); metric(summary, "Explicitly not applicable", result.summary.required_not_applicable);
+    text("underwriting-result-state", result.status === "held" ? "Evidence gaps" : "Declared coverage complete"); byId("underwriting-result-state").className = "pill " + (result.status === "held" ? "warn" : "good");
+    if (result.versions?.requirements) text("underwriting-catalog-version", "Assessed requirements " + result.versions.requirements);
+    summary.append(element("p", "Coverage does not establish accuracy, commercial suitability, calibration or execution authority.", "result-provenance"));
+    const globalGaps = (result.blockers || []).filter((row) => row.requirement_id === null).flatMap((row) => row.reasons || []);
+    if (globalGaps.length) summary.append(element("p", globalGaps.map(coverageReason).join(" · "), "result-blockers"));
+    if (result.warnings?.includes("extensions_retained_in_input_hash_but_not_used_in_assessment")) summary.append(element("p", "Additional fields were retained in the input hash and excluded from coverage checks. Register a typed requirement to assess them.", "result-provenance"));
+    byId("underwriting-output").textContent = JSON.stringify(result, null, 2); byId("underwriting-output").hidden = false;
+    renderUnderwritingRows(); text("underwriting-input-state", "Assessed the submitted requirements and evidence. Changes require another assessment.");
+  }
   function moneyMetric(container, label, value, currency) { metric(container, label, value === null || value === undefined ? null : String(value) + " " + (currency || "(currency not returned)")); }
   function hasUnresolved(value) {
     if (value && typeof value === "object") return Object.values(value).some(hasUnresolved);
@@ -587,7 +681,29 @@
     const draft = parsed.request; if (!draft?.market || typeof draft.market !== "object" || Array.isArray(draft.market)) throw new Error("Supply a pricing request with a market packet first."); const document = saved.document; draft.market.policy = structuredClone(document.policy); draft.extensions = { ...(draft.extensions || {}), policy_registry_document: { revision: saved.revision, feature_definitions: document.feature_definitions, notes: document.notes } }; byId("pricing-input").value = JSON.stringify(draft, null, 2); inputChanged("pricing"); text("pricing-mode", "Saved policy applied / evaluate this draft"); showView("pricing"); notify("Applied saved policy " + document.policy.policy_id + " / " + document.policy.version + " to the draft. Evaluate explicitly; registered features remain subject to model activation gates.");
   }));
   [...POLICY_FIELDS, ...BENCHMARK_FIELDS].forEach(([, id]) => byId(id).addEventListener("input", () => policyEdited(true))); byId("policy-input").addEventListener("input", () => policyEdited());
-  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
+  byId("underwriting-template").addEventListener("click", () => runAction("Loading the versioned requirement catalog…", async () => {
+    const template = await api("/v1/underwriting/template");
+    if (!Array.isArray(template.requirements) || !template.request || !Array.isArray(template.scope_options)) throw new Error("Unexpected requirement catalog. Your draft was preserved.");
+    state.underwritingCatalog = template; text("underwriting-catalog-version", "Requirements " + template.requirements_version);
+    if (byId("underwriting-input").value.trim()) { renderUnderwritingScopes(template.scope_options); notify("Catalog loaded. Your existing assessment draft and result were preserved."); return; }
+    const draft = structuredClone(template.request); draft.as_of = new Date().toISOString().replace(/\.\d{3}Z$/, "Z"); draft.request_id = "request:" + crypto.randomUUID();
+    byId("underwriting-input").value = JSON.stringify(draft, null, 2); state.underwritingRows = template.requirements;
+    renderUnderwritingRows(); renderUnderwritingScopes(template.scope_options); underwritingEdited(); notify("Loaded requirements without evidence. Declare scopes, subject IDs and current supporting evidence before assessing. No monetary factors were activated.");
+  }));
+  byId("underwriting-assess").addEventListener("click", async () => {
+    const raw = byId("underwriting-input").value; if (!raw.trim()) return;
+    try {
+      const draft = JSON.parse(raw);
+      if (!Array.isArray(draft?.scopes) || !draft.scopes.length) { notify("Select at least one path to assess, or declare scopes in the request.", true); return; }
+    } catch (_) { text("underwriting-input-state", "Invalid JSON. No assessment request was sent."); notify("Correct the assessment JSON before submitting.", true); return; }
+    await runAction("Assessing declared evidence coverage…", async () => {
+      renderUnderwriting(await api("/v1/underwriting/assess", { method: "POST", body: raw }));
+      if (byId("underwriting-input").value !== raw) underwritingEdited();
+      notify("Coverage assessed for the submitted version only. Inspect evidence gaps and the complete report before using the financial models.");
+    });
+  });
+  byId("underwriting-input").addEventListener("input", underwritingEdited);
+  byId("underwriting-query").addEventListener("input", renderUnderwritingRows);
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
   byId("session-form").addEventListener("submit", async (event) => {
     event.preventDefault(); const key = byId("api-key").value;
@@ -613,6 +729,7 @@
     });
   });
   ["record-query", "source-filter", "region-filter", "kind-filter", "record-sort"].forEach((id) => byId(id).addEventListener("input", () => { state.page = 0; renderRows(); }));
+  byId("model-query").addEventListener("input", () => renderModelDiscovery(state.index));
   byId("reset-filters").addEventListener("click", () => { ["record-query", "source-filter", "region-filter", "kind-filter"].forEach((id) => { byId(id).value = ""; }); state.page = 0; renderRows(); byId("record-query").focus(); });
   byId("previous-page").addEventListener("click", () => { state.page--; renderRows(); }); byId("next-page").addEventListener("click", () => { state.page++; renderRows(); });
   byId("close-detail").addEventListener("click", () => { byId("record-detail").hidden = true; byId("record-detail-json").textContent = ""; if (state.detailOrigin?.isConnected) state.detailOrigin.focus(); else byId("market-title").focus(); state.detailOrigin = null; });

@@ -11,7 +11,7 @@ from .transport import ConnectorError, RawResponse, ReadOnlyTransport, ReadReque
 
 SOURCE_ID = "aws_public_pricing"
 # These are reviewed retrieval contracts, not a model/SKU or economic-value list.
-SUPPORTED_SERVICES = frozenset({"AmazonLightsail", "AmazonECS", "AmazonBedrock"})
+SUPPORTED_SERVICES = frozenset({"AmazonLightsail", "AmazonECS", "AmazonBedrock", "AWSLambda", "AmazonS3", "AmazonSageMaker"})
 MAX_PRODUCTS = 5000
 MAX_TARIFFS = 5000
 MAX_REGIONS = 256
@@ -20,7 +20,8 @@ PRODUCT_ATTRIBUTE_FIELDS = frozenset({"regionCode", "fromRegionCode", "toRegionC
     "servicecode", "instanceType", "instanceSize", "vcpu", "memory", "storage", "operatingSystem",
     "processorArchitecture", "processorFeatures", "preInstalledSw", "tenancy", "usagetype", "operation",
     "group", "bundle", "transfer", "cpuArchitecture", "gpuMemory", "model", "modelId", "modelType",
-    "inferenceType", "requestType", "usageType", "memoryType", "bundleType", "type"})
+    "inferenceType", "requestType", "usageType", "memoryType", "bundleType", "type", "storageClass", "volumeType",
+    "archtype", "architecture", "transferType", "fromLocation", "toLocation", "fromLocationType", "toLocationType"})
 
 
 def _attributes(value, code):
@@ -90,15 +91,17 @@ def parse_aws(raw: RawResponse, policy: SourcePolicy, *, filters: Mapping[str, A
         attributes = _attributes(product.get("attributes"), "aws_product_attributes_invalid")
         if attributes.get("servicecode", options["service"]) != options["service"]:
             raise ConnectorError("aws_response_scope_mismatch")
-        primary, origin = attributes.get("regionCode"), attributes.get("fromRegionCode")
+        primary, origin, destination = attributes.get("regionCode"), attributes.get("fromRegionCode"), attributes.get("toRegionCode")
         if primary:
             if primary != options["region"]:
                 raise ConnectorError("aws_response_scope_mismatch")
             region_bases[sku] = "published_product_region_code"
-        elif origin:
-            if origin != options["region"]:
-                raise ConnectorError("aws_response_scope_mismatch")
+        elif origin == options["region"]:
             region_bases[sku] = "published_transfer_from_region_code"
+        elif destination == options["region"]:
+            region_bases[sku] = "published_transfer_to_region_code"
+        elif origin or destination:
+            raise ConnectorError("aws_response_scope_mismatch")
         else:
             unknown_region_skus.add(sku)
     catalog, seen, exclusions = [], set(), []
@@ -170,6 +173,7 @@ def parse_aws(raw: RawResponse, policy: SourcePolicy, *, filters: Mapping[str, A
                             "source_version": "aws-published-price/v1", "publisher_version": version,
                             "kind": "cloud_meter_tariff", "service_code": options["service"], "sku": sku,
                             "provider_region": options["region"], "native_region_basis": region_bases[sku], "product_family": products[sku].get("productFamily"),
+                            "source_catalog_region": options["region"], "region_is_physical_delivery_claim": False,
                             "native_price": {"amount": decimal_string(amount), "currency": currency, "unit": unit},
                             "term_type": term_type, "offer_term_code": term_code, "rate_code": rate_code,
                             "range_start": decimal_string(begin), "range_end": end_value,

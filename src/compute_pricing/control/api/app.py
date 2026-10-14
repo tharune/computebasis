@@ -14,6 +14,7 @@ from typing import Any, Mapping
 from fastapi import Depends, FastAPI, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
+from compute_pricing.control import __version__ as SERVICE_VERSION
 from compute_pricing.control._numbers import strict_json
 from compute_pricing.control.connectors import ConnectorError, ReadOnlyTransport, collect_source, source_status
 from compute_pricing.control.connectors.transport import SourcePolicy, parse_utc
@@ -22,7 +23,6 @@ from compute_pricing.control.domain.generate import json_schema
 from compute_pricing.control.reporting import SnapshotStore, SnapshotStoreError
 from compute_pricing.control.treasury import evaluate_cash_payload
 
-SERVICE_VERSION = "0.4.0"
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
 # Leave room for the canonical snapshot envelope and evaluation output wrappers.
 MAX_REQUEST_DEPTH = 24
@@ -403,8 +403,10 @@ def create_app(*, api_key: str, store_path: Path,
     from compute_pricing.control.workbench import add_workbench
     from compute_pricing.control.policies.routes import attach_policies
     from compute_pricing.control.inventory import attach_inventory
+    from compute_pricing.control.underwriting.routes import attach_underwriting
     attach_policies(app, authenticated=authenticated, json_body=_json_body,
                     store_path=store.path, source_policies=policies)
     attach_inventory(app, authenticated=authenticated, json_body=_json_body, store_path=store.path)
+    attach_underwriting(app, authenticated=authenticated, json_body=_json_body)
     add_workbench(app)
     return app

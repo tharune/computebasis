@@ -275,6 +275,7 @@ class PublicSourcesV4Tests(unittest.TestCase):
         self.assertEqual(row["native_region_basis"], "published_transfer_from_region_code")
         self.assertEqual(row["extensions"]["product_attributes"]["toRegionCode"], "eu-west-1")
         attributes["fromRegionCode"] = ""
+        attributes["toRegionCode"] = ""
         batch = parse_aws(raw(packet), policy(), filters=FILTERS)
         self.assertEqual(batch.catalog_records, ())
         self.assertFalse(batch.coverage["complete"])
