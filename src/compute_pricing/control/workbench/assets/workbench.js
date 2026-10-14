@@ -422,7 +422,7 @@
     // The tag describes only the index held in memory; the server answers 304 when the retained
     // evidence is unchanged, which spares a 25 MB download, its parse, and a full re-render.
     const meta = { ifNoneMatch: state.index ? state.indexTag : "" };
-    const index = await api("/v1/market/index", {}, meta);
+    const index = await api("/v1/market/current", {}, meta);
     if (index === null && meta.status === 304) {
       // Without the server's clock the held index cannot be re-stamped honestly, so read it in full instead.
       if (!state.index || !meta.asOf) { state.indexTag = ""; return loadIndex(); }

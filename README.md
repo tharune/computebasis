@@ -26,6 +26,7 @@ Maintained by **Tharun Ekambaram**.
 - Exact comparable bid/ask studies for spot, physical forwards and financial futures, with separate advertised commitment references, whole-node size checks and explicit source-evidence holds.
 - Anonymous publisher-derived AWS/Azure/GCP GPU/VM references, plus conditional retained-market reads and bounded server-sent change notifications.
 - Server-bound retained cohort comparisons, versioned simulation-policy previews, and selected-quote cash scenarios using exact supplier capacity, calendars, deposits and net terms.
+- Three editable contract demonstrations with dated power and funding costs, a declared 3D sensitivity surface, hourly restricted-principal vesting, and receipt-bound compute-services agreement PDFs.
 
 This is a local read-only and paper development release. Source and qualification assertions are not independently verified assets or bank evidence. Calibration uses research diagnostics; no live regional premium, credit probability or confidence interval is asserted. Local durable paper commands and snapshots still require production identity, authoritative transactional cash/capacity coordination, accounting and witnessed operating evidence before real execution.
 
@@ -38,6 +39,21 @@ observations, simulation policy and saved paper decisions retain distinct roles.
 The [workbench guide](docs/workbench.md) starts the local application. It opens a short-lived same-origin workspace session automatically. Ten configured anonymous source roles provide advertised GPU references, regional retail meters, native cloud tariffs, inference token rates, informational FX, model/recipe discovery, wholesale energy references, publisher-derived GPU/VM catalogs and [Great Britain grid-carbon context](docs/grid-carbon-context.md). The backend refreshes explicitly configured scopes with permission checks, cooldowns, coalescing and backoff; the browser synchronizes retained evidence without overwriting drafts. Native economic units stay separate. Configured access is distinct from runtime availability and public redistribution permission.
 
 Start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json` after installation, then open `http://127.0.0.1:8000`. No credential paste is needed. Source reads run only while the local app runs; no system jobs are installed. `--no-auto-refresh` selects manual operation. Review [source scope](docs/source-adapters.md), [session and refresh](docs/local-session-refresh.md) and [workspace workflows](docs/workspace-workflows.md).
+
+Open **Pricing** for three populated demonstrations: strong H100 capacity,
+balanced L40S terms and weak A4000 capacity with hourly restricted escrow.
+**Simulate** opens the assessment; **Edit terms** exposes provider, facility,
+pricing/power, settlement and dated funding inputs supplied by the backend
+contract. The modal separates purchase ceilings, cost-recovery and margin asks,
+retained native-unit provider references, unfitted sensitivity, and full cash
+paths. Each saved assessment downloads an unsigned, nonbinding compute-services
+agreement and quote schedule. Hypothetical bank/stable-asset yield and its party
+shares never turn customer principal into profit or assume money was transferred.
+
+Read [pricing demonstrations](docs/pricing-demonstrations.md),
+[hourly vesting](docs/hourly-vesting.md) and
+[agreement generation](docs/demo-compute-agreement.md).
+Run `.venv/bin/python scripts/pricing_demo_example.py` for the three offline cases.
 
 For the focused **Market → Deal economics → Inventory** demonstration, use the
 [demo runbook](docs/demo-sprint.md) and its four-scope collection plan:

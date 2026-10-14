@@ -18,7 +18,7 @@ DISPLAY_LIMIT = 1000
 MAX_CACHE_SECONDS = 60
 
 
-def configured_market(store, policies, plan):
+def configured_market(store, policies, plan, *, row_limit=DISPLAY_LIMIT):
     class ConfiguredDisplay:
         def latest_collection_scan(self):
             return store.requested_collection_scan(plan)
@@ -26,7 +26,7 @@ def configured_market(store, policies, plan):
         def latest_refresh(self):
             return None
 
-    packet = market_index(ConfiguredDisplay(), policies, plan, row_limit=DISPLAY_LIMIT)
+    packet = market_index(ConfiguredDisplay(), policies, plan, row_limit=row_limit)
     packet["schema_version"] = VERSION
     packet["commitment_curves"] = observed_commitment_curves(packet, group_limit=512, node_limit=1024)
     packet["coverage"].update({"population": "explicit_configured_display_scopes",

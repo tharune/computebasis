@@ -13,6 +13,8 @@ Power allocation and hedge studies also remain available through backend APIs.
 
 | Area | Working functionality |
 | --- | --- |
+| Pricing assessment demo | Three full editable provider/hardware/power/settlement/funding examples; simulated purchase ceiling, cost-recovery/minimum-margin/target asks, contribution and funding; modal with 70 declared surface points, native-unit retained cloud/reference context, cash and vesting charts; saved assessment JSON and unsigned receipt-bound compute-services PDF |
+| Hourly treasury simulation | Explicit bank or stable-asset units/marks, restricted prefunding, service release, provider payments and arrears, customer refund, independent hypothetical yield accrual and provider/platform/buyer shares; liquidity/depeg/permission holds; no custody or money movement |
 | Demo workflow | Three primary screens, dynamically discovered deal fields, empty intake and deliberate synthetic sample, scenario margin/selling floor/funding diagnostics, actual supplier-rate cash chart and separated advertised commitment points |
 | Overview | Market cohorts, feed health, declared capacity and current assessment summaries; top navigation, light/dark themes and automatic local sessions |
 | Market ingestion | Ten admitted anonymous source roles: GetDeploying datasets, Azure retail prices, AWS published regional prices, ECB FX, Hugging Face metadata and endpoint catalogs, OpenRouter model catalogs, Energinet power references, GPUHunt publisher-derived AWS/Azure/GCP GPU/VM catalogs and national GB grid-carbon context; explicit scopes, native units, pagination/archive budgets and source cooldowns |

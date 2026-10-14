@@ -105,7 +105,7 @@ class WorkbenchV2Tests(unittest.TestCase):
                 self.assertIn(kind + "-" + suffix, parser.ids)
 
     def test_live_reference_uses_actual_index_rows_and_explicit_global_terms(self):
-        self.assertIn('api("/v1/market/index"', self.script)
+        self.assertIn('api("/v1/market/current"', self.script)
         self.assertIn('api("/v1/market/refresh"', self.script)
         self.assertIn('scope: "aggregate_reference"', self.script)
         self.assertIn("aggregate_terms: term", self.script)
