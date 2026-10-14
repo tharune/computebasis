@@ -10,6 +10,7 @@ const assets = process.env.COMPUTEBASIS_WORKBENCH_ASSETS;
 assert.ok(assets, "COMPUTEBASIS_WORKBENCH_ASSETS must point to the checked-out workbench assets");
 const html = fs.readFileSync(path.join(assets, "index.html"), "utf8");
 const script = fs.readFileSync(path.join(assets, "workbench.js"), "utf8");
+const draftScript = fs.readFileSync(path.join(assets, "workbench-drafts.js"), "utf8");
 
 class Node {
   constructor(tag = "div", attributes = {}) {
@@ -50,8 +51,23 @@ function harness({ prefersDark = false } = {}) {
   }
   const nav = [...html.matchAll(/data-view="([^"]+)"/g)].map((match) => { const node = new Node("button"); node.dataset.view = match[1]; node.root = true; return node; });
   const window = new Node("window"); window.matchMedia = () => ({ matches: prefersDark }); const documentElement = new Node("html"); const calls = []; const responses = []; const timers = new Map(); const intervals = []; let timerId = 0;
-  const fetch = (url, options) => { calls.push({ url, options }); const response = responses.shift(); assert.ok(response, "Unexpected request: " + url); return response(options); };
+  let initializing = false; let logoutWait = null;
+  const allCalls = []; const sessionCalls = []; const logoutResponses = [];
+  const resolved = (body) => Promise.resolve({ ok: true, status: 200, json: async () => structuredClone(body) });
+  const fetch = (url, options) => {
+    allCalls.push({ url, options });
+    if (url.startsWith("/v1/session/")) sessionCalls.push({ url, options });
+    else if (!initializing || url === "/v1/market/index") calls.push({ url, options });
+    if (url === "/v1/session/logout") return logoutResponses.shift() || logoutWait || resolved({ auth_mode: "disconnected" });
+    if (initializing && url === "/v1/session/bootstrap") return resolved({ auth_mode: "local_session", csrf_token: "c".repeat(64), expires_at: "2099-05-06T00:00:00Z" });
+    if (initializing && url === "/v1/market/refresh/status") return resolved({ enabled: true, running: false, scopes: [] });
+    if (initializing && url.startsWith("/v1/inventory")) return resolved({ revision: null, as_of: "2033-05-06T00:00:00Z", state: { schema_version: "paper-inventory/1.0", sites: [], lots: [], positions: [] }, summary: { by_unit_kind: {} }, sites: [], lots: [], timeline: [] });
+    if (initializing && url === "/v1/underwriting/template") return resolved({ requirements_version: "invented-public-7", requirements: [], scope_options: [], request: { scopes: [], subjects: {}, requirements: [], evidence: [] } });
+    if (initializing && url === "/workbench/assets/world-land.json") return resolved(landFixture);
+    const response = responses.shift(); assert.ok(response, "Unexpected request: " + url); return response(options);
+  };
   const context = vm.createContext({ document: { documentElement, getElementById: (id) => { assert.ok(nodes.has(id), "Missing DOM element " + id); return nodes.get(id); }, createElement: (tag) => new Node(tag), createElementNS: (_, tag) => new Node(tag), querySelectorAll: () => nav }, window, fetch, AbortController, structuredClone, crypto: { randomUUID }, setTimeout: (fn, delay) => { timers.set(++timerId, { fn, delay }); return timerId; }, clearTimeout: (id) => timers.delete(id), setInterval: (fn) => intervals.push(fn), console });
+  vm.runInContext(draftScript, context, { filename: "workbench-drafts.js" });
   vm.runInContext(script, context, { filename: "workbench.js" });
   function reply(body, status = 200) { responses.push(async () => ({ ok: status >= 200 && status < 300, status, json: async () => structuredClone(body), text: async () => typeof body === "string" ? body : JSON.stringify(body) })); }
   function pending(ignoreAbort = false) {
@@ -59,8 +75,12 @@ function harness({ prefersDark = false } = {}) {
     responses.push((options) => { if (!ignoreAbort) options.signal.addEventListener("abort", () => { const error = new Error("aborted"); error.name = "AbortError"; reject(error); }, { once: true }); return promise; });
     return { resolve: (body, status = 200) => resolve({ ok: status >= 200 && status < 300, status, json: async () => body, text: async () => body }), reject };
   }
-  async function connect(index = indexFixture()) { reply(index); nodes.get("api-key").value = "test-key-" + "k".repeat(40); await nodes.get("session-form").emit("submit"); }
-  return { node: (id) => nodes.get(id), calls, reply, pending, timers, intervals, window, documentElement, connect, nav };
+  async function connect(index = indexFixture()) {
+    initializing = true; reply(index);
+    try { await window.emit("load"); } finally { initializing = false; }
+  }
+  function delayLogout() { let resolve; logoutWait = new Promise((yes) => { resolve = yes; }); return () => { resolve({ ok: true, status: 200 }); logoutWait = null; }; }
+  return { replyLogout: (body, status) => logoutResponses.push(Promise.resolve({ok: status >= 200 && status < 300, status, json: async () => body})), node: (id) => nodes.get(id), calls, allCalls, sessionCalls, reply, pending, timers, intervals, window, documentElement, connect, nav, delayLogout };
 }
 
 const observation = (id, amount, overrides = {}) => ({ id, source_id: "feed:prices", kind: "listing_ask", hardware: { model: id, accelerator_count: "1" }, price: { amount, currency: "USD", unit: "gpu_hour" }, observed_at: "2026-01-01T00:00:00Z", expires_at: "2099-01-01T00:00:00Z", status: "claimed", region: { country_code: "US" }, ...overrides });
@@ -85,7 +105,7 @@ test("theme starts from system preference and toggles without fetch or session r
   assert.equal(h.calls.length, 0);
   await h.connect(); await h.node("theme-toggle").emit("click"); await h.node("disconnect").emit("click");
   assert.equal(h.documentElement.attributes["data-theme"], "dark");
-  assert.equal(h.node("api-key").value, "");
+  assert.equal(h.node("pricing-input").value, "");
   const fresh = harness(); assert.equal(fresh.documentElement.attributes["data-theme"], "light");
 });
 
@@ -127,7 +147,7 @@ test("filtering combines scope and search, reset restores rows without fetching"
 test("money-looking JSON is submitted byte-for-byte and edited responses are labelled previous input", async () => {
   const h = harness(); await h.connect(); const raw = '{"amount":"12345678901234567890.000000000000001","field":1,"field":2}';
   h.node("pricing-input").value = raw; await h.node("pricing-input").emit("input");
-  h.reply({ snapshot_id: "synthetic-result", result: { status: "indicative", economics: { currency: "EUR" }, bid: { submitted_limit: "0.93000000000000000001" } } });
+  h.reply({ snapshot_id: "synthetic-result", result: { status: "indicative", pricing_provenance: {source_evidence_eligible: true}, economics: { currency: "EUR" }, bid: { submitted_limit: "0.93000000000000000001" } } });
   await h.node("evaluate-pricing").emit("click"); assert.equal(h.calls[1].options.body, raw); assert.match(h.node("pricing-summary").textContent, /0\.93000000000000000001 EUR/);
   h.node("pricing-input").value = "{}"; await h.node("pricing-input").emit("input"); assert.equal(h.node("pricing-result-state").textContent, "Previous input");
 });
@@ -144,11 +164,12 @@ test("logout aborts active requests and late responses cannot restore old data o
   assert.equal(h.node("metric-observations").textContent, "—"); assert.doesNotMatch(h.node("records-body").textContent, /SECRET-OLD/); assert.match(h.node("notice").textContent, /Session ended/); assert.equal(h.node("pricing-input").value, "");
 });
 
-test("late failed connection cannot clear a newer connected session", async () => {
-  const h = harness(); const old = h.pending(true); h.node("api-key").value = "old-key-" + "a".repeat(40); const first = h.node("session-form").emit("submit"); await tick();
-  await h.node("disconnect").emit("click"); await h.connect(indexFixture({ observations: [observation("NEW", "3")] }));
-  old.resolve(indexFixture()); await first;
-  assert.equal(h.node("session-state").textContent, "Local session connected"); assert.match(h.node("records-body").textContent, /NEW/); assert.equal(h.node("reload-index").disabled, false);
+test("resume serializes an older bootstrap before opening a fresh workspace", async () => {
+  const h = harness(); const earlier = h.pending(true); const first = h.node("connect-session").emit("click"); await tick();
+  await h.node("disconnect").emit("click"); const resumed = h.connect(indexFixture({ observations: [observation("NEW", "3")] }));
+  await tick(); assert.equal(h.sessionCalls.filter((call) => call.url.endsWith("bootstrap")).length, 1);
+  earlier.resolve({ detail: "expired" }, 401); await first; await resumed;
+  assert.equal(h.node("session-state").textContent, "Workspace ready"); assert.match(h.node("records-body").textContent, /NEW/); assert.equal(h.node("reload-index").disabled, false);
 });
 
 test("stop waiting and timeout retain drafts, abort transport, and do not duplicate feed reads", async () => {
@@ -159,9 +180,39 @@ test("stop waiting and timeout retain drafts, abort transport, and do not duplic
   assert.match(h.node("notice").textContent, /timed out/); assert.equal(h.node("reload-index").disabled, false);
 });
 
-test("401 clears session and sensitive drafts while preserving the rejection action", async () => {
-  const h = harness(); await h.connect(); h.node("inference-input").value = '{"sensitive":"draft"}'; h.reply({ detail: "unauthorized" }, 401); await h.node("reload-index").emit("click");
-  assert.equal(h.node("inference-input").value, ""); assert.equal(h.node("disconnect").hidden, true); assert.match(h.node("notice").textContent, /Enter the current local key/);
+test("expired read renews its session, while expired mutation is never retried", async () => {
+  const h = harness(); await h.connect(); h.node("inference-input").value = '{"invented_private_draft":"kept"}';
+  h.reply({ detail: "expired" }, 401); h.reply({ auth_mode: "local_session", csrf_token: "d".repeat(64) }); h.reply(indexFixture());
+  await h.node("reload-index").emit("click"); assert.match(h.node("inference-input").value, /kept/);
+  h.node("cash-input").value = '{}'; await h.node("cash-input").emit("input"); h.reply({ detail: "expired" }, 401); h.reply({ auth_mode: "local_session", csrf_token: "restored-client-token" });
+  await h.node("evaluate-cash").emit("click"); assert.match(h.node("notice").textContent, /no mutation was retried/);
+  assert.equal(h.sessionCalls.filter((call) => call.url.endsWith("bootstrap")).length, 3);
+  assert.equal(h.calls.filter((call) => call.url === "/v1/cash/evaluate").length, 1);
+  assert.equal(h.calls.at(-1).options.headers["X-Compute-CSRF"], "d".repeat(64));
+});
+
+test("a stale tab protection token is repaired without resubmitting its request", async () => {
+  const h = harness(); await h.connect(); const raw = '{"opening_cash":"0.000000000000000000009"}';
+  h.node("cash-input").value = raw; await h.node("cash-input").emit("input");
+  h.reply({ detail: "browser_csrf_required" }, 403); h.reply({ auth_mode: "local_session", csrf_token: "fresh-tab-token" });
+  await h.node("evaluate-cash").emit("click");
+  assert.match(h.node("notice").textContent, /no mutation was retried/); assert.match(h.node("notice").textContent, /Workspace resumed/);
+  assert.equal(h.node("cash-input").value, raw); assert.equal(h.calls.filter(call => call.url === "/v1/cash/evaluate").length, 1);
+  h.reply({ result: { currency: "USD", minimum_free_cash: "0" } }); await h.node("evaluate-cash").emit("click");
+  assert.equal(h.calls.at(-1).options.headers["X-Compute-CSRF"], "fresh-tab-token"); assert.equal(h.calls.at(-1).options.body, raw);
+});
+
+test("an origin denial stays denied without a new handshake", async () => {
+  const h = harness(); await h.connect(); h.node("cash-input").value = '{}'; await h.node("cash-input").emit("input");
+  h.reply({ detail: "browser_origin_not_allowed" }, 403); await h.node("evaluate-cash").emit("click");
+  assert.equal(h.sessionCalls.filter(call => call.url.endsWith("bootstrap")).length, 1); assert.match(h.node("notice").textContent, /browser_origin_not_allowed/);
+});
+
+test("the optional GPU ceiling has explicit three-state coverage controls", async () => {
+  const h = harness(); await h.connect(); const action = walk(h.node("inference-fields")).find(entry => entry.tagName === "button" && entry.textContent === "Add supplier economic ceiling");
+  await action.emit("click"); const independence = walk(h.node("inference-fields")).find(entry => entry.attributes["data-field-path"] === "supplier_ceiling_policy.nonpurchase_costs_rate_independent");
+  assert.equal(independence.value, ""); independence.value = "true"; await independence.emit("change");
+  const request = JSON.parse(h.node("inference-input").value); assert.equal(request.supplier_ceiling_policy.nonpurchase_costs_rate_independent, true); assert.equal(request.supplier_ceiling_policy.nonpurchase_costs_complete, null);
 });
 
 test("source admission disables refresh when held and exposes bounded coverage independently of success notices", async () => {
@@ -181,7 +232,7 @@ test("live reference uses only current eligible exact currency/billing cohorts w
   h.reply(index); h.reply({ snapshot_id: "live-result", result: { status: "indicative", benchmark: { price: "4.01", currency: "EUR", cohort: { scope: "aggregate_reference" } } } }); await h.node("evaluate-live-reference").emit("click");
   assert.equal(h.calls.length, 3, h.node("notice").textContent + " / " + h.node("live-reference-state").textContent);
   const packet = JSON.parse(h.calls[2].options.body); assert.equal(packet.target.currency, "EUR"); assert.deepEqual(packet.target.aggregate_terms, { billing_type: "reserved", reservation_months: 6 }); assert.equal(packet.market.observations.length, 1); assert.equal(packet.commercial, null); assert.equal(packet.market.policy.parameters.benchmark.source_rules["feed:prices"].quality, "1");
-  assert.match(h.node("pricing-mode").textContent, /unvalidated exploration/); assert.match(h.node("pricing-summary").textContent, /4\.01 EUR/); assert.equal(h.node("pricing-view").hidden, false);
+  assert.match(h.node("pricing-mode").textContent, /scenario.*saved policy/); assert.match(h.node("pricing-summary").textContent, /4\.01 EUR/); assert.equal(h.node("pricing-view").hidden, false);
 });
 
 function inventoryFixture() {
@@ -211,18 +262,18 @@ test("quarantined and missing token rates remain explicitly unpriced while retri
 });
 
 test("inventory starts empty and map/table selection retains typed unit counts without geocoding", async () => {
-  const h = harness(); assert.match(h.node("inventory-totals").textContent, /No declared capacity/); await h.connect(); h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click");
+  const h = harness(); assert.match(h.node("inventory-totals").textContent, /No declared capacity/); await h.connect(); h.reply(inventoryFixture()); await h.node("inventory-load").emit("click");
   assert.match(h.node("inventory-totals").textContent, /gpu \/ declared units/); assert.match(h.node("inventory-totals").textContent, /node \/ declared units/); assert.match(h.node("inventory-map-state").textContent, /1 located sites \/ 1 unmapped/);
   const markers = h.node("inventory-map").children.filter((node) => node.attributes.role === "button"); assert.equal(markers.length, 1); assert.equal(markers[0].attributes.tabindex, "0");
   assert.equal(markers[0].children.filter((node) => node.attributes.role === "button").length, 0); assert.equal(markers[0].children.filter((node) => node.attributes.class === "map-hit-target").length, 1);
   const css = fs.readFileSync(path.join(assets, "workbench.css"), "utf8"); assert.match(css, /stroke-width: 44px; vector-effect: non-scaling-stroke; pointer-events: all/);
   await markers[0].emit("keydown", { key: "Enter" }); assert.match(h.node("inventory-count").textContent, /1 lots \/ 2 declared/); assert.match(h.node("lot-detail").textContent, /12\.3456789012345678901 EUR/); assert.match(h.node("lot-detail").textContent, /2026-01-05T00:00:00Z/);
-  await h.node("inventory-clear-site").emit("click"); assert.match(h.node("inventory-count").textContent, /2 lots/); assert.equal(h.calls.length, 3);
+  await h.node("inventory-clear-site").emit("click"); assert.match(h.node("inventory-count").textContent, /2 lots/); assert.equal(h.calls.length, 2);
 });
 
 test("fixed UTC inventory requests encode the timestamp and reject impossible dates without a fetch", async () => {
   const h = harness(); await h.connect(); h.node("inventory-live").checked = false; await h.node("inventory-live").emit("change"); h.node("inventory-at").value = "2026-02-30T00:00:00Z"; await h.node("inventory-load").emit("click"); assert.equal(h.calls.length, 1); assert.match(h.node("notice").textContent, /valid UTC instant/);
-  h.node("inventory-at").value = "2026-01-10T00:00:00Z"; h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click"); assert.equal(h.calls[1].url, "/v1/inventory?as_of=2026-01-10T00%3A00%3A00Z");
+  h.node("inventory-at").value = "2026-01-10T00:00:00Z"; h.reply(inventoryFixture()); await h.node("inventory-load").emit("click"); assert.equal(h.calls[1].url, "/v1/inventory?as_of=2026-01-10T00%3A00%3A00Z");
 });
 
 test("unsold uses backend counts and includes reserved capacity while available remains distinct", async () => {
@@ -231,7 +282,7 @@ test("unsold uses backend counts and includes reserved capacity while available 
   const counts = { total: 2, available: 0, reserved: 2, sold: 0, maintenance: 0, unavailable: 0, unsold: 2 };
   report.state.positions = [reserved]; report.lots[0].counts = counts; report.lots[0].positions = [reserved]; report.summary.by_unit_kind.gpu = counts; report.sites[0].by_unit_kind.gpu = counts;
   report.timeline = report.timeline.filter((row) => row.kind === "availability").concat({ ...reserved, kind: "reserved", active_at_as_of: true });
-  h.reply(report); h.reply(landFixture); await h.node("inventory-load").emit("click");
+  h.reply(report); await h.node("inventory-load").emit("click");
   const gpuTotals = h.node("inventory-totals").children[0].children[1].children;
   assert.equal(gpuTotals.find((pair) => pair.children[0].textContent === "unsold").children[1].textContent, "2");
   assert.equal(gpuTotals.find((pair) => pair.children[0].textContent === "available").children[1].textContent, "0");
@@ -240,26 +291,37 @@ test("unsold uses backend counts and includes reserved capacity while available 
 });
 
 test("inventory demo uses pure validation and cannot be persisted by its save button", async () => {
-  const h = harness(); await h.connect(); const report = inventoryFixture(); report.revision = null; report.persisted = false; h.reply(report); h.reply(landFixture); await h.node("inventory-demo").emit("click");
+  const h = harness(); await h.connect(); const report = inventoryFixture(); report.revision = null; report.persisted = false; h.reply(report); await h.node("inventory-demo").emit("click");
   assert.equal(h.calls[1].url, "/v1/inventory/evaluate"); assert.equal(h.calls[1].options.method, "POST"); assert.match(h.calls[1].options.body, /independently_invented_synthetic_ui_demo/); assert.match(h.node("inventory-mode").textContent, /SYNTHETIC/); assert.equal(h.node("inventory-save").disabled, true);
-  const packet = JSON.parse(h.calls[1].options.body); assert.deepEqual(Object.keys(packet.state).sort(), ["lots", "positions", "schema_version", "sites"]);
-  await h.node("inventory-save").emit("click"); assert.equal(h.calls.length, 3); await h.node("inventory-demo").emit("click"); assert.equal(h.node("inventory-input").value, ""); assert.equal(h.node("inventory-mode").textContent, "No inventory loaded");
+  const packet = JSON.parse(h.calls[1].options.body); assert.deepEqual(Object.keys(packet.state).sort(), ["lots", "positions", "provenance", "schema_version", "sites"]); assert.equal(packet.state.provenance, "synthetic");
+  await h.node("inventory-save").emit("click"); assert.equal(h.calls.length, 2); await h.node("inventory-demo").emit("click"); assert.equal(h.node("inventory-input").value, ""); assert.equal(h.node("inventory-mode").textContent, "No inventory loaded");
 });
 
 test("inventory revision conflict preserves duplicate-key draft bytes and displays reload action", async () => {
-  const h = harness(); await h.connect(); h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click"); const raw = '{"schema_version":"paper-inventory/1.0","sites":[],"lots":[],"positions":[],"positions":[]}'; h.node("inventory-input").value = raw; await h.node("inventory-input").emit("input");
-  h.reply({ detail: { code: "inventory_revision_conflict", current_revision: 2 } }, 409); await h.node("inventory-save").emit("click"); assert.equal(h.calls[3].options.body, '{"expected_revision":1,"state":' + raw + '}'); assert.equal(h.node("inventory-input").value, raw); assert.match(h.node("notice").textContent, /Reload current versions/);
+  const h = harness(); await h.connect(); h.reply(inventoryFixture()); await h.node("inventory-load").emit("click"); const raw = '{"schema_version":"paper-inventory/1.0","sites":[],"lots":[],"positions":[],"positions":[]}'; h.node("inventory-input").value = raw; await h.node("inventory-input").emit("input");
+  h.reply({ detail: { code: "inventory_revision_conflict", current_revision: 2 } }, 409); await h.node("inventory-save").emit("click"); assert.equal(h.calls[2].options.body, '{"expected_revision":1,"state":' + raw + '}'); assert.equal(h.node("inventory-input").value, raw); assert.match(h.node("notice").textContent, /Reload current versions/);
 });
 
-test("new inventory response and geometry are discarded together on logout", async () => {
-  const h = harness(); await h.connect(); h.reply(inventoryFixture()); const delayed = h.pending(true); const loading = h.node("inventory-load").emit("click"); await tick(); await h.node("disconnect").emit("click"); delayed.resolve(landFixture); await loading;
-  assert.equal(h.node("inventory-output").textContent, ""); assert.equal(h.node("inventory-input").value, ""); assert.match(h.node("notice").textContent, /Session ended/); assert.equal(h.node("inventory-map").children.some((node) => node.attributes.role === "button"), false);
+test("late inventory response cannot repaint holdings cleared on session end", async () => {
+  const h = harness(); await h.connect(); const delayed = h.pending(true); const loading = h.node("inventory-load").emit("click");
+  await tick(); await h.node("disconnect").emit("click"); delayed.resolve(inventoryFixture()); await loading;
+  assert.equal(h.node("inventory-output").textContent, ""); assert.equal(h.node("inventory-input").value, "");
+  assert.match(h.node("notice").textContent, /Session ended/); assert.equal(h.node("inventory-map").children.some((node) => node.attributes.role === "button"), false);
 });
 
-test("local inventory polling pauses for fixed time, hidden pane, demo, or edited draft", async () => {
-  const h = harness(); await h.connect(); h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click"); const nav = h.nav.find((node) => node.dataset.view === "inventory"); await nav.emit("click");
-  h.reply(inventoryFixture()); await h.intervals[0](); assert.equal(h.calls[3].url, "/v1/inventory"); h.node("inventory-input").value = "{}"; await h.intervals[0](); assert.equal(h.calls.length, 4);
-  h.node("inventory-input").value = JSON.stringify(inventoryFixture().state, null, 2); h.node("inventory-live").checked = false; await h.intervals[0](); assert.equal(h.calls.length, 4);
+test("retained synchronization updates untouched inventory but preserves edited and fixed-time drafts", async () => {
+  const h = harness(); await h.connect(); h.reply(inventoryFixture()); await h.node("inventory-load").emit("click");
+  const inventoryReads = () => h.calls.filter((call) => call.url === "/v1/inventory").length;
+  const synchronize = async (includeInventory) => {
+    h.reply(indexFixture()); h.reply({ enabled: true, running: false, scopes: [] });
+    if (includeInventory) h.reply(inventoryFixture()); await h.intervals[0]();
+  };
+  await synchronize(true); assert.equal(inventoryReads(), 2);
+  h.node("inventory-input").value = '{"invented_unsaved":"kept"}'; await synchronize(false);
+  assert.equal(inventoryReads(), 2); assert.equal(h.node("inventory-input").value, '{"invented_unsaved":"kept"}');
+  h.node("inventory-input").value = JSON.stringify(inventoryFixture().state, null, 2); h.node("inventory-live").checked = false;
+  await synchronize(false); assert.equal(inventoryReads(), 2);
+  assert.equal(h.calls.filter((call) => call.url === "/v1/market/index").length, 4);
 });
 
 test("policy controls preserve decimal strings and require explicit JSON write before saving", async () => {
@@ -277,7 +339,7 @@ test("policy validation receives duplicate JSON bytes and registry conflicts exp
 
 test("explicit policy apply validates original draft then changes only policy and declared registry provenance", async () => {
   const h = harness(); await h.connect(); const entry = await loadSavedPolicy(h); const draft = { market: { request_id: "invented:request", policy: { old: true } }, commercial: null, extensions: { existing: "kept" } }; const raw = JSON.stringify(draft); h.node("pricing-input").value = raw; h.reply({ request: draft, boundary_validation: "json_only", execution_enabled: false }); await h.node("policy-apply").emit("click"); assert.equal(h.calls[3].url, "/v1/requests/parse"); assert.equal(h.calls[3].options.body, raw);
-  const applied = JSON.parse(h.node("pricing-input").value); assert.equal(applied.market.policy.version, entry.document.policy.version); assert.equal(applied.extensions.existing, "kept"); assert.equal(applied.extensions.policy_registry_document.revision, entry.revision); assert.equal(applied.commercial, null); assert.equal(h.calls.length, 4); assert.match(h.node("notice").textContent, /Evaluate explicitly/);
+  const applied = JSON.parse(h.node("pricing-input").value); assert.equal(applied.market.policy.version, entry.document.policy.version); assert.equal(applied.extensions.existing, "kept"); assert.equal(applied.extensions.policy_registry_document.revision, entry.revision); assert.equal(applied.commercial, null); assert.equal(applied.pricing_provenance.mode, "declared_scenario"); assert.equal(applied.pricing_provenance.policy_revision, null); assert.equal(h.calls.length, 4); assert.match(h.node("notice").textContent, /Evaluate explicitly/);
 });
 
 test("policy transformations reject duplicate keys and unsafe numeric literals without changing pricing bytes", async () => {
@@ -333,4 +395,185 @@ test("model recipe search exposes unpriced metadata without adding GPU price obs
   const h = harness(); await h.connect(indexFixture({ catalog_records: [{ kind: "model_recipe_metadata", model_id: "invented/Example", source_id: "feed:recipes", price_eligible: false, license_claim: "invented-license", recipes: [{ engine: "vllm", accelerator: "gpu" }] }] }));
   assert.equal(h.node("metric-observations").textContent, "1"); h.node("model-query").value = "vllm"; await h.node("model-query").emit("input"); assert.match(h.node("model-records").textContent, /invented\/Example/); assert.match(h.node("model-records").textContent, /invented-license/); assert.match(h.node("model-records").textContent, /Configuration claims only/);
   h.node("model-query").value = "unknown-engine"; await h.node("model-query").emit("input"); assert.match(h.node("model-records").textContent, /No catalog records match/); assert.equal(h.calls.length, 1);
+});
+
+function walk(node) { return [node, ...node.children.flatMap(walk)]; }
+function draftHarness(raw, requirements = []) {
+  const container = new Node("div"); container.root = true; const messages = [];
+  const window = {}; const context = vm.createContext({ window, document: { createElement: (tag) => new Node(tag) } });
+  vm.runInContext(draftScript, context, { filename: "workbench-drafts.js" });
+  const mount = () => window.ComputeDrafts.mount(container, JSON.parse(raw), {
+    parse: JSON.parse, raw, readRaw: () => raw, changed: (value) => { raw = value; }, message: (text) => messages.push(text), requirements,
+  });
+  return { container, component: window.ComputeDrafts, mount, messages, raw: () => raw,
+    setAdvanced: (text) => { raw = text; }, field: (location) => walk(container).find((node) => node.attributes["data-field-path"] === location) };
+}
+
+test("fresh draft contracts have no invented prices, money, location or qualification", () => {
+  const h = draftHarness('{}'); const pricing = h.component.template("pricing"); const inference = h.component.template("inference");
+  assert.equal(pricing.commercial, null); assert.equal(pricing.target.country_code, null); assert.equal(pricing.market.policy, null);
+  assert.equal(inference.costs.gpu_rate_per_gpu_hour, null); assert.equal(inference.qualification.status, null);
+  assert.equal(inference.workload.tensor_parallel, null); assert.equal(inference.qualification.memory.includes_kv_cache, null);
+  assert.equal(inference.pricing_policy, null);
+  assert.equal(h.component.template("cash").opening_cash, null); assert.equal(h.component.template("inventory").sites.length, 0);
+});
+
+test("exact monetary text preserves digits and explicit zero differs from unknown", async () => {
+  const h = draftHarness('{"opening_cash":null,"extensions":{"declared_rate":"200.12500000000000000000009"}}'); h.mount();
+  const opening = h.field("opening_cash"); opening.value = "0"; await opening.emit("input");
+  assert.equal(JSON.parse(h.raw()).opening_cash, "0"); assert.equal(JSON.parse(h.raw()).extensions.declared_rate, "200.12500000000000000000009");
+  opening.value = ""; await opening.emit("input"); assert.equal(JSON.parse(h.raw()).opening_cash, null);
+});
+
+test("registered coverage booleans and whole values use explicit supported types", async () => {
+  const requirements = [{ requirement_id: "check:flag", value_type: "boolean" }, { requirement_id: "check:count", value_type: "integer" }];
+  const h = draftHarness('{"evidence":[{"requirement_id":"check:flag","value":null},{"requirement_id":"check:count","value":null}],"tensor_parallel":null}', requirements); h.mount();
+  const flag = h.field("evidence.0.value"); flag.value = "false"; await flag.emit("change");
+  const count = h.field("evidence.1.value"); count.value = "17"; await count.emit("input");
+  const parallel = h.field("tensor_parallel"); parallel.value = "3"; await parallel.emit("input");
+  const result = JSON.parse(h.raw()); assert.equal(result.evidence[0].value, false); assert.equal(result.evidence[1].value, "17"); assert.equal(result.tensor_parallel, 3);
+});
+
+test("malformed existing boolean choice cannot silently become a false assertion", async () => {
+  const h = draftHarness('{"includes_kv_cache":"unreviewed"}'); h.mount();
+  const control = h.field("includes_kv_cache"); control.value = "unreviewed"; await control.emit("change");
+  assert.equal(JSON.parse(h.raw()).includes_kv_cache, "unreviewed");
+  control.value = "false"; await control.emit("change"); assert.equal(JSON.parse(h.raw()).includes_kv_cache, false);
+});
+
+test("ordinary prototype-named extension fields cannot activate registered shapes", async () => {
+  const h = draftHarness('{"extensions":{"toString":null,"hasOwnProperty":null}}'); h.mount();
+  const control = h.field("extensions.toString"); assert.ok(control); assert.equal(control.value, "");
+  control.value = "explicit custom value"; await control.emit("input");
+  assert.equal(JSON.parse(h.raw()).extensions.toString, "explicit custom value");
+  assert.equal(JSON.parse(h.raw()).extensions.hasOwnProperty, null); assert.equal(h.component.template("toString"), undefined);
+});
+
+test("advanced draft replacement prevents older mounted handlers overwriting it", async () => {
+  const h = draftHarness('{"opening_cash":"7"}'); h.mount(); const field = h.field("opening_cash");
+  h.setAdvanced('{"opening_cash":"9","new_input":true}'); field.value = "100"; await field.emit("input");
+  assert.equal(h.raw(), '{"opening_cash":"9","new_input":true}'); assert.match(h.messages[0], /newer input was preserved/);
+});
+
+test("renderer failure is atomic and complete large arrays are preserved without conversion", async () => {
+  let deep = { value: "invented-private-draft" }; for (let i = 0; i < 12; i++) deep = { next: deep };
+  const invalid = draftHarness(JSON.stringify({ account_id: "account:invented-secret", extensions: deep }));
+  assert.throws(() => invalid.mount(), /budget/); assert.equal(invalid.container.children.length, 0);
+  const unsafe = draftHarness('{"opening_cash":"1","__proto__":{"polluted":true}}'); assert.throws(() => unsafe.mount(), /Reserved/); assert.equal(unsafe.container.children.length, 0);
+  const values = Array.from({ length: 43 }, (_, index) => ({ id: "claim:" + index, amount: "1.0000000000000000000003" }));
+  const retained = draftHarness(JSON.stringify({ opening_cash: "5", entries: values })); const editor = retained.mount();
+  assert.match(retained.container.textContent, /43 entries preserved/); retained.field("opening_cash").value = "6"; await retained.field("opening_cash").emit("input");
+  assert.deepEqual(JSON.parse(retained.raw()).entries, values); editor.clear(); assert.equal(retained.container.children.length, 0);
+});
+
+test("physical identity arrays edit individual strings and new sites retain unknown coordinates", async () => {
+  const h = draftHarness('{"sites":[],"unit_ids":["unit:gamma"]}'); h.mount(); const identity = h.field("unit_ids.0");
+  identity.value = "unit:delta"; await identity.emit("input");
+  const add = walk(h.container).find((node) => node.tagName === "button" && node.textContent === "Add sites"); await add.emit("click");
+  const value = JSON.parse(h.raw()); assert.deepEqual(value.unit_ids, ["unit:delta"]); assert.equal(value.sites[0].country_code, null); assert.equal(value.sites[0].latitude, null); assert.equal(value.sites[0].longitude, null);
+});
+
+test("new extension fields remain explicit typed inputs without adding monetary effects", async () => {
+  const h = draftHarness('{"opening_cash":"12","extensions":{}}'); h.mount();
+  const details = walk(h.container).find((node) => node.className === "add-field");
+  const name = details.children.find((node) => node.tagName === "input"); const type = details.children.find((node) => node.tagName === "select");
+  const button = details.children.find((node) => node.tagName === "button"); name.value = "reviewed_flag"; type.value = "boolean"; await button.emit("click");
+  const field = h.field("extensions.reviewed_flag"); assert.equal(field.value, ""); field.value = "false"; await field.emit("change");
+  const value = JSON.parse(h.raw()); assert.equal(value.extensions.reviewed_flag, false); assert.equal(value.opening_cash, "12");
+});
+
+test("inference price policy remains unknown until explicit ticks and margin terms are supplied", async () => {
+  const h = draftHarness('{"pricing_policy":null}'); h.mount();
+  const add = walk(h.container).find((node) => node.tagName === "button" && node.textContent === "Add pricing policy"); await add.emit("click");
+  let request = JSON.parse(h.raw()); assert.equal(request.pricing_policy.required_margin, null); assert.equal(request.pricing_policy.task_price_tick, null);
+  assert.equal(request.pricing_policy.rate_ticks.request_fee, null);
+  const tick = h.field("pricing_policy.rate_ticks.request_fee"); tick.value = "0.000000001"; await tick.emit("input");
+  request = JSON.parse(h.raw()); assert.equal(request.pricing_policy.rate_ticks.request_fee, "0.000000001"); assert.equal(request.pricing_policy.rate_ticks.input_per_million, null);
+});
+
+test("adding a routed quote cannot implicitly assert zero platform operating costs", async () => {
+  const h = draftHarness('{"external_route":null}'); h.mount();
+  const add = walk(h.container).find((node) => node.tagName === "button" && node.textContent === "Add external route"); await add.emit("click");
+  assert.equal(JSON.parse(h.raw()).external_route.cost_items, null);
+  const declare = walk(h.container).find((node) => node.tagName === "button" && node.textContent === "Declare routed operating cost list"); await declare.emit("click");
+  assert.deepEqual(JSON.parse(h.raw()).external_route.cost_items, []);
+  const item = walk(h.container).find((node) => node.tagName === "button" && node.textContent === "Add cost items"); await item.emit("click");
+  const basis = h.field("external_route.cost_items.0.basis"); assert.deepEqual(basis.children.map((node) => node.value), ["", "whole_horizon", "per_request"]);
+  assert.equal(JSON.parse(h.raw()).external_route.cost_items[0].amount, null);
+});
+
+test("resumed workspace waits for prior logout before issuing another cookie bootstrap", async () => {
+  const h = harness(); await h.connect(); const finishLogout = h.delayLogout(); await h.node("disconnect").emit("click");
+  const reopening = h.connect(indexFixture({ observations: [observation("AFTER-LOGOUT", "7")] })); await tick();
+  assert.equal(h.sessionCalls.filter((call) => call.url.endsWith("bootstrap")).length, 1);
+  finishLogout(); await reopening; assert.equal(h.sessionCalls.filter((call) => call.url.endsWith("bootstrap")).length, 2);
+  assert.match(h.node("records-body").textContent, /AFTER-LOGOUT/);
+});
+
+test("workspace startup uses same-origin session cookies and structural unknown inputs", async () => {
+  const h = harness(); await h.connect(); const setup = h.sessionCalls[0];
+  assert.equal(setup.url, "/v1/session/bootstrap"); assert.equal(setup.options.credentials, "same-origin");
+  assert.equal(setup.options.headers.Authorization, undefined); assert.equal(setup.options.body, "{}");
+  assert.ok(h.allCalls.some((call) => call.url === "/v1/market/refresh/status"));
+  const cash = JSON.parse(h.node("cash-input").value); assert.equal(cash.opening_cash, null); assert.equal(cash.currency, null);
+  const inference = JSON.parse(h.node("inference-input").value); assert.equal(inference.workload.model_id, null); assert.equal(inference.qualification.status, null);
+  assert.equal(h.node("overview-decision").textContent, "Unevaluated");
+});
+
+test("session end during startup parallel reads cannot recreate cleared forms or feedback", async () => {
+  const h = harness(); h.reply({ auth_mode: "local_session", csrf_token: "e".repeat(64) }); h.reply(indexFixture());
+  h.pending(); h.pending(); h.pending(); const opening = h.window.emit("load"); await tick();
+  await h.node("disconnect").emit("click"); await opening;
+  for (const kind of ["pricing", "inference", "cash", "portfolio", "inventory", "underwriting"]) {
+    assert.equal(h.node(kind + "-input").value, ""); assert.equal(h.node(kind + "-fields").children.length, 0);
+  }
+  assert.match(h.node("notice").textContent, /Session ended/);
+});
+
+test("shipped structured edit retains exact strings and marks prior pricing decision stale", async () => {
+  const h = harness(); await h.connect();
+  h.node("pricing-input").value = '{"commercial":{"buyer_rate":"33.123456789012345678901","supplier_ask":null},"extensions":{"customer_declared":"kept"}}';
+  await h.node("pricing-input").emit("input"); await h.node("pricing-read-fields").emit("click");
+  h.reply({ result: { status: "indicative", bid: { submitted_limit: "4.2" }, economics: { currency: "EUR" } } });
+  await h.node("evaluate-pricing").emit("click"); assert.equal(h.node("overview-decision").textContent, "indicative");
+  const ask = walk(h.node("pricing-fields")).find((node) => node.attributes["data-field-path"] === "commercial.supplier_ask");
+  ask.value = "0"; await ask.emit("input"); const result = JSON.parse(h.node("pricing-input").value);
+  assert.equal(result.commercial.supplier_ask, "0"); assert.equal(result.commercial.buyer_rate, "33.123456789012345678901");
+  assert.equal(result.extensions.customer_declared, "kept"); assert.equal(h.node("overview-decision").textContent, "Draft changed");
+  assert.equal(h.node("pricing-result-state").textContent, "Previous input");
+});
+
+test("shipped structured transformations reject duplicate keys and unsafe numeric literals", async () => {
+  const h = harness(); await h.connect();
+  for (const raw of ['{"opening_cash":"1","opening_cash":"2"}', '{"opening_cash":9007199254740995}']) {
+    h.node("cash-input").value = raw; await h.node("cash-read-fields").emit("click");
+    assert.equal(h.node("cash-input").value, raw); assert.match(h.node("notice").textContent, /Duplicate JSON key|exact decimal strings/);
+  }
+});
+
+test("first failing shipped field mount and subsequent logout leave no partial identifiers", async () => {
+  const h = harness(); await h.connect(); let nested = { note: "invented-sensitive" };
+  for (let i = 0; i < 12; i++) nested = { next: nested };
+  const raw = JSON.stringify({ buyer_entity_id: "buyer:invented-sensitive", extensions: nested });
+  h.node("portfolio-input").value = raw; await h.node("portfolio-read-fields").emit("click");
+  assert.equal(h.node("portfolio-input").value, raw); assert.match(h.node("notice").textContent, /budget/);
+  assert.equal(h.node("portfolio-fields").children.length, 0); await h.node("disconnect").emit("click");
+  assert.equal(h.node("portfolio-input").value, ""); assert.equal(h.node("portfolio-fields").children.length, 0);
+});
+
+test("logout renews an evicted token solely to revoke without restoring page state", async () => {
+  const h = harness(); await h.connect(); h.node("cash-input").value = JSON.stringify({opening_cash: "17.0000000000000003"});
+  h.replyLogout({detail: "browser_csrf_required"}, 403); h.reply({auth_mode: "local_session", csrf_token: "e".repeat(64)});
+  await h.node("disconnect").emit("click"); for (let i=0; i<8; i++) await tick();
+  assert.equal(h.sessionCalls.filter(call => call.url.endsWith("logout")).length, 2);
+  assert.equal(h.sessionCalls.at(-1).options.headers["X-Compute-CSRF"], "e".repeat(64));
+  assert.equal(h.node("cash-input").value, ""); assert.equal(h.node("session-card").hidden, false);
+});
+
+test("missing source eligibility cannot label a qualified reference or purchase bid", async () => {
+  const h=harness(); await h.connect(); h.node("pricing-input").value="{}"; await h.node("pricing-input").emit("input");
+  h.reply({result:{status:"indicative", benchmark:{price:"9.123456789", currency:"EUR"}, bid:{submitted_limit:"8.333333333"}, economics:{currency:"EUR"}}});
+  await h.node("evaluate-pricing").emit("click");
+  assert.match(h.node("pricing-summary").textContent,/Scenario reference/); assert.doesNotMatch(h.node("pricing-summary").textContent,/8\.333333333/);
+  assert.doesNotMatch(h.node("overview-decision-detail").textContent,/8\.333333333/);
 });

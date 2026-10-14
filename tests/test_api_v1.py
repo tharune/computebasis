@@ -110,7 +110,9 @@ class APITests(unittest.TestCase):
         loaded = self.client.get("/v1/decisions/" + first.json()["snapshot_id"], headers=AUTH)
         self.assertEqual(loaded.status_code, 200)
         self.assertEqual(loaded.json()["document"]["input"], payload)
-        self.assertEqual(loaded.json()["document"]["output"], fake)
+        self.assertEqual(loaded.json()["document"]["output"], first.json()["result"])
+        self.assertEqual(first.json()["result"]["status"], "held")
+        self.assertIsNone(first.json()["result"]["bid"])
 
     def test_invalid_pricing_diagnostics_do_not_echo_input(self):
         with patch("compute_pricing.control.api.app._evaluate_pricing", side_effect=ValueError("private-sensitive-invalid-value")):
@@ -134,13 +136,14 @@ class APITests(unittest.TestCase):
                        "aggregate_terms": {"billing_type": "ON_DEMAND", "reservation_months": None}}}
         first = self.client.post("/v1/pricing/evaluate", json=payload, headers=AUTH)
         self.assertEqual(first.status_code, 200)
-        self.assertEqual(first.json()["result"]["benchmark"]["price"], "2.2")
+        self.assertIsNone(first.json()["result"]["benchmark"]["price"])
+        self.assertEqual(first.json()["result"]["scenario_diagnostics"]["benchmark"]["price"], "2.2")
         self.assertFalse(first.json()["result"]["firm_price_eligible"])
         self.assertEqual(first.json()["versions"]["evaluation.model"], "inverse-linear/1.0.0")
         observation["price"]["amount"] = "3.10"
         second = self.client.post("/v1/pricing/evaluate", json=payload, headers=AUTH)
         self.assertEqual(second.status_code, 200)
-        self.assertEqual(second.json()["result"]["benchmark"]["price"], "3.1")
+        self.assertEqual(second.json()["result"]["scenario_diagnostics"]["benchmark"]["price"], "3.1")
         self.assertNotEqual(first.json()["snapshot_id"], second.json()["snapshot_id"])
 
     def test_real_cash_evaluator_preserves_precision_and_rejects_float(self):

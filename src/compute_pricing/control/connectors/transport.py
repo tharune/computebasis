@@ -465,12 +465,19 @@ class ReadOnlyTransport:
                                status, safe_headers, body, attempts)
         raise ConnectorError("retry_attempts_exhausted")
 
+    def cooldown_remaining(self, source_id: str) -> float:
+        """Read-only remaining host hold; never expose its endpoint or headers."""
+        spec = SOURCE_SPECS.get(source_id)
+        if spec is None:
+            return 0
+        return max(0, self._cooldown.get(spec.host, 0) - self.monotonic())
+
     def wait_for_source(self, source_id: str, *, max_wait_s: float = 5) -> None:
         """Budgeted pacing for admitted pagination; never truncates server cooldown."""
         spec = SOURCE_SPECS.get(source_id)
         if spec is None or not math.isfinite(max_wait_s) or not 0 <= max_wait_s <= 60:
             raise ConnectorError("invalid_pagination_wait")
-        remaining = max(0, self._cooldown.get(spec.host, 0) - self.monotonic())
+        remaining = self.cooldown_remaining(source_id)
         if remaining > max_wait_s:
             raise ConnectorError("source_cooldown_exceeds_pagination_budget")
         if remaining:

@@ -83,11 +83,12 @@ def cash_price_limit(template, *, currency, as_of, delivery_end, maximum, tick,
     if zero.minimum_free_cash < floor:
         return {"status": "infeasible_at_zero", "maximum_purchase_tick": None,
                 "binding_date": zero.minimum_free_cash_date, "evaluations": evaluations,
-                "minimum_cash": text_number(floor), "model": "full-ledger-monotone-tick/1.0.0"}
+                "minimum_cash": text_number(floor), "model": "full-ledger-monotone-tick/1.0.1"}
     upper = max(0, int((maximum / tick).to_integral_value(rounding=ROUND_FLOOR)))
     upper_result = run(Decimal(upper) * tick)
     low, high = 0, upper
-    if upper_result.minimum_free_cash < floor:
+    binding = upper_result.minimum_free_cash < floor
+    if binding:
         while low < high:
             middle = (low + high + 1) // 2
             result = run(Decimal(middle) * tick)
@@ -99,13 +100,18 @@ def cash_price_limit(template, *, currency, as_of, delivery_end, maximum, tick,
         low = upper
     selected = run(Decimal(low) * tick)
     ask_schedule = run(supplied_ask)
-    return {"status": "feasible", "maximum_purchase_tick": text_number(Decimal(low) * tick),
+    return {"status": "feasible", "maximum_purchase_tick": text_number(Decimal(low) * tick) if binding else None,
+            "liquidity_binding_on_searched_grid": binding,
+            "limit_censored_by_search_ceiling": not binding,
+            "tested_purchase_tick": text_number(Decimal(low) * tick),
+            "search_ceiling": text_number(maximum),
+            "limit_basis": "maximum_feasible_purchase_tick" if binding else "cash_feasible_at_other_caps_tick_no_independent_liquidity_limit_identified",
             "binding_date": selected.minimum_free_cash_date,
             "minimum_free_cash": text_number(selected.minimum_free_cash),
             "minimum_cash": text_number(floor), "evaluations": evaluations,
             "start_date": schedule["start_date"], "end_date": schedule["end_date"],
             "legal_entity_id": schedule["legal_entity_id"], "cash_account_id": schedule["cash_account_id"],
-            "model": "full-ledger-monotone-tick/1.0.0",
+            "model": "full-ledger-monotone-tick/1.0.1",
             "evidence_status": "caller_supplied_complete_settlement_scenario",
             "supplied_ask_cash_feasible": ask_schedule.minimum_free_cash >= floor,
             "supplied_ask_required_extra_cash": text_number(max(Decimal(0), floor - ask_schedule.minimum_free_cash)),

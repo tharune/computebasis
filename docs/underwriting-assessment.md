@@ -14,7 +14,8 @@ The catalog is a starting point rather than an exhaustive legal/financial policy
 
 ## Use the local interface
 
-1. Connect to the local workspace with its bearer key and open Underwriting.
+1. Open the local workspace and its Underwriting view. The browser establishes
+   a scoped local session; explicit API clients can use their configured bearer key.
 2. Load the neutral template explicitly. Select the relevant scopes and supply
    real reviewed subject IDs outside Git: transaction, supplier, buyer, site,
    lot, workload, market, portfolio and any relevant instrument/facility/issuer.
@@ -37,9 +38,10 @@ does not silently qualify a required entry.
 
 ## API contract
 
-All routes require `Authorization: Bearer <local-session-key>`. The server
-authenticates before parsing an assessment body. Keep keys in request headers;
-they are not parameters or fields in the assessment.
+All routes authenticate before parsing an assessment body. Explicit API clients
+use `Authorization: Bearer <configured-api-key>`. The same-origin local browser
+uses its HttpOnly session cookie and CSRF header on writes. Credentials are not
+parameters or fields in the assessment.
 
 | Route | Behavior |
 | --- | --- |

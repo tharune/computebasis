@@ -99,7 +99,8 @@ class PricingReviewV1Tests(unittest.TestCase):
         packet["commercial"]["stress_price_cap"] = "0.009"
         result = evaluate_pricing(packet)
         self.assertEqual(result["status"], "held")
-        self.assertIn("no_positive_feasible_purchase_price", result["hold_reasons"])
+        self.assertIn("no_positive_feasible_purchase_tick", result["hold_reasons"])
+        self.assertIsNone(result["bid"])
 
 
 if __name__ == "__main__":

@@ -96,9 +96,11 @@ def _money(value: Any, unit: str) -> dict | None:
 
 
 def validate_inventory(value: Any) -> dict:
-    state = _record(value, {"schema_version", "sites", "lots", "positions"}, set())
+    state = _record(value, {"schema_version", "sites", "lots", "positions"}, {"provenance"})
     if state["schema_version"] != SCHEMA_VERSION:
         raise InventoryError("unsupported_inventory_schema")
+    if "provenance" in state and state["provenance"] not in ("declared", "synthetic"):
+        raise InventoryError("invalid_inventory_provenance")
     for name, limit in (("sites", MAX_SITES), ("lots", MAX_LOTS), ("positions", MAX_POSITIONS)):
         if not isinstance(state[name], list) or len(state[name]) > limit:
             raise InventoryError("inventory_record_budget")
@@ -183,6 +185,9 @@ def validate_inventory(value: Any) -> dict:
         raise InventoryError("inventory_capacity_conflict") from None
     normalized = {"schema_version": SCHEMA_VERSION, "sites": sorted(sites, key=lambda row: row["site_id"]),
         "lots": sorted(lots, key=lambda row: row["lot_id"]), "positions": sorted(positions, key=lambda row: row["position_id"])}
+    # Absence stays absent so prior normalized revisions and hashes remain valid.
+    if "provenance" in state:
+        normalized["provenance"] = state["provenance"]
     try:
         canonical_document(normalized, max_bytes=MAX_STATE_BYTES)
     except SnapshotStoreError:
@@ -254,11 +259,18 @@ def evaluate_inventory(value: Any, *, as_of: str | None = None) -> dict:
                     sums[money["currency"]] = sums.get(money["currency"], Decimal(0)) + Decimal(money["amount"])
             exposure[label] = {currency: format(amount, "f") for currency, amount in sorted(sums.items())}
     site_rows = list(sites.values())
+    missing_contracts = sorted(row["position_id"] for row in state["positions"]
+                               if row["status"] == "sold" and row["contract_id"] is None)
+    provenance = state.get("provenance", "unspecified")
     return {"schema_version": SCHEMA_VERSION, "as_of": as_of, "state": state, "summary": {"by_unit_kind": grouped,
         "unsold_definition": "available_plus_reserved_plus_maintenance_within_active_availability", "unavailable_definition": "physical_units_without_availability_at_as_of"},
         "sites": site_rows, "located_sites": [row for row in site_rows if row["latitude"] is not None], "unlocated_sites": [row for row in site_rows if row["latitude"] is None],
         "unlocated_unit_ids": sorted(unlocated_units), "lots": lots, "units": sorted(units.values(), key=lambda row: row["unit_id"]),
         "timeline": sorted(timeline, key=lambda row: (row["start_at"], row["lot_id"], row["position_id"] or "")), "monetary_exposure": exposure,
+        "provenance": provenance, "provenance_verification": "caller_declared_unverified",
+        "position_evidence": {"sold_position_ids_without_contract": missing_contracts, "contract_references_verified": False},
         "execution_enabled": False, "paper_only": True, "asset_verification": "caller_declared_unverified", "warnings": [
             "sold_and_signed_status_do_not_authorize_external_execution", "unit_kinds_are_not_interchangeable",
-            "declared_values_are_not_cash_flows_revenue_or_current_market_marks", "extensions_preserved_but_unpriced"]}
+            "declared_values_are_not_cash_flows_revenue_or_current_market_marks", "extensions_preserved_but_unpriced",
+            *(["synthetic_inventory_is_preview_only"] if provenance == "synthetic" else []),
+            *(["sold_positions_without_contract_reference"] if missing_contracts else [])]}

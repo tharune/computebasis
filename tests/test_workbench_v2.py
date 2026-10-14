@@ -76,13 +76,12 @@ class WorkbenchV2Tests(unittest.TestCase):
         self.assertEqual(parser.inline_scripts, 0)
         self.assertEqual(parser.inline_handlers, [])
         self.assertTrue(all(url.startswith(("/", "#")) for url in parser.asset_urls))
-        self.assertEqual(len(parser.password_fields), 1)
-        self.assertNotIn("value", parser.password_fields[0])
-        self.assertNotIn("name", parser.password_fields[0])
+        self.assertEqual(parser.password_fields, [])
+        self.assertNotIn("Connect to the local API", self.client.get("/").text)
         for forbidden in ("localStorage", "sessionStorage", "document.cookie", "innerHTML", "insertAdjacentHTML", "document.write", "eval("):
             self.assertNotIn(forbidden, self.script)
-        self.assertIn('"Authorization": "Bearer " + state.key', self.script)
-        self.assertIn('credentials: "omit"', self.script)
+        self.assertIn('"X-Compute-CSRF": state.csrf', self.script)
+        self.assertIn('credentials: "same-origin"', self.script)
         self.assertIn('redirect: "error"', self.script)
 
     def test_static_assets_and_labelled_sample_available_without_market_collection(self):

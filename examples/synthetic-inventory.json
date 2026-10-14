@@ -7,7 +7,9 @@
       "country_code": "US",
       "latitude": "34.0",
       "longitude": "-118.0",
-      "extensions": {"provenance": "Independently invented example; coordinates are illustrative."}
+      "extensions": {
+        "provenance": "Independently invented example; coordinates are illustrative."
+      }
     },
     {
       "site_id": "invented-unlocated-site",
@@ -15,7 +17,9 @@
       "country_code": null,
       "latitude": null,
       "longitude": null,
-      "extensions": {"provenance": "Independently invented example; location unknown."}
+      "extensions": {
+        "provenance": "Independently invented example; location unknown."
+      }
     }
   ],
   "lots": [
@@ -23,27 +27,92 @@
       "lot_id": "invented-gpu-lot",
       "site_id": "invented-west-site",
       "unit_kind": "gpu",
-      "unit_ids": ["invented-gpu-a", "invented-gpu-b", "invented-gpu-c", "invented-gpu-d"],
+      "unit_ids": [
+        "invented-gpu-a",
+        "invented-gpu-b",
+        "invented-gpu-c",
+        "invented-gpu-d"
+      ],
       "hardware_model": "Invented accelerator model",
       "start_at": "2026-01-01T00:00:00Z",
       "end_at": "2027-01-01T00:00:00Z",
-      "purchase_value": {"amount": "4000.000000000000000001", "currency": "USD", "unit": "lot_total"}
+      "purchase_value": {
+        "amount": "4000.000000000000000001",
+        "currency": "USD",
+        "unit": "lot_total"
+      }
     },
     {
       "lot_id": "invented-node-lot",
       "site_id": "invented-unlocated-site",
       "unit_kind": "node",
-      "unit_ids": ["invented-node-a", "invented-node-b"],
+      "unit_ids": [
+        "invented-node-a",
+        "invented-node-b"
+      ],
       "hardware_model": null,
       "start_at": "2026-01-01T00:00:00Z",
       "end_at": "2027-01-01T00:00:00Z",
-      "purchase_value": {"amount": "2000", "currency": "EUR", "unit": "lot_total"}
+      "purchase_value": {
+        "amount": "2000",
+        "currency": "EUR",
+        "unit": "lot_total"
+      }
     }
   ],
   "positions": [
-    {"position_id": "invented-reservation", "lot_id": "invented-gpu-lot", "unit_ids": ["invented-gpu-a"], "status": "reserved", "start_at": "2026-10-01T00:00:00Z", "end_at": "2026-11-01T00:00:00Z", "contract_id": "invented-reservation-reference"},
-    {"position_id": "invented-gpu-sale", "lot_id": "invented-gpu-lot", "unit_ids": ["invented-gpu-b"], "status": "sold", "start_at": "2026-10-01T00:00:00Z", "end_at": "2026-12-01T00:00:00Z", "contract_id": "invented-paper-sale", "sale_value": {"amount": "1500", "currency": "USD", "unit": "position_total"}},
-    {"position_id": "invented-maintenance", "lot_id": "invented-gpu-lot", "unit_ids": ["invented-gpu-c"], "status": "maintenance", "start_at": "2026-10-01T00:00:00Z", "end_at": "2026-11-01T00:00:00Z"},
-    {"position_id": "invented-node-sale", "lot_id": "invented-node-lot", "unit_ids": ["invented-node-b"], "status": "sold", "start_at": "2026-10-01T00:00:00Z", "end_at": "2026-12-01T00:00:00Z", "sale_value": {"amount": "900", "currency": "EUR", "unit": "position_total"}}
-  ]
+    {
+      "position_id": "invented-reservation",
+      "lot_id": "invented-gpu-lot",
+      "unit_ids": [
+        "invented-gpu-a"
+      ],
+      "status": "reserved",
+      "start_at": "2026-10-01T00:00:00Z",
+      "end_at": "2026-11-01T00:00:00Z",
+      "contract_id": "invented-reservation-reference"
+    },
+    {
+      "position_id": "invented-gpu-sale",
+      "lot_id": "invented-gpu-lot",
+      "unit_ids": [
+        "invented-gpu-b"
+      ],
+      "status": "sold",
+      "start_at": "2026-10-01T00:00:00Z",
+      "end_at": "2026-12-01T00:00:00Z",
+      "contract_id": "invented-paper-sale",
+      "sale_value": {
+        "amount": "1500",
+        "currency": "USD",
+        "unit": "position_total"
+      }
+    },
+    {
+      "position_id": "invented-maintenance",
+      "lot_id": "invented-gpu-lot",
+      "unit_ids": [
+        "invented-gpu-c"
+      ],
+      "status": "maintenance",
+      "start_at": "2026-10-01T00:00:00Z",
+      "end_at": "2026-11-01T00:00:00Z"
+    },
+    {
+      "position_id": "invented-node-sale",
+      "lot_id": "invented-node-lot",
+      "unit_ids": [
+        "invented-node-b"
+      ],
+      "status": "sold",
+      "start_at": "2026-10-01T00:00:00Z",
+      "end_at": "2026-12-01T00:00:00Z",
+      "sale_value": {
+        "amount": "900",
+        "currency": "EUR",
+        "unit": "position_total"
+      }
+    }
+  ],
+  "provenance": "synthetic"
 }

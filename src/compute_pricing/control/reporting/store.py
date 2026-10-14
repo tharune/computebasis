@@ -143,7 +143,7 @@ class SnapshotStore:
 
     def put(self, *, kind: str, input_payload: Mapping[str, Any], output_payload: Mapping[str, Any],
             versions: Mapping[str, str]) -> Snapshot:
-        if kind not in {"pricing", "pricing_scenarios", "cash", "market_collection", "market_refresh", "paper_decision", "inference", "calibration", "financing"}:
+        if kind not in {"pricing", "pricing_scenarios", "cash", "market_collection", "market_refresh", "paper_decision", "inference", "calibration", "financing", "portfolio"}:
             raise SnapshotStoreError("unknown_snapshot_kind")
         if not isinstance(input_payload, Mapping) or not isinstance(output_payload, Mapping) or not isinstance(versions, Mapping) or not versions:
             raise SnapshotStoreError("snapshot_object_required")

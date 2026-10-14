@@ -168,6 +168,17 @@ class UnderwritingV6Tests(unittest.TestCase):
         payload = request(); payload["subjects"] = {}
         self.assertEqual(assess_underwriting(payload)["status"], "held")
 
+    def test_null_blank_subject_is_missing_without_an_invented_identity(self):
+        omitted = request(); omitted["subjects"] = {}
+        blank = request(); blank["subjects"] = {"lot": None}
+        self.assertEqual(assess_underwriting(blank)["rows"], assess_underwriting(omitted)["rows"])
+        self.assertIn("missing_subject_identity", assess_underwriting(blank)["rows"][0]["blockers"])
+        blank["subjects"]["lot"] = "lot:invented"
+        self.assertEqual(assess_underwriting(blank)["status"], "complete_for_declared_requirements")
+        for invalid in (0, 1, False):
+            blank["subjects"]["lot"] = invalid
+            with self.assertRaises(ValidationError): assess_underwriting(blank)
+
     def test_not_applicable_requires_explicit_permission_reason_and_current_evidence(self):
         payload = request(); row = payload["evidence"][0]
         row.update(status="not_applicable", value=None, not_applicable_reason="The independently reviewed service excludes this physical component.")

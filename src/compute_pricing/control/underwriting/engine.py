@@ -219,7 +219,11 @@ def assess_underwriting(payload: dict[str, Any]) -> dict[str, Any]:
     scopes = set(_unique_ids(request["scopes"]))
     if not isinstance(request["subjects"], dict) or len(request["subjects"]) > 64:
         _fail("bounded_subjects_required")
-    subjects = {_id(kind): _id(subject) for kind, subject in request["subjects"].items()}
+    subjects = {}
+    for kind, subject in request["subjects"].items():
+        _id(kind)
+        if subject is not None:
+            subjects[kind] = _id(subject)
     for key in ("requirements", "evidence"):
         if not isinstance(request[key], list) or len(request[key]) > MAX_REQUIREMENTS:
             _fail("bounded_requirements_and_evidence_required")

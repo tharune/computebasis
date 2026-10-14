@@ -88,8 +88,8 @@ def _evaluate(payload):
               "warnings": ["declared_scenario_not_calibrated_collection_or_performance_forecast",
                            "firm_pricing_and_execution_review_not_implemented"],
               "request_id": market.request_id, "as_of": market.as_of,
-              "benchmark": benchmark, "economics": None,
-              "versions": {"model": "inverse-linear/1.0.0", "policy": market.policy.version,
+              "benchmark": benchmark, "economics": None, "bid": None,
+              "versions": {"model": "inverse-linear/1.0.0", "implementation": "purchase-cap-censoring/1.0.1", "policy": market.policy.version,
                            "registry": market.policy.registry_version, "schema": market.schema_version}}
     if utc_instant(market.as_of) < utc_instant(market.policy.effective_at):
         result["hold_reasons"].append("policy_not_yet_effective")
@@ -172,8 +172,10 @@ def _evaluate(payload):
         result["cash_constraint"] = liquidity
         if liquidity["status"] != "feasible":
             result["hold_reasons"].append("daily_cash_constraints_infeasible")
-        else:
+        elif liquidity["liquidity_binding_on_searched_grid"]:
             caps["daily_liquidity"] = Decimal(liquidity["maximum_purchase_tick"])
+    if "economic_margin" not in caps or "market" not in caps:
+        result["hold_reasons"].append("missing_required_purchase_cap")
     result["caps"] = {key: text_number(value) for key, value in caps.items()}
     if caps:
         reservation = min(caps.values())
@@ -183,9 +185,11 @@ def _evaluate(payload):
             bid = _tick(reservation, tick)
             if bid <= 0:
                 result["hold_reasons"].append("no_positive_feasible_purchase_tick")
-            result["bid"] = {"reservation": text_number(reservation), "submitted_limit": text_number(bid),
-                             "binding_constraints": [key for key, value in caps.items() if value == reservation],
-                             "supplier_ask_within_caps": supplier_ask <= reservation}
+            if not result["hold_reasons"]:
+                result["bid"] = {"reservation": text_number(reservation), "submitted_limit": text_number(bid),
+                                 "reservation_basis": "minimum_required_and_explicit_optional_caps_before_final_tick_rounding",
+                                 "binding_constraints": [key for key, value in caps.items() if value == reservation],
+                                 "supplier_ask_within_caps": supplier_ask <= reservation}
     gross_revenue = buyer_rate * billed_hours
     collected_revenue = gross_revenue * q
     expected_cost = supplier_ask * supply_coefficient + expected_fixed

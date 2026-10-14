@@ -17,7 +17,7 @@ disabled and keyboard-focus states. Do not add decorative gradients, glow, shado
 or motion to controls.
 
 Working text and labels use 12–14px desktop type; auxiliary timestamps and
-attribution may be smaller. Buttons and labelled form controls have a 44px minimum touch height. Mobile
+attribution may be smaller. Mobile buttons and labelled form controls have a 44px minimum touch height. Mobile
 inputs use 16px text to keep editing readable without automatic focus zoom.
 Keep table overflow inside its own scroll region, and wrap long identifiers and
 revision feedback without hiding page overflow.
@@ -34,7 +34,7 @@ security tests cover handlers; visual review covers the presentation.
 Light and dark themes share the same information hierarchy. Start from the
 system color preference; the top-bar toggle changes the current page without
 reading a feed, clearing a draft or changing a pricing policy. The preference
-stays in page memory. Keys and workspace data remain in memory as before.
+stays in page memory. CSRF tokens and workspace data stay in page memory; session cookies are short-lived and HttpOnly.
 Dark theme applies to tables, editors, notices, source states and local map
 geometry, with separately reviewed text, control-border and focus contrast.
 Keep the navigation horizontally scrollable within its own region at narrow

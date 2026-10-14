@@ -136,6 +136,8 @@ class InventoryStore:
     def put(self, *, expected_revision: int, state) -> dict:
         _revision(expected_revision)
         normalized = validate_inventory(state)
+        if normalized.get("provenance") == "synthetic":
+            raise InventoryError("synthetic_inventory_cannot_be_persisted")
         encoded, state_hash = _canonical(normalized), _hash(normalized)
         request_hash = _hash({"expected_revision": expected_revision, "state": normalized})
         with self._connect() as connection:

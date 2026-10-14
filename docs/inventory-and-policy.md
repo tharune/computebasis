@@ -44,6 +44,15 @@ inventory. Saving a declared plan is a separate action. Local plan reloads
 do not read external feeds. The site map uses packaged Natural Earth land
 geometry, with no third-party tiles, location lookup or marker transmission.
 
+An optional state `provenance` is `declared` or `synthetic`. Pure preview accepts
+the synthetic marker; persistent writes refuse it before a revision is created.
+Absent legacy markers are preserved in normalized state so historical hashes
+continue to verify, and are reported as `unspecified`. Provenance is a caller
+claim, never proof of ownership. Sold positions without `contract_id` remain
+editable paper declarations and appear in
+`position_evidence.sold_position_ids_without_contract`; even supplied contract
+references remain unverified and grant no execution permission.
+
 ## Customize controls without silent model changes
 
 `/v1/policies` stores immutable policy versions outside Git. Each document has a

@@ -313,3 +313,77 @@ footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8p
 .scope-controls label { display: flex; flex-direction: row-reverse; align-items: center; gap: 8px; min-height: 44px; color: var(--ink); }
 .scope-controls input { width: 16px; height: 16px; min-height: 16px; }
 .catalog-query { display: grid; gap: 7px; max-width: 440px; margin: 18px 0; color: var(--muted); font-size: 12px; }
+
+/* Analyst workspace: compact navigation, deliberate evidence and input surfaces. */
+:root { --surface: #f5f6f7; }
+.app-header { background: var(--panel); }
+.top-bar { min-height: 70px; }
+.navigation { gap: 18px; padding: 0; }
+.nav-item { padding: 13px 0; font-size: 12px; min-height: 47px; }
+.nav-item:hover { background: none; }
+.header-utilities { gap: 14px; }
+#theme-toggle { font-size: 11px; min-height: 32px; }
+main { max-width: 1572px; }
+h1 { font-size: 27px; letter-spacing: -.6px; }
+.page-heading { margin: 32px 0 28px; }
+.overview-stats { margin-bottom: 8px; }
+.overview-stats article { padding-top: 24px; padding-bottom: 24px; }
+#overview-capacity, #overview-decision { font-size: 23px; min-height: 34px; padding-top: 2px; }
+.dashboard-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 0 36px; align-items: start; }
+.dashboard-layout .card { border-top: 0; padding: 27px 0 25px; margin: 0; }
+.dashboard-layout + .dashboard-layout { border-top: 1px solid var(--border); }
+.pulse-table { min-width: 600px; }
+.pulse-table td { padding: 15px 13px; }
+.feed-health-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border); padding: 12px 0; }
+.feed-health-row strong { display: block; font-size: 12px; font-weight: 550; }
+.feed-health-row small { display: block; font-size: 10px; color: var(--muted); margin-top: 6px; }
+.workflow-list { list-style: none; margin: 0; padding: 0; }
+.workflow-button { width: 100%; display: flex; gap: 17px; align-items: center; background: none; border: 0; border-bottom: 1px solid var(--border); color: var(--ink); text-align: left; padding: 15px 0; }
+.workflow-button > span { color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.workflow-button > div { flex: 1; }
+.workflow-button strong { display: block; font-size: 13px; font-weight: 550; }
+.workflow-button small { display: block; color: var(--muted); font-size: 11px; line-height: 1.65; margin-top: 5px; }
+.workflow-button b { color: var(--muted); font-weight: 400; }
+.workflow-button:hover strong { color: var(--accent); }
+.price-section .table-wrap { max-height: 610px; }
+.form-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0 0; }
+.form-toolbar > strong { font-size: 12px; font-weight: 550; }
+.form-toolbar > div { display: flex; gap: 3px; flex-wrap: wrap; }
+.form-toolbar button { font-size: 11px; }
+.structured-fields { display: grid; gap: 10px; margin: 18px 0 24px; }
+.input-group { border: 1px solid var(--border); background: var(--panel); border-radius: 3px; min-width: 0; }
+.input-group > summary { font-size: 12px; font-weight: 550; padding: 14px 15px; background: var(--surface); }
+.input-group[open] > summary { border-bottom: 1px solid var(--border); }
+.input-group > .input-grid, .input-group > .input-field { margin: 16px; }
+.input-group > .field-help, .input-group > button { margin: 15px; }
+.input-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 15px 14px; }
+.input-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.input-field input, .input-field select { width: 100%; font-size: 12px; min-height: 36px; }
+.input-field small { font-size: 10px; }
+.nested-input-group { grid-column: 1 / -1; border-top: 1px solid var(--border); padding-top: 12px; min-width: 0; }
+.nested-input-group > summary { font-weight: 550; margin-bottom: 12px; }
+.nested-input-group > button { margin-top: 12px; }
+.scalar-group { display: flex; flex-direction: column; }
+.scalar-group > .input-field { margin: 13px 15px; }
+.array-row { border-bottom: 1px solid var(--border); padding: 15px; }
+.array-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 13px; }
+.array-heading strong { font-size: 11px; font-weight: 550; }
+.array-heading button { font-size: 11px; min-height: 28px; }
+.add-field { border-top: 1px solid var(--border); padding: 12px 0 0; margin: 13px 0 0; }
+.input-group > .add-field { margin: 0 16px 14px; }
+.add-field summary { color: var(--muted); font-size: 10px; margin-bottom: 10px; }
+.add-field input, .add-field select { font-size: 12px; max-width: 45%; margin-right: 7px; }
+.advanced-editor textarea { min-height: 260px; margin-top: 14px; }
+.result-card { border-left: 1px solid var(--border); padding-left: 23px; }
+#portfolio-view .result-blockers { max-height: 320px; overflow: auto; }
+[data-theme="dark"] { --surface: #1b232a; }
+[data-theme="dark"] .app-header { background: var(--panel); }
+@media (min-width:1201px) { .editor-layout { grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); gap: 32px; } }
+@media (max-width:1200px) { .dashboard-layout { grid-template-columns: 1fr; } .dashboard-layout .card { border-top: 1px solid var(--border); } .dashboard-layout + .dashboard-layout { border-top: 0; } .result-card { padding-left: 0; border-left: 0; } }
+@media (max-width:720px) { .navigation { gap: 20px; } .nav-item { padding: 12px 0; } .input-grid { grid-template-columns: 1fr; } .input-field input, .input-field select { min-height: 44px; font-size: 16px; } .form-toolbar { flex-direction: column; align-items: flex-start; gap: 3px; } .form-toolbar > div { width: 100%; justify-content: space-between; } .form-toolbar button { padding-left: 0; padding-right: 0; } .add-field input, .add-field select { max-width: 100%; width: 100%; margin: 4px 0; } #overview-decision, #overview-capacity { font-size: 20px; } #dashboard-clock { font-size: 10px; } }
+
+.structured-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.structured-fields > .input-group:not(.scalar-group) { grid-column: 1 / -1; }
+.structured-fields > .scalar-group { border: 0; background: none; }
+.structured-fields > .scalar-group > .input-field { margin: 0 0 6px; }
+@media (max-width:720px) { .structured-fields { grid-template-columns: 1fr; } }

@@ -7,6 +7,9 @@ from compute_pricing.control.treasury._validation import calculation_precision, 
 from .exposure import Exposure, attribute_losses
 from .scenarios import CashScenario, ScenarioReport, evaluate_scenarios
 
+CASH_EFFECT_KINDS = frozenset({"buyer_receipt", "buyer_deposit", "deposit_refund", "supplier_prepayment",
+    "supplier_payment", "other_inflow", "other_outflow", "facility_draw", "facility_repay", "facility_interest"})
+
 
 @dataclass(frozen=True)
 class TailRiskReport:
@@ -18,6 +21,11 @@ class TailRiskReport:
     cash_stress: ScenarioReport
     portfolio_exposure_ids: tuple[str, ...]
     distribution_evidence_id: str
+    loss_tail_basis: str = "explicit_declared_loss_components_not_cash_shortfall"
+    liquidity_stress_basis: str = "full_dated_portfolio_funding_shortfall_from_shared_opening_cash"
+    loss_attribution_completeness_verified: bool = False
+    scenarios_without_declared_loss_components: tuple[str, ...] = ()
+    cash_events_without_loss_annotation: tuple[tuple[str, tuple[str, ...]], ...] = ()
     calibration_verified: bool = False
     execution_eligible: bool = False
 
@@ -62,5 +70,12 @@ def evaluate_portfolio_tail_risk(scenarios: Sequence[CashScenario], exposures: S
             remaining -= included
             if remaining == 0:
                 break
+        unannotated = []
+        for scenario in scenarios:
+            annotated = {identity for loss in scenario.losses for identity in loss.cash_event_ids}
+            unannotated.append((scenario.scenario_id, tuple(sorted(event.event_id for event in scenario.events
+                if event.kind in CASH_EFFECT_KINDS and event.event_id not in annotated))))
         return TailRiskReport(alpha, expected, var, tail_loss / budget, max((loss for loss, probability in distribution if probability > 0), default=Decimal("0")), cash_stress,
-            tuple(sorted(item.exposure_id for item in exposures)), distribution_evidence_id)
+            tuple(sorted(item.exposure_id for item in exposures)), distribution_evidence_id,
+            scenarios_without_declared_loss_components=tuple(sorted(scenario.scenario_id for scenario in scenarios if not scenario.losses)),
+            cash_events_without_loss_annotation=tuple(unannotated))

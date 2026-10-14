@@ -1,4 +1,4 @@
-"""Local paper-pricing API with explicit reads and immutable decision snapshots."""
+"""Local paper-pricing API, scoped sessions and immutable decision snapshots."""
 from __future__ import annotations
 
 import dataclasses
@@ -8,7 +8,9 @@ import json
 from pathlib import Path
 import re
 import secrets
+import sqlite3
 import threading
+from contextlib import asynccontextmanager
 from typing import Any, Mapping
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -22,6 +24,10 @@ from compute_pricing.control.domain import SCHEMA_VERSION
 from compute_pricing.control.domain.generate import json_schema
 from compute_pricing.control.reporting import SnapshotStore, SnapshotStoreError
 from compute_pricing.control.treasury import evaluate_cash_payload
+from .refresh import AutomaticRefresh, CollectionCoordinator, RefreshConfig
+from .sessions import BrowserSessions, attach_sessions, request_scope
+from .provenance import PricingProvenance
+from compute_pricing.control.policies.repository import PolicyStoreError
 
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
 # Leave room for the canonical snapshot envelope and evaluation output wrappers.
@@ -120,6 +126,11 @@ def _evaluate_financing(payload: Mapping[str, Any]) -> dict[str, Any]:
     return evaluate_financing_payload(payload)
 
 
+def _evaluate_portfolio(payload: Mapping[str, Any]) -> dict[str, Any]:
+    from compute_pricing.control.portfolio import evaluate_portfolio_payload
+    return evaluate_portfolio_payload(payload)
+
+
 async def _json_body(request: Request, *, optional: bool = False) -> dict[str, Any]:
     content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     size = request.headers.get("content-length")
@@ -168,13 +179,19 @@ def _latest_collection(batch: Any) -> dict[str, Any]:
     return result
 
 
-def create_app(*, api_key: str, store_path: Path,
+def create_app(*, api_key: str | None = None, store_path: Path,
                source_policies: Mapping[str, SourcePolicy] | None = None,
                transport: ReadOnlyTransport | None = None,
                collection_plan: list[dict] | None = None,
-               local_instance_id: str | None = None) -> FastAPI:
-    if not isinstance(api_key, str) or not 32 <= len(api_key) <= 256 or not re.fullmatch(r"[!-~]+", api_key):
+               local_instance_id: str | None = None,
+               workbench_origin: str | None = None,
+               auto_refresh: dict | None = None) -> FastAPI:
+    if api_key is not None and (not isinstance(api_key, str) or not 32 <= len(api_key) <= 256 or not re.fullmatch(r"[!-~]+", api_key)):
         raise ValueError("API key must be an explicit 32-256 character printable ASCII secret without whitespace")
+    sessions = BrowserSessions(workbench_origin) if workbench_origin is not None else None
+    if api_key is None and sessions is None:
+        raise ValueError("an explicit API key or loopback browser origin is required")
+    refresh_config = RefreshConfig.parse(auto_refresh)
     store = SnapshotStore(store_path)
     if local_instance_id is not None and (not isinstance(local_instance_id, str) or not re.fullmatch(r"[a-f0-9]{32}", local_instance_id)):
         raise ValueError("invalid local instance ID")
@@ -191,21 +208,37 @@ def create_app(*, api_key: str, store_path: Path,
         raise ValueError("collection plan requires bounded explicit source/filter records") from None
     if not isinstance(plan, list) or len(plan) > 32 or any(not isinstance(row, dict) or set(row) != {"source_id", "filters"} or not _source_id(row["source_id"]) or not isinstance(row["filters"], dict) for row in plan):
         raise ValueError("collection plan requires bounded explicit source/filter records")
-    app = FastAPI(title="Compute Pricing", version=SERVICE_VERSION, docs_url=None, redoc_url=None, openapi_url=None)
+    @asynccontextmanager
+    async def lifespan(application):
+        await application.state.auto_refresh.start()
+        try:
+            yield
+        finally:
+            await application.state.auto_refresh.stop()
+
+    app = FastAPI(title="Compute Pricing", version=SERVICE_VERSION, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.store = store
-    # Per-process request admission complements the transport's per-host lock.
-    # Reject before entering the worker queue; a refresh holds one slot for its
-    # complete bounded sequence, including pacing and persistence.
+    app.state.browser_sessions = sessions
+    # Legacy manual refreshes hold a permit for the full sequence. Automatic
+    # mode shares one permit per coalesced scope through read and persistence.
     collection_slots = threading.BoundedSemaphore(MAX_CONCURRENT_COLLECTIONS)
     versions = {"api": SERVICE_VERSION, "domain": SCHEMA_VERSION, "snapshot": "1.0"}
 
     async def authenticated(request: Request) -> None:
-        authorization = request.headers.get("authorization", "")
-        scheme, separator, token = authorization.partition(" ")
-        authorized = scheme.lower() == "bearer" and bool(separator) and len(token) <= 256
-        valid = hmac.compare_digest((token if len(token) <= 256 else "").encode("utf-8"), api_key.encode("ascii"))
-        if not authorized or not valid:
+        authorization = request.headers.getlist("authorization")
+        if authorization:
+            scheme, separator, token = authorization[0].partition(" ")
+            authorized = len(authorization) == 1 and scheme.lower() == "bearer" and bool(separator) and len(token) <= 256
+            valid = api_key is not None and hmac.compare_digest((token if len(token) <= 256 else "").encode("utf-8"), api_key.encode("ascii"))
+            if authorized and valid:
+                return
             raise HTTPException(401, detail="unauthorized", headers={"WWW-Authenticate": "Bearer"})
+        if sessions is not None:
+            sessions.authorize(request, scope=request_scope(request))
+            return
+        raise HTTPException(401, detail="unauthorized", headers={"WWW-Authenticate": "Bearer"})
+
+    attach_sessions(app, sessions, json_body=_json_body)
 
     def save(kind: str, payload: Mapping[str, Any], output: Mapping[str, Any]) -> dict[str, Any]:
         snapshot_versions = dict(versions)
@@ -277,12 +310,32 @@ def create_app(*, api_key: str, store_path: Path,
             # External parsing/transport failures stay local to this source. No
             # response body, endpoint, credentials or exception text is exposed.
             raise ConnectorError("source_collection_failed") from None
+        current_policy = policies.get(source_id)
+        if current_policy is None or current_policy != policy:
+            raise ConnectorError("source_policy_changed_during_collection")
         for scope in ("observe", "retain", "benchmark"):
-            policy.require(scope)
+            current_policy.require(scope)
         admitted_input = {"source_id": source_id, "filters": filters,
                           "source_policy": {field.name: dict(policy.permissions) if field.name == "permissions" else getattr(policy, field.name)
                                             for field in dataclasses.fields(policy)}}
         return save("market_collection", admitted_input, output)
+
+    async def coordinated_worker(source_id, filters):
+        admission = _CollectionAdmission(collection_slots)
+        try:
+            return await run_in_threadpool(admission.run, collect_and_save, source_id, filters)
+        finally:
+            admission.close()
+
+    coordinator = CollectionCoordinator(coordinated_worker)
+    automatic = AutomaticRefresh(refresh_config, plan, policies, coordinator,
+                                 cooldown=collector_transport.cooldown_remaining)
+    app.state.auto_refresh = automatic
+    app.state.collection_coordinator = coordinator
+
+    @app.get("/v1/market/refresh/status", dependencies=[Depends(authenticated)])
+    async def refresh_status():
+        return automatic.status()
 
     @app.post("/v1/market/refresh", dependencies=[Depends(authenticated)])
     async def refresh(request: Request) -> dict[str, Any]:
@@ -305,12 +358,12 @@ def create_app(*, api_key: str, store_path: Path,
         keys = [(row["source_id"], json.dumps(row["filters"], sort_keys=True)) for row in requests]
         if len(set(keys)) != len(keys):
             raise HTTPException(422, detail="duplicate_refresh_scope")
-        admission = _CollectionAdmission(collection_slots)
+        admission = None if refresh_config.enabled else _CollectionAdmission(collection_slots)
         try:
             updated, held, failed = [], [], []
             for row in requests:
                 try:
-                    result = await run_in_threadpool(admission.run, collect_and_save, row["source_id"], row["filters"])
+                    result = await coordinator.collect(row["source_id"], row["filters"]) if refresh_config.enabled else await run_in_threadpool(admission.run, collect_and_save, row["source_id"], row["filters"])
                     updated.append({"source_id": row["source_id"], "filters": row["filters"], "snapshot_id": result["snapshot_id"],
                                     "observation_count": len(result["result"].get("observations", [])),
                                     "catalog_record_count": len(result["result"].get("catalog_records", [])),
@@ -319,16 +372,18 @@ def create_app(*, api_key: str, store_path: Path,
                     code = _connector_code(exc)
                     destination = held if code.startswith("admission_blocked") or code in {"source_not_admitted", "authentication_missing", "source_cooldown_active", "source_collection_in_progress"} else failed
                     destination.append({"source_id": row["source_id"], "filters": row["filters"], "reason": code})
-                except HTTPException:
-                    failed.append({"source_id": row["source_id"], "filters": row["filters"], "reason": "snapshot_store_unavailable"})
+                except HTTPException as exc:
+                    code = "collection_capacity_exceeded" if exc.status_code == 429 else "snapshot_store_unavailable"
+                    (held if exc.status_code == 429 else failed).append({"source_id": row["source_id"], "filters": row["filters"], "reason": code})
             output = {"updated": updated, "held": held, "failed": failed, "execution_enabled": False,
                       "refresh_mode": "explicit_manual_read", "partial_refresh": bool(held or failed),
                       "refresh_event_id": secrets.token_hex(16), "attempted_at": attempted_at,
                       "completed_at": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")}
-            receipt = await run_in_threadpool(admission.run, save, "market_refresh", {"requests": requests}, output)
+            receipt = await run_in_threadpool(save, "market_refresh", {"requests": requests}, output) if admission is None else await run_in_threadpool(admission.run, save, "market_refresh", {"requests": requests}, output)
             return {**output, "snapshot_id": receipt["snapshot_id"], "created_at": receipt["created_at"]}
         finally:
-            admission.close()
+            if admission is not None:
+                admission.close()
 
     @app.post("/v1/sources/{source_id}/collect", dependencies=[Depends(authenticated)])
     async def collect(source_id: str, request: Request) -> dict[str, Any]:
@@ -337,25 +392,44 @@ def create_app(*, api_key: str, store_path: Path,
             raise HTTPException(422, detail="invalid_collection_input")
         if source_id not in policies:
             raise HTTPException(409, detail="source_not_admitted")
-        admission = _CollectionAdmission(collection_slots)
+        admission = None if refresh_config.enabled else _CollectionAdmission(collection_slots)
         try:
-            return await run_in_threadpool(admission.run, collect_and_save, source_id, payload.get("filters", {}))
+            return await coordinator.collect(source_id, payload.get("filters", {})) if refresh_config.enabled else await run_in_threadpool(admission.run, collect_and_save, source_id, payload.get("filters", {}))
         except ConnectorError as exc:
             code = _connector_code(exc)
             status = 429 if code in {"source_collection_in_progress", "source_cooldown_active"} else 409 if code.startswith("admission_blocked") or code in {"authentication_missing", "unknown_or_unadmitted_source", "source_transport_not_implemented"} else 502
             # Codes are generated by the connector and contain no input values.
             raise HTTPException(status, detail=code) from None
         finally:
-            admission.close()
+            if admission is not None:
+                admission.close()
 
     @app.post("/v1/pricing/evaluate", dependencies=[Depends(authenticated)])
     async def pricing(request: Request) -> dict[str, Any]:
         payload = await _json_body(request)
         try:
-            output = await run_in_threadpool(_evaluate_pricing, payload)
+            output = await run_in_threadpool(bound_pricing, payload)
+        except (SnapshotStoreError, PolicyStoreError, sqlite3.Error):
+            raise HTTPException(503, detail="pricing_evidence_store_unavailable") from None
         except (ValueError, TypeError, KeyError, ArithmeticError):
             raise HTTPException(422, detail="invalid_pricing_input") from None
         return await run_in_threadpool(save, "pricing", payload, output)
+
+    def bound_pricing(payload):
+        output = _evaluate_pricing(payload)
+        boundary = PricingProvenance(store, policies, app.state.policy_repository)
+        return boundary.apply(payload, output)
+
+    def bound_scenarios(payload):
+        output = _evaluate_scenarios(payload)
+        boundary = PricingProvenance(store, policies, app.state.policy_repository)
+        if isinstance(output.get("baseline"), dict) and isinstance(output.get("scenarios"), list):
+            output["baseline"] = boundary.apply(payload["baseline"], output["baseline"])
+            for request_row, result_row in zip(payload["scenarios"], output["scenarios"], strict=True):
+                result_row["result"] = boundary.apply(request_row["request"], result_row["result"])
+            output["status"] = "held" if any(item["status"] == "held" for item in [output["baseline"], *[row["result"] for row in output["scenarios"]]]) else "indicative"
+            return output
+        return boundary.apply(payload, output)
 
     @app.post("/v1/cash/evaluate", dependencies=[Depends(authenticated)])
     async def cash(request: Request) -> dict[str, Any]:
@@ -370,13 +444,15 @@ def create_app(*, api_key: str, store_path: Path,
         payload = await _json_body(request)
         try:
             output = await run_in_threadpool(evaluator, payload)
+        except (SnapshotStoreError, PolicyStoreError, sqlite3.Error):
+            raise HTTPException(503, detail="evaluation_evidence_store_unavailable") from None
         except (ValueError, TypeError, KeyError, ArithmeticError):
             raise HTTPException(422, detail="invalid_" + kind + "_input") from None
         return await run_in_threadpool(save, kind, payload, output)
 
     @app.post("/v1/pricing/scenarios", dependencies=[Depends(authenticated)])
     async def scenarios(request: Request) -> dict[str, Any]:
-        return await pure_evaluation(request, _evaluate_scenarios, "pricing_scenarios")
+        return await pure_evaluation(request, bound_scenarios, "pricing_scenarios")
 
     @app.post("/v1/inference/evaluate", dependencies=[Depends(authenticated)])
     async def inference(request: Request) -> dict[str, Any]:
@@ -389,6 +465,15 @@ def create_app(*, api_key: str, store_path: Path,
     @app.post("/v1/financing/evaluate", dependencies=[Depends(authenticated)])
     async def financing(request: Request) -> dict[str, Any]:
         return await pure_evaluation(request, _evaluate_financing, "financing")
+
+    @app.post("/v1/portfolio/evaluate", dependencies=[Depends(authenticated)])
+    async def portfolio(request: Request) -> dict[str, Any]:
+        return await pure_evaluation(request, _evaluate_portfolio, "portfolio")
+
+    @app.get("/v1/portfolio/template", dependencies=[Depends(authenticated)])
+    async def portfolio_draft():
+        from compute_pricing.control.portfolio import portfolio_template
+        return portfolio_template()
 
     @app.get("/v1/decisions/{snapshot_id}", dependencies=[Depends(authenticated)])
     async def decision(snapshot_id: str) -> dict[str, Any]:

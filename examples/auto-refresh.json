@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "on_startup": true,
+  "cadence_s": 21600,
+  "source_cadence_s": {
+    "getdeploying": 21600,
+    "azure": 21600,
+    "aws_public_pricing": 21600,
+    "openrouter": 900,
+    "ecb": 21600,
+    "huggingface": 3600,
+    "huggingface_catalog": 3600
+  },
+  "backoff_initial_s": 60,
+  "backoff_max_s": 21600
+}

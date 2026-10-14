@@ -16,20 +16,21 @@ Maintained by **Tharun Ekambaram**.
 - Comparable cohort matching, complete-node normalization, duplicate/conflicting lot handling, configurable source/provider weights and support diagnostics.
 - Inverse bid/ask economics with explicit collection/fee/margin denominators and nonoverlapping owned costs.
 - Full dated cash ledgers, segregated advances, supplier prepayments, reserves, facility roll-forwards and conservative cash-limited price ticks.
-- Exact-workload inference qualification and complete allocated GPU costs, including idle capacity, versus explicit routed token/request tariffs.
+- Exact-workload inference qualification, full idle allocation cost, explicit routed operating costs, mix-specific price floors and qualified-capacity break-even diagnostics.
 - Persistent declared inventory with physical-unit interval checks, sold/reserved/maintenance/available states, local geographic map and contract timelines.
 - Immutable benchmark and typed feature policies with exact source weights, freshness/support controls, registry ownership and optimistic concurrency.
 - Portfolio exposure, explicit scenario/tail research, forward readiness and receivable financing simulations.
-- Version-bound paper approvals, idempotent paper intents, uncertain-effect holds and authenticated immutable decision snapshots.
+- Durable local paper commands, exact idempotent receipts, version-bound approvals, restart-safe uncertain-effect holds and a nonexecuting paper outbox.
+- One shared portfolio candidate assessment for exclusive capacity, complete supply cost, dated funding and baseline exposure limits.
 - Research-only regional/configuration regression with temporal and group/lot-separated holdouts.
 
-This is a local read-only and paper development release. Source and qualification assertions are not independently verified assets or bank evidence. Calibration uses research diagnostics; no live regional premium, credit probability or confidence interval is asserted. The in-memory paper journal and SQLite snapshots need production identity, transactional durability, accounting, reconciliation and operating evidence before real execution.
+This is a local read-only and paper development release. Source and qualification assertions are not independently verified assets or bank evidence. Calibration uses research diagnostics; no live regional premium, credit probability or confidence interval is asserted. Local durable paper commands and snapshots still require production identity, authoritative transactional cash/capacity coordination, accounting and witnessed operating evidence before real execution.
 
 ## Run the local workbench
 
-The [workbench guide](docs/workbench.md) runs a local browser UI with current source admission, native prices, freshness and immutable provenance. It includes manual scoped refresh and actual retained-reference evaluation; pricing/cash/inference editors keep synthetic examples separate. Six documented public feeds provide weekly GPU references, regional VM retail meters, native AWS tariffs, advertised inference token rates, informational FX and bounded model discovery. These economic units stay separate. Review the [source scope guide](docs/source-adapters.md) before use.
+The [workbench guide](docs/workbench.md) starts the local application. It opens a short-lived same-origin workspace session automatically. Seven admitted public feeds provide advertised GPU references, regional retail meters, native cloud tariffs, inference token rates, informational FX and model/recipe discovery. The backend refreshes explicitly configured scopes with permission checks, cooldowns, coalescing and backoff; the browser synchronizes retained evidence without overwriting drafts. Native economic units stay separate.
 
-After installation, start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json`, then open `http://127.0.0.1:8000`. Retrieve your locally generated development key with the explicit `scripts/local.py key` command and paste it into the page. Startup makes no live request; choose **Read admitted feeds** to index the configured scopes.
+Start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json` after installation, then open `http://127.0.0.1:8000`. No credential paste is needed. Source reads run only while the local app runs; no system jobs are installed. `--no-auto-refresh` selects manual operation. Review [source scope](docs/source-adapters.md), [session and refresh](docs/local-session-refresh.md) and [workspace workflows](docs/workspace-workflows.md).
 
 ## Try the current control plane
 
@@ -53,9 +54,9 @@ from compute_pricing.control.pricing import evaluate_pricing
 result = evaluate_pricing(request)
 ```
 
-The earlier compact research interface remains available as `compute_pricing.evaluate` and `scripts/evaluate.py examples/request.json`; its packet and signing-cash model are described in [methodology](docs/methodology.md). Use the control-plane packet for full daily settlement and qualification work.
+The earlier compact research interface remains available as `compute_pricing.evaluate` and `scripts/evaluate.py examples/request.json`; its packet and signing-cash model are described in [methodology](docs/methodology.md). Use the control-plane packet for its supported dated settlement and qualification methods.
 
-For the local API, set a fresh `COMPUTE_PRICING_API_KEY` secret of 32–256 printable characters and run `.venv/bin/python scripts/serve.py --store ABSOLUTE_EXTERNAL_SQLITE_PATH`. The database must be outside every Git checkout. The server binds only `127.0.0.1`, suppresses access logging and makes no feed request on startup. Source collection requires a separately reviewed `--source-config`; omission blocks all feeds.
+For explicit machine API clients, optionally set a fresh `COMPUTE_PRICING_API_KEY` secret of 32–256 printable characters and run `.venv/bin/python scripts/serve.py --store ABSOLUTE_EXTERNAL_SQLITE_PATH`. The database must be outside every Git checkout. The server binds only `127.0.0.1` and suppresses access logging. The launcher uses the reviewed public admission and collection configurations by default, with bounded startup and periodic reads. The app-library factory defaults to offline/manual behavior, and `--no-auto-refresh` disables runtime automatic reads. Cookie access is scoped to local reads, pure evaluations and paper inventory/policy changes; execution stays disabled.
 
 Read [the implementation guide](docs/control-plane.md) for endpoints, request contracts, formulas, source boundaries and remaining work.
 
@@ -70,6 +71,8 @@ The tool does not presume a universal US premium or turn every additional factor
 - [Design](docs/architecture.md)
 - [Control-plane methods and operating boundaries](docs/control-plane.md)
 - [Compact research methodology](docs/methodology.md)
+- [Conditional threshold-ladder diagnostics](docs/market-diagnostics.md)
+- [Shared portfolio and inference price floors](docs/portfolio-and-inference-diagnostics.md)
 - [Scoped roadmap](docs/roadmap.md)
 - [Contribution and publication policy](CONTRIBUTING.md)
 - [Domain JSON Schema](docs/contracts/domain-v1.schema.json) and [generated TypeScript source](docs/contracts/domain-v1.types.txt)

@@ -53,31 +53,36 @@ Tail research accepts a complete explicitly normalized scenario distribution and
 
 ## API and persistence
 
-All evaluation/read routes require a bearer key. `/health` exposes metadata only. JSON rejects duplicate keys, NaN/infinity and oversized bodies. No network request occurs at startup or on metadata GETs.
+Evaluation, inventory, policy and source routes authenticate before reading JSON. The local browser bootstraps a short-lived HttpOnly SameSite Strict session; writes require the exact Host/Origin, same-origin Fetch Metadata and a page-memory CSRF token. Optional API clients keep strong Bearer authentication. `/health` exposes metadata only. JSON rejects duplicate keys, NaN/infinity and oversized bodies. Library creation defaults to no feed reads. The local launcher enables explicitly configured, approved public startup/periodic reads inside its running backend; `--no-auto-refresh` opts out. Metadata GETs perform no collection. See [session and refresh contract](local-session-refresh.md).
 
 | Route | Function |
 | --- | --- |
 | `GET /v1/contracts/schema` | Shared generated contract |
 | `GET /v1/sources` | Explicit admission/implementation blockers |
+| `POST /v1/session/bootstrap` | Exact-origin local browser session/CSRF bootstrap |
+| `POST /v1/session/logout` | CSRF-protected shared-session revocation |
 | `POST /v1/sources/{source_id}/collect` | Manual rights-admitted read |
+| `GET /v1/market/refresh/status` | Application-owned public refresh status |
 | `POST /v1/pricing/evaluate` | Current benchmark, bid/ask and cash path |
 | `POST /v1/pricing/scenarios` | Complete independent repricing alternatives |
 | `POST /v1/cash/evaluate` | Dated accounting and funding simulation |
 | `POST /v1/inference/evaluate` | Qualified local/routed economics |
 | `POST /v1/calibration/evaluate` | Research fit and holdout diagnostics |
 | `POST /v1/financing/evaluate` | Borrowing base or waterfall simulation |
+| `GET /v1/portfolio/template` | Blank contract with no inferred funds or holdings |
+| `POST /v1/portfolio/evaluate` | Pure shared-cash/capacity candidate assessment |
 | `GET /v1/decisions/{sha256}` | Immutable authenticated snapshot replay |
 
-SQLite development snapshots use canonical hashes, transactions, append-only triggers, exact replay checks and restricted file permissions outside Git. They are not a production double-entry journal, authorization database or recovery guarantee. Paper intents use in-memory locks, economic idempotency, distinct proposer/risk/treasury identities and independently reconciled uncertain legs. Production identity and durable atomic holds/outbox/reconciliation remain required.
+SQLite development snapshots use canonical hashes, transactions, append-only triggers, exact replay checks and restricted file permissions outside Git. They are not a production double-entry journal, authorization database or recovery guarantee. Paper intents retain their process-local state machine and can use the optional [durable local paper repository](durable-paper-controls.md) for transactionally committed command history, exact historical retries and nonexecuting outbox records. Production identity, authoritative cash/capacity transactions, external reconciliation and certified recovery remain required.
 
 ## Source boundaries
 
-The [local workbench](workbench.md) adds an authenticated retained-market index and explicit scoped refresh. Azure is admitted for documented internal regional/SKU retail comparison in native VM-hour units; GPU model/count remain unknown. ECB provides informational EUR-base reference FX. Hugging Face provides bounded [model discovery](model-discovery.md) without prices, weights or technical qualification. These roles stay separate from comparable GPU-hour support.
+The [local workbench](workbench.md) adds an authenticated retained-market index and bounded configured refresh. Azure is admitted for documented internal regional/SKU retail comparison in native VM-hour units; GPU model/count remain unknown. AWS regional files retain their native cloud meter units. OpenRouter supplies advertised model token rates with invalid-model quarantine and conditional prices unapplied. ECB provides informational EUR-base reference FX. Hugging Face supplies bounded model and recipe discovery without prices, weights or technical qualification. These roles stay separate from comparable physical GPU-hour support.
 
 
 GetDeploying has a read-only weekly advertised-price CSV adapter. Its published [dataset](https://getdeploying.com/dataset/gpu-prices) specifies [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) attribution; the admission example records that scope. API selection excludes an incomplete current week. Values remain claimed global aggregates, not confirmed rentable inventory. No live prices or raw vendor payloads are committed here.
 
-Vast/OpenRouter parsers and Runpod query candidates have explicit authentication, unit and rights gates. Licensed index providers, financial venues and direct-model vendors remain candidates where commercial access/schema/rights or relevant instruments are unverified. The [admission example](../examples/source-admission.json) makes unavailable states visible. No source is enabled merely because its name is popular, a URL exists or an API key has been supplied.
+Vast parsers and Runpod query candidates retain explicit authentication, unit and rights gates. OpenRouter's reviewed anonymous catalog scope is restricted to local comparison and excludes inference calls, routing resale and raw public redistribution. Licensed index providers, financial venues and direct-model vendors remain candidates where commercial access/schema/rights or relevant instruments are unverified. The [admission example](../examples/source-admission.json) makes unavailable states visible. No source is enabled merely because its name is popular, a URL exists or an API key has been supplied.
 
 The transport pins admitted public DNS to verified TLS connections, restricts endpoints/methods/redirects, bounds response sizes/timeouts/retries, respects cooldowns and rejects concurrent collection of the same source. It does not install a scheduler or send orders. Source attribution and allowed use remain part of every observation.
 

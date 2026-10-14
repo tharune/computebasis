@@ -122,6 +122,14 @@ class PolicyRepository:
             rows = connection.execute("SELECT revision,created_at,document,policy_id,version FROM policy_documents ORDER BY sequence DESC LIMIT ?", (limit + 1,)).fetchall()
         return {"entries": [self._entry(row) for row in rows[:limit]], "limit": limit, "truncated": len(rows) > limit, "execution_enabled": False}
 
+    def head(self, policy_id):
+        """Resolve a policy's current version without a truncated list search."""
+        if not isinstance(policy_id, str) or not policy_id:
+            raise ValidationError("invalid_policy_identity")
+        with self.store._connect() as connection:
+            row = connection.execute("SELECT revision,created_at,document,policy_id,version FROM policy_documents WHERE policy_id=? OR json_extract(document,'$.policy.policy_id')=? ORDER BY sequence DESC LIMIT 1", (policy_id, policy_id)).fetchone()
+        return self._entry(row)
+
     def save(self, document, *, expected_revision):
         if expected_revision is not None and (not isinstance(expected_revision, str) or not re.fullmatch(r"[a-f0-9]{64}", expected_revision)):
             raise ValidationError("invalid_policy_predecessor")

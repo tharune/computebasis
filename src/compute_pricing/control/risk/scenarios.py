@@ -40,6 +40,8 @@ class ScenarioReport:
     worst_scenario_id: str
     worst_required_extra_cash: Decimal
     expected_required_extra_cash: Decimal | None
+    metric_basis: str = "full_dated_funding_shortfall_not_economic_loss_tail"
+    distribution_calibration_verified: bool = False
 
 
 def evaluate_scenarios(scenarios: Sequence[CashScenario], **shared_ledger_inputs) -> ScenarioReport:

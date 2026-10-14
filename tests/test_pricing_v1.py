@@ -62,7 +62,11 @@ class PricingTests(unittest.TestCase):
         packet["cash_template"]["schedule"]["opening_cash"] = "100"
         result = evaluate_pricing(packet)
         self.assertEqual(result["bid"]["submitted_limit"], "1.61")
-        self.assertEqual(result["bid"]["reservation"], "1.61")  # feasible tick grid also constrains cash search
+        self.assertEqual(result["bid"]["reservation"], "1.6128")
+        self.assertEqual(result["bid"]["binding_constraints"], ["economic_margin"])
+        self.assertNotIn("daily_liquidity", result["caps"])
+        self.assertIsNone(result["cash_constraint"]["maximum_purchase_tick"])
+        self.assertTrue(result["cash_constraint"]["limit_censored_by_search_ceiling"])
 
     def test_supplied_supplier_ask_drives_sell_floor_not_our_bid(self):
         packet = pricing_packet()
@@ -159,7 +163,9 @@ class PricingTests(unittest.TestCase):
             with TestClient(create_app(api_key=key, store_path=Path(folder) / "snapshots.sqlite")) as client:
                 result = client.post("/v1/pricing/evaluate", json=pricing_packet(), headers={"Authorization": "Bearer " + key})
                 self.assertEqual(result.status_code, 200, result.text)
-                self.assertEqual(result.json()["result"]["bid"]["submitted_limit"], "0.93")
+                self.assertEqual(result.json()["result"]["status"], "held")
+                self.assertIsNone(result.json()["result"]["bid"])
+                self.assertEqual(result.json()["result"]["scenario_diagnostics"]["benchmark"]["price"], "2")
                 self.assertEqual(client.get("/v1/decisions/" + result.json()["snapshot_id"], headers={"Authorization": "Bearer " + key}).status_code, 200)
 
 

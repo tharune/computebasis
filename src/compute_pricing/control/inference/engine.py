@@ -15,6 +15,7 @@ from typing import Any, Mapping
 from .._numbers import calculation_precision, canonical_json, digest, number, text_number
 from ..domain import ValidationError, utc_instant
 from ..domain.spec import ID_PATTERN
+from .pricing import inference_pricing_diagnostics
 
 SETUP_FIELDS = (
     "model_id", "runtime_id", "runtime_version", "hardware_model", "precision", "quantization",
@@ -167,6 +168,7 @@ def _evaluate(payload):
     gpu_cost = number(costs["gpu_rate_per_gpu_hour"], "gpu rate") * hours * gpu_count
     cost_lines = [{"id": "gpu_allocation", "basis": "all_allocated_gpu_hours", "amount": text_number(gpu_cost)}]
     other = Decimal(0)
+    fixed_cost, variable_cost = gpu_cost, Decimal(0)
     seen = {"gpu_allocation"}
     seen_ids = {"gpu_allocation"}
     if not isinstance(costs["cost_items"], list) or len(costs["cost_items"]) > 1000:
@@ -189,6 +191,10 @@ def _evaluate(payload):
             raise ValidationError("cost_item: unsupported cost basis")
         amount = number(item["amount"], "cost item amount") * multipliers[item["basis"]]
         other += amount
+        if item["basis"] == "per_request":
+            variable_cost += number(item["amount"], "per request cost")
+        else:
+            fixed_cost += amount
         cost_lines.append({"id": item["id"], "ownership_channel": channel, "basis": item["basis"], "amount": text_number(amount)})
     local_cost = gpu_cost + other
     result["local"] = {
@@ -206,6 +212,7 @@ def _evaluate(payload):
         "throughput_basis": "measured_whole_deployment_slo_goodput_not_multiplied_by_parallelism_or_batch",
     }
     route = payload.get("external_route")
+    routed_parts = None
     route_blockers = _missing(route, ("currency",) + RATE_FIELDS + ("prices_include_route_fees", "route_fee_fraction", "source_id", "model_id", "precision", "quantization", "observed_at", "expires_at"), "external_route")
     result["routed_comparison"] = {"status": "held", "blockers": route_blockers, "cost": None}
     if not route_blockers:
@@ -232,6 +239,44 @@ def _evaluate(payload):
                 "local_cost_minus_routed_cost": text_number(local_cost - routed_cost),
                 "privacy_slo_and_provider_route_qualification": "not_verified",
                 "rate_basis": "supplied_snapshot_rates_no_firm_service_commitment"}
+            routed_items = route.get("cost_items")
+            if routed_items is not None:
+                if not isinstance(routed_items, list) or len(routed_items) > 1000:
+                    raise ValidationError("external_route cost_items: bounded explicit array required")
+                routed_fixed, routed_variable = Decimal(0), _token_bill(_money_rates(route, currency), Decimal(1), inputs, outputs, cache) * (Decimal(1) + route_fee)
+                item_ids, channels = set(), {"upstream_model_rates", "routing_fee"}
+                for item in routed_items:
+                    if _missing(item, ("id", "ownership_channel", "amount", "currency", "basis"), "routed_cost_item"):
+                        raise ValidationError("routed_cost_item: explicit ownership, basis and currency required")
+                    identity, channel = item["id"], item["ownership_channel"]
+                    if (not isinstance(identity, str) or not re.fullmatch(ID_PATTERN, identity) or identity in item_ids
+                            or not isinstance(channel, str) or not channel or channel in channels or _currency(item["currency"]) != currency):
+                        raise ValidationError("routed_cost_item: unique IDs/channels and matching currency required")
+                    item_ids.add(identity); channels.add(channel)
+                    amount = number(item["amount"], "routed operating cost")
+                    if item["basis"] == "whole_horizon":
+                        routed_fixed += amount
+                    elif item["basis"] == "per_request":
+                        routed_variable += amount
+                    else:
+                        raise ValidationError("routed_cost_item: whole_horizon or per_request required")
+                routed_parts = (routed_fixed, routed_variable)
+                all_in = routed_fixed + routed_variable * requests
+                result["routed_comparison"].update(all_in_cost=text_number(all_in),
+                    all_in_expected_contribution=text_number(collected - fees - all_in),
+                    all_in_local_cost_minus_routed_cost=text_number(local_cost - all_in),
+                    operating_cost_coverage="explicit_caller_declared_items")
+            else:
+                result["routed_comparison"]["operating_cost_coverage"] = "not_declared_upstream_only"
+    pricing_policy = payload.get("pricing_policy")
+    if pricing_policy is not None and any(item.get("ownership_channel") == "policy_capital" for item in costs["cost_items"]):
+        raise ValidationError("policy capital: separate pricing_policy field cannot duplicate a cost item")
+    result["pricing_diagnostics"] = inference_pricing_diagnostics(policy=pricing_policy,
+        requests=requests, capacity=request_capacity, fixed_cost=fixed_cost, variable_cost=variable_cost,
+        billed_revenue=billed, collection=collection, collected_fee=collected_fee, gross_fee=gross_fee,
+        sale_prices=sale_prices, routed_parts=routed_parts, supplier_ceiling_policy=payload.get("supplier_ceiling_policy"),
+        allocated_gpu_hours=hours * gpu_count, gpu_purchase_cost=gpu_cost)
+    result["pricing_diagnostics"]["currency"] = currency
     return InferenceResult(canonical_json(result))
 
 

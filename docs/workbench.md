@@ -9,8 +9,8 @@ GPU counts, performance, counterparty credit or demand into defaults.
 ## Start, connect and manage
 
 Use the pinned virtual environment from the implementation runbook. Choose an
-absolute runtime directory outside every Git checkout for the 0600 local API key,
-SQLite snapshots, service metadata and logs. Copy the [collection plan](../examples/collection-plan.json)
+absolute runtime directory outside every Git checkout for SQLite snapshots,
+optional API-client credentials, service metadata and logs. Copy the [collection plan](../examples/collection-plan.json)
 there and edit its region, author and retrieval budgets explicitly. These are
 starting coverage settings, not hardcoded market prices or universal model policy.
 
@@ -19,21 +19,32 @@ starting coverage settings, not hardcoded market prices or universal model polic
   --source-config examples/source-admission.json \
   --collection-plan ABSOLUTE_EXTERNAL_PLAN
 .venv/bin/python scripts/local.py status --runtime ABSOLUTE_EXTERNAL_RUNTIME
-.venv/bin/python scripts/local.py key --runtime ABSOLUTE_EXTERNAL_RUNTIME
 .venv/bin/python scripts/local.py stop --runtime ABSOLUTE_EXTERNAL_RUNTIME
 ```
 
 The local URL is `http://127.0.0.1:8000` unless an explicit port is supplied.
-Paste the development key into the password field and select **Connect**. The
-page keeps the key in memory; no cookie, local storage, query-string credential,
-external asset or third-party request is used. Ending the session clears received
-data and drafts, and responses still in flight cannot restore a logged-out view.
-Normal startup/status output never prints the key; only the explicit `key`
-command does. A launch does not collect feeds automatically or install a job.
+The page bootstraps its local browser session automatically. A short-lived,
+host-only HttpOnly SameSite Strict cookie authenticates the browser; CSRF stays
+only in page memory and accompanies each write. Exact Host/Origin and same-origin
+Fetch Metadata protect the local boundary. No API key belongs in the page, URL
+or browser storage. Optional API-client keys remain separate from this workflow.
+
+The running backend starts and periodically updates its explicitly configured
+approved public scopes. Use `--auto-refresh-config ABSOLUTE_EXTERNAL_SETTINGS`
+for reviewed cadence/backoff settings or `--no-auto-refresh` for manual-only
+reads. The app installs no system job. See [session and refresh contract](local-session-refresh.md).
 
 The launcher refuses an occupied port and refuses to stop an unrelated process.
 It reuses its own ready instance and preserves external snapshots/key on stop.
-The API remains loopback-only with Bearer authentication for every `/v1` route;
+Stop verifies the owned PID and health instance, requests graceful termination,
+and waits at most sixty seconds for actual process exit. A closed listener alone
+does not prove exit. If a read still drains, status reports it and replacement
+startup stays blocked; no forced termination is sent.
+Lifecycle commands share an outside-Git advisory process lock. A competing
+command fails safely before process checks or signals, preventing duplicate
+starts or termination requests from this helper.
+The API remains loopback-only with scoped cookie/CSRF authentication for the
+browser and optional Bearer authentication for API clients;
 the unauthenticated shell and health endpoint contain no financial data or key.
 
 ## Live source roles
@@ -42,10 +53,11 @@ the unauthenticated shell and health endpoint contain no financial data or key.
 | --- | --- | --- |
 | GetDeploying | Published weekly advertised GPU-hour reference; current complete week selected, attribution retained | Global publisher aggregate; no independent lot, delivery right, local premium or confirmed inventory |
 | Azure Retail Prices | Documented unauthenticated internal comparison API; explicit region/SKU/prefix consumption-hour scope, exact retail USD/native node-hour amounts | Price API does not supply GPU model/count or rentable quantity; no automatic GPU-hour normalization or tax/storage/transfer inclusion |
-| AWS published prices | Bounded regional Lightsail/ECS/Bedrock native meter tariffs | Tiers, reserved terms, monthly caps and included resources need their own cost model; no GPU mapping or owned inventory |
+| AWS published prices | Bounded regional Lightsail/ECS/Bedrock/Lambda/S3 native meter tariffs | Tiers, reserved terms, monthly caps and included resources need their own cost model; no GPU mapping or owned inventory |
 | OpenRouter Models API | Anonymous scoped current-default model catalog and exact token rates | Conditional workload/time pricing stays unapplied; no provider-pinned quote, inference call or broader archival/resale permission |
 | ECB | Attributed published daily reference FX, exact EUR-base quote rates | Informational reference, not an executable settlement/hedge quote; observation date stays separate from capture |
 | Hugging Face | Bounded public author/task model metadata, licensing/gating/revision claims retained | No prices, weight downloads, model-use permission or measured technical qualification; limited response is not a complete model universe |
+| Hugging Face catalog | Scoped public model/recipe metadata and engine/accelerator labels | No prices, physical GPU count, model-use right or serving qualification |
 
 Index counts come from the live API and change with each source response. Model discovery is bounded and explicitly incomplete. Native retail/listing prices are not verified capacity. Other API candidates remain visible with rights, authentication, instrument or
 schema blockers; popularity and a readable URL do not admit a new source.
@@ -89,8 +101,11 @@ observe/retain/benchmark scopes before and after collection, paces shared hosts
 within the wait budget, and records updated/held/failed scopes individually.
 Successful previous evidence remains available after another scope fails, with
 current expiry checked rather than refreshed by the failure. Every attempt has a
-distinct refresh event and timestamps, so a repeated failure cannot appear older
-than an intervening success. No infinite retries or scheduled requests are added.
+distinct manual refresh event and timestamps, so a repeated failure cannot appear
+older than an intervening success. Automatic reads reuse the same permission,
+transport and persistence checks, coalesce identical active scopes, and report
+due/attempt/success/failure state at `/v1/market/refresh/status`. The read-only
+index displays updates without changing source dates or granting execution.
 
 Current lookup/display budgets are explicit in the index, not claims of complete
 worldwide market coverage. Firm procurement still needs admitted verified physical

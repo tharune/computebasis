@@ -1,6 +1,6 @@
 # Public source adapters and economic units
 
-Seven documented public feeds are admitted narrowly for local analysis. Admission, retention, benchmark role and execution permissions remain separate. No price response creates owned capacity, a delivery right or a firm quote. Startup does not collect feeds; the user explicitly requests bounded reads.
+Seven documented public feeds are admitted narrowly for local analysis. Admission, retention, benchmark role and execution permissions remain separate. No price response creates owned capacity, a delivery right or a firm quote. The configured local launcher refreshes approved, bounded scopes automatically; library creation defaults to no reads, and `--no-auto-refresh` disables automatic reads in a launched workspace.
 
 | Feed | Supported retrieval | Economic boundary |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ Seven documented public feeds are admitted narrowly for local analysis. Admissio
 
 The [source admission file](../examples/source-admission.json) records reviewed purposes; the [collection plan](../examples/collection-plan.json) supplies editable scopes. Neither contains observed prices, runtime keys or data snapshots. Source-quality rules in a saved pricing policy never grant data rights or enable execution. Current liveness stays unverified until a separate recorded probe; a successful probe is evidence for that instant.
 
-The editable plan includes separate US/European/Asian regional AWS queries, explicit Azure CPU-family SKU prefixes and both narrow and bounded general model-catalog searches. Query scopes and source records remain distinct; output row limits report display truncation. No plan entry verifies liveness or installs a collection schedule.
+The editable plan includes separate US/European/Asian regional AWS queries, explicit Azure CPU-family SKU prefixes and both narrow and bounded general model-catalog searches. Query scopes and source records remain distinct; output row limits report display truncation. No plan entry verifies liveness or installs a system job. The local launcher can run these approved public scopes on startup and periodically inside its own application lifecycle; [refresh configuration](../examples/auto-refresh.json) controls cadence/backoff and `--no-auto-refresh` opts out. [Local sessions and refresh](local-session-refresh.md) describes the strict browser boundary, source allowlist, coalescing and status. Library creation defaults to no reads.
 
 Other candidates remain visible with rights, authentication, scale, instrument or schema blockers. Oracle/OVHcloud/Scaleway require documented commercial retention/reuse scope. Vast and Runpod require scoped read credentials. Licensed indices and event/futures markets need applicable specifications and permissions and remain outside GPU-hour averaging. Direct model serving vendors need actual API/price, license/privacy and measured workload evidence.
 
