@@ -47,15 +47,56 @@ html[data-page="landing"][data-theme="dark"] { --border: rgba(231, 236, 240, .22
 .bf-caption { margin: 16px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.55; text-wrap: pretty; }
 
 /* Chart marks and text */
-.bf-chart { display: block; width: 100%; height: auto; overflow: visible; }
-.bf-chart text { font-family: var(--font); fill: var(--muted); font-variant-numeric: tabular-nums; }
-.bf-chart .bf-row-label { fill: var(--ink); font-size: 14px; font-weight: 600; }
-.bf-chart .bf-row-sub { font-size: 11.5px; }
-.bf-chart .bf-tick { font-size: 11px; }
-.bf-chart .bf-value { fill: var(--ink); font-size: 14px; font-weight: 600; }
-.bf-chart .bf-note { font-size: 12.5px; }
-.bf-grid { stroke: var(--border); stroke-width: 1; }
+/* The Brief's charts (landing-charts.js) draw at the size they are shown at, so every size below is the size on screen:
+   nothing is under 13px. Series colours are scoped to the Brief; the shared tokens and classes in workbench.css are untouched.
+   Cost series: quoted price a neutral grey, financing violet, expected loss the accent. Each clears 3:1 on the canvas and the
+   neighbours stay apart under protan, deutan and greyscale. Dark values mirror the two dark scopes in workbench.css. */
+.brief { --bf-quoted: #85919a; --bf-financing: #7b65d1; }
+:root[data-theme="dark"] .brief { --bf-quoted: #6c7883; --bf-financing: #8f87ec; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .brief { --bf-quoted: #6c7883; --bf-financing: #8f87ec; } }
+.bf-tone-accent, .bf-tone-loss { --gc: var(--accent); }
+.bf-tone-quoted, .bf-tone-neutral { --gc: var(--bf-quoted); }
+.bf-tone-financing { --gc: var(--bf-financing); }
+.bf-chart-host, .bf-spark { stroke: none; }  /* stroke is inherited: a mark has no outline unless a rule below gives it one */
+.bf-chart-host { position: relative; min-width: 0; }
+.brief .g-u { --gc: var(--faint); }  /* an unrated seller: a quiet chip, never a grade colour */
+.bf-chart, .bf-hits { display: block; max-width: 100%; height: auto; overflow: visible; }
+.bf-hits { position: absolute; top: 0; left: 0; z-index: 2; pointer-events: none; }
+.bf-chart text, .bf-hits text { font-family: var(--font); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.bf-chart text { paint-order: stroke; stroke: var(--canvas); stroke-width: 4px; stroke-linejoin: round; }  /* a gridline never strikes through a label */
+.bf-chart .bf-row-label { fill: var(--ink); font-size: 15px; font-weight: 600; }
+.bf-chart .bf-row-sub, .bf-chart .bf-tick, .bf-chart .bf-note, .bf-chart .bf-seg-label { font-size: 13px; }
+.bf-chart .bf-value { fill: var(--ink); font-size: 15px; font-weight: 600; }
+.bf-chart .bf-chip-text { fill: var(--ink); stroke: none; font-size: 13px; font-weight: 700; }
+.bf-grid, .bf-sep { fill: none; stroke: var(--border); stroke-width: 1; }
+.bf-base { fill: none; stroke: var(--control-border); stroke-width: 1; }
 .bf-bar { fill: var(--gc, var(--accent)); }
+.bf-chip-box { fill: none; stroke: var(--gc); stroke-width: 1.5; }
+.bf-ref .bf-row-label { font-weight: 700; }
+/* Row targets: a wash on hover, a ring on keyboard focus, one tooltip drawn in the chart itself. */
+.bf-hit { fill: transparent; stroke: none; outline: none; pointer-events: all; }
+.bf-hit:hover { fill: var(--accent-soft); }
+.bf-hit:focus-visible { fill: var(--accent-soft); stroke: var(--focus); stroke-width: 2px; }
+.bf-tip { opacity: 0; pointer-events: none; filter: drop-shadow(0 6px 16px rgba(18, 28, 36, .16)) drop-shadow(0 1px 3px rgba(18, 28, 36, .12)); }
+.bf-tip.is-on { opacity: 1; }
+.bf-tip-bg { fill: var(--input); stroke: var(--border); stroke-width: 1; }
+.bf-hits .bf-tip-head { fill: var(--ink); font-size: 15px; font-weight: 700; }
+.bf-hits .bf-tip-line { font-size: 13px; }
+.brief .chart-legend, .brief .bf-caption, .brief .bf-split dt { font-size: 13px; }
+/* Sparklines: a faint trend, its last stretch and end dot in the accent. */
+.bf-spark { overflow: visible; }
+.bf-spark-line, .bf-spark-last { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.bf-spark-line { stroke: var(--faint); }
+.bf-spark-last { stroke: var(--accent); }
+.bf-spark-ring { fill: var(--canvas); }
+.bf-spark-dot { fill: var(--accent); }
+/* The all-in formula under the cost chart: $3.540 + $0.319 + $0.962 = $4.821 */
+.bf-problem-figure .bf-split { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: auto auto; grid-auto-flow: column; }  /* names on one row, values on the next, whatever wraps */
+.bf-split dd { position: relative; align-self: start; }
+.brief .bf-split dt { align-items: flex-start; }
+.bf-op { position: absolute; left: -15px; color: var(--muted); font-weight: 400; }
+/* Large figures use proportional numerals; tabular digits look loose at display sizes. */
+.brief .bf-number-value, .brief .bf-stat-value, .brief .bf-basis-live strong { font-variant-numeric: normal; }
 /* Motion. One entrance on first load, a quiet reveal for what sits below the fold, a short fade between pages.
    All of it lives inside no-preference: with reduced motion nothing is hidden, moved or timed. Opacity and transform only.
    Entrance, in order: headline, lede and buttons rise 100ms apart; the chart's rule draws and its title fades in; when the
@@ -83,6 +124,11 @@ html[data-page="landing"][data-theme="dark"] { --border: rgba(231, 236, 240, .22
   .bf-grow .bf-value.bf-r1, .bf-grow .bf-note.bf-r1 { animation-delay: 490ms; } .bf-grow .bf-value.bf-r2, .bf-grow .bf-note.bf-r2 { animation-delay: 560ms; }
   .bf-grow .bf-value.bf-r3, .bf-grow .bf-note.bf-r3 { animation-delay: 630ms; } .bf-grow .bf-value.bf-r4, .bf-grow .bf-note.bf-r4 { animation-delay: 700ms; }
   .bf-grow .bf-value.bf-r5, .bf-grow .bf-note.bf-r5 { animation-delay: 770ms; } .bf-grow .bf-value.bf-r6, .bf-grow .bf-note.bf-r6 { animation-delay: 840ms; }
+
+  /* When a poll changes a number the bar slides to its new length and its label and grade chip follow; the tooltip fades. */
+  .bf-bar { transition: d 300ms var(--ease); }
+  .bf-value, .bf-note, .bf-chip, .bf-seg-label { transition: transform 300ms var(--ease); }
+  .bf-tip { transition: opacity var(--fast) var(--ease); }
 
   .bf-number.bf-in { animation: bf-rise 700ms var(--ease) 260ms backwards; }
   .bf-number.bf-in:nth-child(2) { animation-delay: 330ms; } .bf-number.bf-in:nth-child(3) { animation-delay: 400ms; } .bf-number.bf-in:nth-child(4) { animation-delay: 470ms; }
