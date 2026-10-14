@@ -179,7 +179,7 @@ class _PublishedNode:
         refs = [reference for _, reference in sorted(self.references.items())]
         support = sorted(self.support)
         return {"reservation_months": tenor, "native_unit": "gpu_hour",
-            "price_role": "reserved_term_average" if tenor is not None else "nonreserved_advertised_average",
+            "price_role": "reserved_term_average" if tenor is not None else "advertised_reference_without_month_tenor",
             "rate_per_gpu_hour": None if conflict else format(distinct[0], "f"),
             "conflicting_native_rates": [format(rate, "f") for rate in distinct[:16]] if conflict else [],
             "conflicting_native_rate_count": len(distinct) if conflict else 0,
@@ -224,7 +224,7 @@ def _native_point(row, sources, snapshots, now):
     age_limit = source.get("max_age_s")
     require(type(age_limit) is int and age_limit > 0, "source_freshness_policy_missing")
     snapshot = snapshots.get(row.get("snapshot_id"), {})
-    captured, event, expiry = utc_instant(snapshot.get("captured_at")), utc_instant(row.get("observed_at")), utc_instant(row.get("expires_at"))
+    captured, event, expiry = index_instant(snapshot.get("captured_at")), index_instant(row.get("observed_at")), index_instant(row.get("expires_at"))
     require(snapshot.get("source_id") == row["source_id"] and snapshot.get("stale") is False and row.get("index_stale") is False
             and row.get("execution_enabled") is False and row.get("status") in {"claimed", "verified"}
             and event <= captured <= now and expiry > now
@@ -232,7 +232,7 @@ def _native_point(row, sources, snapshots, now):
     rights = row.get("rights")
     require(isinstance(rights, dict) and rights.get("status") == "allowed"
             and all(rights.get(right) == "PASS" for right in ("observe", "retain", "benchmark")), "observation_rights_not_admitted")
-    require(rights.get("expires_at") is None or utc_instant(rights["expires_at"]) > now, "observation_rights_expired")
+    require(rights.get("expires_at") is None or index_instant(rights["expires_at"]) > now, "observation_rights_expired")
     price, hardware, metadata = row.get("price"), row.get("hardware"), row.get("extensions")
     require(row.get("kind") == "aggregate_advertised_index" and isinstance(price, dict) and price.get("unit") == "gpu_hour"
             and isinstance(hardware, dict) and isinstance(metadata, dict), "unsupported_native_term_price_shape")
@@ -260,8 +260,10 @@ def _native_point(row, sources, snapshots, now):
     return scope, tenor, decimal_value(price.get("amount"), "rate"), ref, (metadata["provider_count"], metadata["offering_count"])
 
 
-def observed_commitment_curves(index):
+def observed_commitment_curves(index, *, group_limit=GROUP_BUDGET, node_limit=DISPLAY_NODE_BUDGET):
     """Group current server-index references; never infer dates from a month label."""
+    if type(group_limit) is not int or not 1 <= group_limit <= 512 or type(node_limit) is not int or not 1 <= node_limit <= 1024:
+        raise ValueError("invalid_native_curve_display_budget")
     now, sources, snapshots = _index_parts(index)
     scopes, book, exclusions, admitted = {}, defaultdict(lambda: defaultdict(_PublishedNode)), Counter(), 0
     for row in index["observations"]:
@@ -276,10 +278,10 @@ def observed_commitment_curves(index):
             code = str(error)
             exclusions[code if re.fullmatch(r"[a-z][a-z0-9_]{0,80}", code) else "invalid_native_mark"] += 1
     total_nodes, displayed, groups = sum(len(points) for points in book.values()), 0, []
-    for group_key in sorted(book)[:GROUP_BUDGET]:
+    for group_key in sorted(book)[:group_limit]:
         nodes = []
         for tenor in sorted(book[group_key], key=lambda value: (value is not None, value or 0)):
-            if displayed == DISPLAY_NODE_BUDGET:
+            if displayed == node_limit:
                 break
             nodes.append(book[group_key][tenor].output(tenor)); displayed += 1
         if nodes:
@@ -290,6 +292,7 @@ def observed_commitment_curves(index):
             "as_of": index["as_of"], "groups": groups, "coverage": {"input_rows": len(index["observations"]),
                 "eligible_rows": admitted, "excluded_rows": sum(exclusions.values()), "exclusions": dict(sorted(exclusions.items())),
                 "total_groups": len(book), "returned_groups": len(groups), "total_nodes": total_nodes,
+                "group_limit": group_limit, "node_limit": node_limit,
                 "returned_nodes": displayed, "display_truncated": len(groups) < len(book) or displayed < total_nodes},
             "interpolation_enabled": False, "extrapolation_enabled": False, "firm_price_eligible": False,
             "execution_enabled": False, "calibration_verified": False,

@@ -126,6 +126,7 @@ class SnapshotStore:
             with self._connect() as connection:
                 connection.execute("CREATE TABLE IF NOT EXISTS snapshots (digest TEXT PRIMARY KEY CHECK(length(digest)=64), created_at TEXT NOT NULL, canonical_document TEXT NOT NULL)")
                 connection.execute("CREATE INDEX IF NOT EXISTS snapshot_kind_order ON snapshots(json_extract(canonical_document,'$.kind'), created_at DESC, digest DESC)")
+                connection.execute("CREATE INDEX IF NOT EXISTS snapshot_collection_scope ON snapshots(json_extract(canonical_document,'$.kind'),json_extract(canonical_document,'$.output.source_id'),coalesce(json_remove(json_extract(canonical_document,'$.input.filters'),'$.max_pages'),'{}'),created_at DESC,digest DESC)")
                 connection.execute("CREATE TRIGGER IF NOT EXISTS snapshots_no_update BEFORE UPDATE ON snapshots BEGIN SELECT RAISE(ABORT, 'snapshots_append_only'); END")
                 connection.execute("CREATE TRIGGER IF NOT EXISTS snapshots_no_delete BEFORE DELETE ON snapshots BEGIN SELECT RAISE(ABORT, 'snapshots_append_only'); END")
         except (OSError, sqlite3.Error):
@@ -198,6 +199,47 @@ class SnapshotStore:
 
     def latest_collections(self, *, scan_limit: int = 512) -> tuple[Snapshot, ...]:
         return self.latest_collection_scan(scan_limit=scan_limit).snapshots
+
+    def requested_collection_scan(self, requests) -> CollectionScan:
+        """Verified latest records for an explicit display population only.
+
+        This does not validate unrelated historical records or claim complete
+        market coverage. Pricing retains its separate provenance boundary.
+        """
+        if not isinstance(requests, list) or len(requests) > 32:
+            raise SnapshotStoreError("invalid_collection_scope_population")
+        scopes = []
+        for request in requests:
+            if (not isinstance(request, Mapping) or set(request) != {"source_id", "filters"}
+                    or not isinstance(request["source_id"], str)
+                    or not re.fullmatch(r"[a-z][a-z0-9_]*", request["source_id"])
+                    or not isinstance(request["filters"], Mapping)):
+                raise SnapshotStoreError("invalid_collection_scope_population")
+            filters = {key: value for key, value in request["filters"].items() if key != "max_pages"}
+            encoded = canonical_document(filters, max_bytes=65536)
+            scope = (request["source_id"], encoded)
+            if scope not in scopes:
+                scopes.append(scope)
+        snapshots = []
+        try:
+            with self._connect() as connection:
+                for source, filters in scopes:
+                    row = connection.execute("SELECT digest,created_at,canonical_document FROM snapshots WHERE json_extract(canonical_document,'$.kind')='market_collection' AND json_extract(canonical_document,'$.output.source_id')=? AND coalesce(json_remove(json_extract(canonical_document,'$.input.filters'),'$.max_pages'),'{}')=? ORDER BY created_at DESC,digest DESC LIMIT 1", (source, filters)).fetchone()
+                    if row is None:
+                        continue
+                    digest, created, encoded = row
+                    document = self._decode_saved(digest, encoded)
+                    inputs, output = document.get("input"), document.get("output")
+                    if not isinstance(inputs, Mapping) or not isinstance(output, Mapping) or not isinstance(inputs.get("filters", {}), Mapping):
+                        raise SnapshotStoreError("snapshot_integrity_failed")
+                    actual = {key: value for key, value in inputs.get("filters", {}).items() if key != "max_pages"}
+                    if (output.get("source_id") != source or inputs.get("source_id", source) != source
+                            or canonical_document(actual, max_bytes=65536) != filters):
+                        raise SnapshotStoreError("snapshot_integrity_failed")
+                    snapshots.append(Snapshot(digest, created, document))
+        except sqlite3.Error:
+            raise SnapshotStoreError("snapshot_store_unavailable") from None
+        return CollectionScan(tuple(snapshots), len(scopes), len(snapshots), False)
 
     def latest_collection_scan(self, *, scan_limit: int = 512) -> CollectionScan:
         """Latest verified result per explicit source/filter scope, bounded scan.

@@ -1,0 +1,26 @@
+[
+  {
+    "source_id": "getdeploying",
+    "filters": {}
+  },
+  {
+    "source_id": "ecb",
+    "filters": {}
+  },
+  {
+    "source_id": "energinet_day_ahead",
+    "filters": {
+      "rolling_days": 1,
+      "price_area": "DK1",
+      "limit": 1000
+    }
+  },
+  {
+    "source_id": "energinet_day_ahead",
+    "filters": {
+      "rolling_days": 1,
+      "price_area": "DK2",
+      "limit": 1000
+    }
+  }
+]

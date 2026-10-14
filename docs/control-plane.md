@@ -63,6 +63,9 @@ Evaluation, inventory, policy and source routes authenticate before reading JSON
 | `POST /v1/session/logout` | CSRF-protected shared-session revocation |
 | `POST /v1/sources/{source_id}/collect` | Manual rights-admitted read |
 | `GET /v1/market/refresh/status` | Application-owned public refresh status |
+| `GET /v1/demo/market` | Latest explicitly configured public display scopes, native commitment points and current permissions/freshness; no whole-market completeness claim |
+| `GET /v1/demo/contract` | Typed empty inputs, explicit assumptions and a deliberately selected invented example |
+| `POST /v1/demo/scenario` | Compact declared economics, held provenance and actual supplier-rate dated cash, saved with the complete expanded input for replay |
 | `POST /v1/pricing/evaluate` | Current benchmark, bid/ask and cash path |
 | `POST /v1/pricing/scenarios` | Complete independent repricing alternatives |
 | `POST /v1/cash/evaluate` | Dated accounting and funding simulation |
@@ -74,6 +77,15 @@ Evaluation, inventory, policy and source routes authenticate before reading JSON
 | `GET /v1/decisions/{sha256}` | Immutable authenticated snapshot replay |
 
 SQLite development snapshots use canonical hashes, transactions, append-only triggers, exact replay checks and restricted file permissions outside Git. They are not a production double-entry journal, authorization database or recovery guarantee. Paper intents retain their process-local state machine and can use the optional [durable local paper repository](durable-paper-controls.md) for transactionally committed command history, exact historical retries and nonexecuting outbox records. Production identity, authoritative cash/capacity transactions, external reconciliation and certified recovery remain required.
+
+The compact demo fixes its stated scope to USD, actual UTC calendar GPU-hours,
+one exclusive supplier allocation and one buyer, and margin on gross billings.
+Every commercial amount, collection share, utilization, fee, date and cash floor
+is explicit. It recognizes the full service billing and records uncollected
+receivables as writeoffs; these losses do not reduce the gross revenue denominator.
+Outflows precede receipts on the same calendar date. A hypothetical reference is
+display-only and cannot supply a benchmark or market cap. The API preserves the
+held decision and null bid while returning scenario economics and funding limits.
 
 ## Source boundaries
 

@@ -28,9 +28,26 @@ This is a local read-only and paper development release. Source and qualificatio
 
 ## Run the local workbench
 
-The [workbench guide](docs/workbench.md) starts the local application. It opens a short-lived same-origin workspace session automatically. Seven admitted public feeds provide advertised GPU references, regional retail meters, native cloud tariffs, inference token rates, informational FX and model/recipe discovery. The backend refreshes explicitly configured scopes with permission checks, cooldowns, coalescing and backoff; the browser synchronizes retained evidence without overwriting drafts. Native economic units stay separate.
+The [workbench guide](docs/workbench.md) starts the local application. It opens a short-lived same-origin workspace session automatically. Eight configured anonymous source roles provide advertised GPU references, regional retail meters, native cloud tariffs, inference token rates, informational FX, model/recipe discovery and wholesale energy references. The backend refreshes explicitly configured scopes with permission checks, cooldowns, coalescing and backoff; the browser synchronizes retained evidence without overwriting drafts. Native economic units stay separate. Configured access is distinct from runtime availability and public redistribution permission.
 
 Start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json` after installation, then open `http://127.0.0.1:8000`. No credential paste is needed. Source reads run only while the local app runs; no system jobs are installed. `--no-auto-refresh` selects manual operation. Review [source scope](docs/source-adapters.md), [session and refresh](docs/local-session-refresh.md) and [workspace workflows](docs/workspace-workflows.md).
+
+For the focused **Market → Deal economics → Inventory** demonstration, use the
+[demo runbook](docs/demo-sprint.md) and its four-scope collection plan:
+
+```sh
+DEMO_RUNTIME="${TMPDIR:-/tmp}/computebasis-public-demo"
+.venv/bin/python scripts/local.py start --runtime "$DEMO_RUNTIME" \
+  --source-config examples/source-admission.json \
+  --collection-plan examples/demo-collection-plan.json \
+  --auto-refresh-config examples/auto-refresh.json --port 8000
+```
+
+This schedules GetDeploying, ECB and Energinet DK1/DK2 only. Choose the invented
+deal deliberately; its costs, margin and cash diagnostics remain a **synthetic
+scenario**, with no admitted physical bid or trade. Live references never become
+owned inventory or verified counterparty evidence. Keep this dedicated runtime
+outside Git and separate from any runtime containing sensitive records.
 
 ## Try the current control plane
 
@@ -69,6 +86,7 @@ The tool does not presume a universal US premium or turn every additional factor
 ## Read more
 
 - [Design](docs/architecture.md)
+- [Three-screen demo runbook and sprint scope](docs/demo-sprint.md)
 - [Control-plane methods and operating boundaries](docs/control-plane.md)
 - [Compact research methodology](docs/methodology.md)
 - [Conditional threshold-ladder diagnostics](docs/market-diagnostics.md)

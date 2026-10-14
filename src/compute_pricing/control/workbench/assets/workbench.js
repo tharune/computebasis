@@ -2,6 +2,10 @@
   "use strict";
   const byId = (id) => document.getElementById(id);
   const state = { session: false, csrf: "", refreshStatus: null, results: {}, forms: new Map(), epoch: 0, index: null, rows: [], sources: [], snapshots: [], page: 0, synthetic: false, busy: false, action: null, controllers: new Map(), detailOrigin: null, inventory: null, inventoryDemo: false, inventorySite: "", selectedLot: "", land: null, policyEntries: [], policyCatalog: [], policyRows: [], policySaved: null, policyDirty: true, policyControlsDirty: false, underwritingRows: [], underwritingCatalog: null };
+  state.demoContract = null; state.demoFields = new Map(); state.demoSynthetic = false; state.demoResult = null;
+  state.commitmentCurves = null; state.selectedCurveNode = null;
+  const DISPLAY_SOURCES = new Set(["getdeploying", "ecb", "energinet_day_ahead"]);
+  const SOURCE_LABELS = { getdeploying: "GetDeploying", ecb: "ECB", energinet_day_ahead: "Energinet" };
   const PAGE_SIZE = 100;
   const EMPTY = "—";
   let underwritingScopeFields = [];
@@ -48,6 +52,11 @@
     byId("underwriting-template").disabled = busy || !state.session;
     byId("underwriting-assess").disabled = busy || !state.session || !byId("underwriting-input").value.trim();
     if (byId("evaluate-live-reference")) byId("evaluate-live-reference").disabled = busy || !state.session || !byId("live-model").value || !byId("live-terms").value;
+    byId("demo-load-sample").disabled = busy || !state.session || !state.demoContract?.sample;
+    byId("demo-evaluate").disabled = busy || !state.session || !state.demoFields.size;
+    byId("demo-clear").disabled = busy || !state.demoFields.size;
+    byId("market-compare-deal").disabled = busy || !state.session;
+    ["curve-model", "curve-group"].forEach(id => { byId(id).disabled = busy || !state.session; });
   }
   function showView(name, focus = true) {
     ["dashboard", "market", "inventory", "underwriting", "pricing", "policy", "inference", "cash", "portfolio"].forEach((view) => { byId(view + "-view").hidden = view !== name; });
@@ -56,6 +65,7 @@
       button.classList.toggle("active", selected);
       if (selected) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     });
+    byId("workspace-tools").open = false;
     if (focus) byId(name + "-title").focus({ preventScroll: true });
   }
   function abortRequests(reason) {
@@ -63,6 +73,8 @@
   }
   function clearSession(message = "Session ended. Received data and drafts were cleared.") {
     state.epoch++; abortRequests("session"); state.action = null; state.session = false; state.csrf = ""; state.results = {}; state.forms.forEach((editor) => editor.clear()); state.forms.clear(); state.index = null; state.rows = []; state.sources = []; state.snapshots = []; state.synthetic = false; state.page = 0;
+    state.demoFields.clear(); state.demoContract = null; state.demoSynthetic = false; state.demoResult = null; state.commitmentCurves = null; state.selectedCurveNode = null;
+    byId("demo-primary-fields").replaceChildren(); byId("demo-additional-fields").replaceChildren(); resetDemoResults(); renderMarketMvp();
     byId("session-card").hidden = false; byId("disconnect").hidden = true;
     byId("session-dot").classList.remove("connected"); text("session-state", "Workspace paused");
     ["pricing", "inference", "cash", "portfolio", "inventory", "underwriting"].forEach((kind) => byId(kind + "-fields").replaceChildren());
@@ -160,7 +172,7 @@
       const generation = state.epoch;
       try {
         await renewSession(); await loadIndex();
-        const results = await Promise.allSettled([loadRefreshStatus(), readInventory(true), loadUnderwritingCatalog()]);
+        const results = await Promise.allSettled([loadRefreshStatus(), readInventory(true), loadUnderwritingCatalog(), loadDemoContract()]);
         if (generation !== state.epoch || !state.session) return;
         const errors = results.filter((row) => row.status === "rejected");
         if (errors.length) notify(errors.map((row) => row.reason.message).join(" · "), true);
@@ -359,7 +371,7 @@
       const term = { billing_type: record.extensions.billing_type, reservation_months: record.extensions.reservation_months, currency: record.price.currency };
       terms.set(JSON.stringify(term), term);
     });
-    terms.forEach((term, value) => { const option = element("option", term.currency + " / " + term.billing_type + (term.reservation_months === null ? " / no reserved tenor" : " / " + term.reservation_months + " reserved months")); option.value = value; select.append(option); });
+      terms.forEach((term, value) => { const option = element("option", term.currency + " / " + term.billing_type + (term.reservation_months === null ? " / unspecified term" : " / " + term.reservation_months + " reserved months")); option.value = value; select.append(option); });
     if (!terms.size) { const option = element("option", model ? "No current eligible terms" : "Choose a model first"); option.value = ""; select.append(option); }
     if (terms.has(previous)) select.value = previous;
     text("live-reference-state", !state.session ? "Connect to see eligible current aggregate cohorts." : !aggregateRows().length ? "No current aggregate cohort passes the source rights and expiry gates. Inspect admission and refresh coverage." : model ? terms.size + " currency / billing cohorts available. Exploration weights remain unvalidated." : "Select a model to choose exact currency and billing terms.");
@@ -390,11 +402,185 @@
     byId("refresh-state").className = "pill" + (output?.held?.length || output?.failed?.length ? " warn" : "");
   }
   async function loadIndex() {
-    const index = await api("/v1/market/index");
+    const index = await api("/v1/demo/market");
     if (!Array.isArray(index.sources) || !Array.isArray(index.observations) || !Array.isArray(index.snapshots) || index.catalog_records && !Array.isArray(index.catalog_records)) throw new Error("The retained index response has an unexpected shape. No new records were displayed.");
     state.index = index; state.sources = index.sources || []; state.snapshots = index.snapshots || [];
+    state.commitmentCurves = index.commitment_curves || null;
+    if (index.refresh_operations) state.refreshStatus = index.refresh_operations;
     state.rows = (index.observations || []).filter((row) => !isFx(row) && !isModelMetadata(row) && hasPublishedPrice(row)).concat((index.catalog_records || []).filter((row) => !isFx(row) && !isModelMetadata(row) && hasPublishedPrice(row)).map((row) => ({ ...row, _catalog: true })));
-    state.page = 0; renderIndex(); renderDashboard(); return index;
+    state.page = 0; renderIndex(); renderDashboard(); renderMarketMvp(); return index;
+  }
+  function chartText(svg, x, y, value, anchor = "start") {
+    const label = svgNode("text", { x, y, "text-anchor": anchor, class: "chart-label" }); label.textContent = value; svg.append(label);
+  }
+  function curveGroups() { return (state.commitmentCurves?.groups || []).filter(group => DISPLAY_SOURCES.has(group.cohort?.source_id)); }
+  function selectedCurveGroup() { return curveGroups()[Number(byId("curve-group").value)] || null; }
+  function renderCurveGroups() {
+    const model = byId("curve-model").value; const select = byId("curve-group"); const previous = select.value; select.replaceChildren();
+    curveGroups().forEach((group, index) => {
+      const cohort = group.cohort;
+      if (cohort.hardware?.model !== model) return;
+      const option = element("option", cohort.currency + " · " + cohort.billing_type.replaceAll("_", " ").toLowerCase() + " · week " + cohort.week_start); option.value = String(index); select.append(option);
+    });
+    if (select.children.length === 0) { const option = element("option", "No current comparable cohort"); option.value = ""; select.append(option); }
+    else if ([...select.children].some(option => option.value === previous)) select.value = previous;
+    else {
+      const preferred = curveGroups().findIndex(group => group.cohort.hardware?.model === model && group.cohort.billing_type === "RESERVATION" && group.nodes.filter(node => node.status === "observed_reference").length > 1);
+      if (preferred >= 0) select.value = String(preferred);
+    }
+    state.selectedCurveNode = null; renderCommitmentChart();
+  }
+  function renderCommitmentChart() {
+    const svg = byId("commitment-chart"); svg.replaceChildren(); const chips = byId("curve-nodes"); chips.replaceChildren();
+    const group = selectedCurveGroup(); const cohort = group?.cohort; const nodes = group?.nodes || [];
+    const points = nodes.filter(node => node.status === "observed_reference" && node.rate_per_gpu_hour !== null && Number.isFinite(Number(node.rate_per_gpu_hour)));
+    byId("curve-empty").hidden = points.length > 0;
+    text("curve-unit", cohort ? cohort.currency + " / GPU-hour" : "Native currency / GPU-hour");
+    text("curve-caption", cohort ? SOURCE_LABELS[cohort.source_id] + " · global advertised provider median · week " + cohort.week_start + ". Configuration and regional fit require separate evidence." : "Each point preserves its source, billing term and observation week.");
+    if (points.length) {
+      // Floating point is used only for SVG pixel positions; exact server decimals remain the labels.
+      const maxTerm = Math.max(1, ...points.map(node => node.reservation_months || 0));
+      const minRate = Math.min(...points.map(node => Number(node.rate_per_gpu_hour))); const maxRate = Math.max(...points.map(node => Number(node.rate_per_gpu_hour)));
+      const spread = Math.max(maxRate - minRate, Math.abs(maxRate) * .12, .01); const bottom = Math.max(0, minRate - spread * .25); const top = maxRate + spread * .25;
+      const x = term => 68 + term / maxTerm * 620; const y = rate => 242 - (rate - bottom) / (top - bottom) * 210;
+      for (let i = 0; i < 4; i++) { const yy = 32 + i * 70; svg.append(svgNode("line", {x1:68, x2:688, y1:yy, y2:yy, class:"chart-grid"})); chartText(svg, 56, yy + 4, (top - i / 3 * (top - bottom)).toFixed(2), "end"); }
+      [...new Set(points.map(node => node.reservation_months || 0))].forEach(term => chartText(svg, x(term), 271, term ? term + " mo" : "Unspecified term", "middle"));
+      points.forEach(node => {
+        const circle = svgNode("circle", {cx:x(node.reservation_months || 0), cy:y(Number(node.rate_per_gpu_hour)), r:6, class:"chart-point", tabindex:"0", role:"button", "aria-label":(node.reservation_months === null ? "Unspecified term" : node.reservation_months + " months") + ": " + node.rate_per_gpu_hour + " " + cohort.currency + " per GPU-hour"});
+        const title = svgNode("title", {}); title.textContent = (node.reservation_months === null ? "Unspecified term" : node.reservation_months + " months") + " · " + node.rate_per_gpu_hour + " " + cohort.currency + " / GPU-hour"; circle.append(title);
+        circle.addEventListener("click", () => selectCurveNode(node)); circle.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); selectCurveNode(node); } }); svg.append(circle);
+      });
+    }
+    nodes.forEach(node => {
+      const tenor = node.reservation_months === null ? "Unspecified term" : node.reservation_months + " months";
+      const chip = element("button", undefined, "curve-node" + (node.status === "held" ? " held" : "")); chip.type = "button";
+      chip.append(element("span", tenor), element("strong", node.rate_per_gpu_hour === null ? "Conflicting marks" : node.rate_per_gpu_hour + " " + cohort.currency));
+      chip.disabled = node.status !== "observed_reference"; chip.addEventListener("click", () => selectCurveNode(node)); chips.append(chip);
+    });
+    state.selectedCurveNode = points.find(node => node.reservation_months === 12) || points.find(node => node.reservation_months === 6) || points.find(node => node.reservation_months !== null) || points[0] || null; renderSelectedReference();
+  }
+  function selectCurveNode(node) { state.selectedCurveNode = node; renderSelectedReference(); }
+  function renderSelectedReference() {
+    const container = byId("market-selected-reference"); container.replaceChildren(); const node = state.selectedCurveNode; const cohort = selectedCurveGroup()?.cohort;
+    if (!node || !cohort) { container.append(element("p", "No current mark selected. You can still evaluate a fully declared scenario.")); return; }
+    container.append(element("strong", node.rate_per_gpu_hour + " " + cohort.currency + " / GPU-hour"), element("p", cohort.hardware.model + " · " + (node.reservation_months === null ? "unspecified term" : node.reservation_months + " month average")), element("small", SOURCE_LABELS[cohort.source_id] + " · captured " + (node.references?.[0]?.captured_at || "unknown") + " · observed week " + cohort.week_start));
+  }
+  function renderMarketMvp() {
+    const groups = curveGroups(); const select = byId("curve-model"); const previous = select.value;
+    selection(select, groups.map(group => group.cohort.hardware.model), "Choose hardware");
+    if (!select.value && groups.length) {
+      const multi = groups.filter(group => group.cohort.billing_type === "RESERVATION" && group.nodes.filter(node => node.status === "observed_reference").length > 1);
+      select.value = (multi.find(group => /H100/i.test(group.cohort.hardware.model)) || multi[0] || groups[0]).cohort.hardware.model;
+    }
+    renderCurveGroups();
+    const sources = state.sources.filter(source => DISPLAY_SOURCES.has(source.source_id)); const health = byId("market-feed-health"); health.replaceChildren();
+    text("market-source-count", sources.length + " feeds");
+    sources.forEach(source => {
+      const latest = sourceLatest(source); const stale = latest.scopes.some(scope => scope.stale); const row = element("div", undefined, "feed-health-row"); const name = element("div");
+      name.append(element("strong", SOURCE_LABELS[source.source_id]), element("small", latest.captured ? "Captured " + latest.captured : "Awaiting first retained capture"));
+      row.append(name, element("span", !latest.captured ? "Awaiting" : stale ? "Stale" : "Current", "pill " + (!latest.captured || stale ? "warn" : "good"))); health.append(row);
+    });
+    if (!sources.length) health.append(element("p", state.session ? "No public display source is currently returned." : "Opening the local workspace…", "muted"));
+    const operations = state.index?.refresh_operations || state.refreshStatus; const scopes = operations?.scopes || operations?.automatic?.scopes || [];
+    const reading = scopes.some(scope => DISPLAY_SOURCES.has(scope.source_id) && scope.in_progress === true);
+    text("market-read-status", reading ? "Source read in progress" : "Backend refreshes approved feeds automatically");
+    text("market-data-state", state.index ? "Retained public references" : "Opening workspace");
+    text("market-asof", state.index?.as_of ? "View updated " + state.index.as_of : "Awaiting current evidence");
+    const context = byId("market-context-data"); context.replaceChildren();
+    const records = (state.index?.catalog_records || []).concat(state.index?.fx_records || []);
+    const fx = records.find(record => record.source_id === "ecb" && isFx(record) && (record.quote_currency === "USD" || record.currency === "USD")) || records.find(record => record.source_id === "ecb" && isFx(record));
+    if (fx) context.append(element("p", "1 " + (fx.base_currency || "EUR") + " = " + (fx.quote_per_base ?? fx.rate ?? EMPTY) + " " + (fx.quote_currency || fx.currency) + " · " + (fx.observed_date || fx.observed_at || "date unknown")));
+    const energy = records.filter(record => record.source_id === "energinet_day_ahead");
+    if (energy.length) context.append(element("p", energy.length + " retained wholesale electricity intervals. Native currencies / MWh, delivery area and timestamps remain in the reference records; these are not an all-in compute cost."));
+    if (!fx && !energy.length) context.append(element("p", "No retained FX or electricity context is available in this view.", "muted"));
+  }
+  async function loadDemoContract() {
+    const contract = await api("/v1/demo/contract");
+    if (!Array.isArray(contract.fields) || !contract.fields.length) throw new Error("Scenario intake metadata is unavailable. No assumptions were inserted.");
+    state.demoContract = contract; state.demoFields.clear(); byId("demo-primary-fields").replaceChildren(); byId("demo-additional-fields").replaceChildren();
+    contract.fields.forEach(field => {
+      if (!/^[a-z_]+(?:\.[a-z_]+)?$/.test(field.name) || !["decimal", "utc", "date"].includes(field.type) || state.demoFields.has(field.name)) throw new Error("Invalid scenario field metadata.");
+      const label = element("label", field.label, "demo-field" + (field.type === "utc" ? " wide" : "")); const input = element("input"); input.id = "demo-field-" + field.name.replaceAll(".", "-"); input.type = field.type === "date" ? "date" : "text"; input.required = true; input.autocomplete = "off"; input.value = "";
+      if (field.type === "decimal") input.inputMode = "decimal";
+      if (field.type === "utc") input.placeholder = "YYYY-MM-DDTHH:MM:SSZ";
+      input.setAttribute("aria-label", field.label); label.append(input);
+      if (field.type === "decimal" && ["billed_utilization", "collection_share", "required_margin", "fee_on_collected", "fee_on_gross"].includes(field.name)) label.append(element("small", "Fraction from 0 to 1; enter 0.20 for 20%."));
+      input.addEventListener("input", demoEdited); state.demoFields.set(field.name, input);
+      byId(field.group === "primary" ? "demo-primary-fields" : "demo-additional-fields").append(label);
+    });
+    text("demo-form-help", "USD scenario · actual UTC delivery hours · margin on gross billings. Start with your terms or load the labeled invented deal."); setBusy(state.busy);
+  }
+  function demoPacket() {
+    const packet = { payment_dates: {} };
+    state.demoFields.forEach((input, name) => { const value = input.value.trim(); if (!value) { byId("demo-assumptions").open = true; input.focus(); throw new Error("Supply " + (state.demoContract.fields.find(field => field.name === name)?.label || name) + ". Unknown inputs remain empty."); } const parts = name.split("."); if (parts.length === 2) packet.payment_dates[parts[1]] = value; else packet[name] = value; });
+    return packet;
+  }
+  function demoEdited() {
+    text("demo-scenario-mode", state.demoSynthetic ? "Edited invented scenario" : "Declared scenario");
+    if (state.demoResult) { text("demo-result-state", "Previous input"); byId("demo-result-state").className = "pill warn"; }
+    setBusy(state.busy);
+  }
+  function resetDemoResults() {
+    byId("demo-results").replaceChildren(element("p", "Supply your terms to see the purchase ceiling, selling floor and dated cash.", "empty-state"));
+    byId("demo-cash-chart").replaceChildren(); byId("demo-cash-empty").hidden = false; byId("demo-cash-blocker").hidden = true; byId("demo-cash-blocker").textContent = "";
+    byId("demo-cost-breakdown").replaceChildren(); byId("demo-provenance").replaceChildren(); text("demo-cash-caption", "Unrestricted cash · actual supplier price"); text("demo-result-state", "Not evaluated"); byId("demo-result-state").className = "pill";
+    byId("demo-output").textContent = ""; byId("demo-output").hidden = true; text("demo-scenario-mode", "Declared scenario");
+  }
+  function presentExactDecimal(value, { places = 2, shift = 0, roundUp = false } = {}) {
+    if (value === null || value === undefined) return EMPTY;
+    const parsed = /^(-?)(\d+)(?:\.(\d+))?$/.exec(String(value));
+    if (!parsed) return String(value);
+    const negative = parsed[1] === "-"; const fraction = parsed[3] || "";
+    let units = BigInt(parsed[2] + fraction); const discardedPlaces = fraction.length - places - shift;
+    if (discardedPlaces > 0) {
+      const divisor = 10n ** BigInt(discardedPlaces); const remainder = units % divisor; units /= divisor;
+      if (roundUp ? !negative && remainder > 0n : remainder * 2n >= divisor) units += 1n;
+    } else units *= 10n ** BigInt(-discardedPlaces);
+    const digits = units.toString().padStart(places + 1, "0");
+    const whole = (places ? digits.slice(0, -places) : digits).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return (negative && units !== 0n ? "-" : "") + whole + (places ? "." + digits.slice(-places) : "");
+  }
+  function demoMoneyMetric(container, label, value, currency, roundUp = false) {
+    const card = element("div", undefined, "result-metric"); const formatted = presentExactDecimal(value, {roundUp}); const amount = element("strong", formatted === EMPTY ? EMPTY : formatted + " " + currency);
+    if (value !== null && value !== undefined) amount.setAttribute("title", "Exact: " + value + " " + currency);
+    card.append(element("span", label), amount); container.append(card);
+  }
+  function renderDemoCash(schedule) {
+    const svg = byId("demo-cash-chart"); svg.replaceChildren(); const days = schedule?.days || [];
+    const valid = days.filter(day => Number.isFinite(Number(day.free_cash)) && Number.isFinite(Number(day.minimum_ordered_free_cash)));
+    byId("demo-cash-empty").hidden = valid.length > 0;
+    if (!valid.length) return;
+    const values = valid.flatMap(day => [Number(day.free_cash), Number(day.minimum_ordered_free_cash)]); const floor = schedule.minimum_cash_floor === null || schedule.minimum_cash_floor === undefined ? null : Number(schedule.minimum_cash_floor);
+    if (floor !== null && Number.isFinite(floor)) values.push(floor);
+    const low = Math.min(0, ...values); const high = Math.max(0, ...values); const spread = high - low || 1;
+    const x = i => 65 + i / Math.max(1, valid.length - 1) * 624; const y = value => 196 - (value - low) / spread * 160;
+    for (let i = 0; i < 3; i++) { const value = low + spread * i / 2; svg.append(svgNode("line", {x1:65,x2:689,y1:y(value),y2:y(value),class:"chart-grid"})); chartText(svg, 54, y(value) + 4, value.toFixed(0), "end"); }
+    [["free_cash", "chart-cash"], ["minimum_ordered_free_cash", "chart-trough"]].forEach(([field, css]) => {
+      svg.append(svgNode("polyline", { points:valid.map((day, i) => x(i) + "," + y(Number(day[field]))).join(" "), class:css, fill:"none" }));
+    });
+    if (floor !== null && Number.isFinite(floor)) { const rule = svgNode("line", {x1:65,x2:689,y1:y(floor),y2:y(floor),class:"chart-floor"}); const title = svgNode("title", {}); title.textContent = "Minimum cash floor: " + schedule.minimum_cash_floor + " " + schedule.currency; rule.append(title); svg.append(rule); }
+    valid.forEach((day, i) => { const point = svgNode("circle", {cx:x(i),cy:y(Number(day.free_cash)),r:3,class:"chart-point"}); const title = svgNode("title", {}); title.textContent = day.on + " · end-of-day " + day.free_cash + " " + schedule.currency + " · ordered minimum " + day.minimum_ordered_free_cash; point.append(title); svg.append(point); });
+    [0, Math.floor((valid.length - 1) / 2), valid.length - 1].filter((index, i, all) => all.indexOf(index) === i).forEach(index => chartText(svg, x(index), 224, valid[index].on, index === 0 ? "start" : index === valid.length - 1 ? "end" : "middle"));
+  }
+  function renderDemoResult(envelope) {
+    const result = envelope.result || envelope; state.demoResult = result; const currency = result.economics?.currency || "USD"; const grid = byId("demo-results"); grid.replaceChildren();
+    moneyMetric(grid, "Scenario purchase ceiling / GPU-hour", result.cash_constraint?.tested_purchase_tick, currency);
+    moneyMetric(grid, "Scenario selling floor / GPU-hour", result.ask?.sell_floor_tick, currency);
+    demoMoneyMetric(grid, "Profit at your supplier price", result.economics?.economic_profit, currency);
+    demoMoneyMetric(grid, "Additional opening cash required", result.cash_constraint?.supplied_ask_required_extra_cash, currency, true);
+    text("demo-result-state", "Scenario calculated"); byId("demo-result-state").className = "pill";
+    const blocker = byId("demo-cash-blocker"); blocker.hidden = result.cash_constraint?.supplied_ask_cash_feasible !== false;
+    blocker.textContent = "Positive profit can still require funding before buyer receipts arrive. This supplier price needs the additional opening cash shown above.";
+    const schedule = result.scenario_supplier_cash_schedule || result.cash_constraint?.selected_schedule;
+    text("demo-cash-caption", (result.scenario_supplier_cash_schedule ? "At your supplier price" : "At scenario purchase ceiling") + " · " + currency + " · solid: end-of-day / dashed: ordered minimum" + (schedule?.minimum_cash_floor !== null && schedule?.minimum_cash_floor !== undefined ? " / dotted: cash floor" : "")); renderDemoCash(schedule);
+    const breakdown = byId("demo-cost-breakdown"); breakdown.replaceChildren();
+    for (const [label, value] of [["Gross billings", result.economics?.gross_billings], ["Expected collections", result.economics?.expected_collections], ["Economic costs", result.economics?.economic_cost], ["Fees", result.economics?.fees], ["Capital charge", result.economics?.capital_charge]]) { const row = element("div", undefined, "demo-cost-row"); const formatted = presentExactDecimal(value); const amount = element("strong", formatted === EMPTY ? EMPTY : formatted + " " + currency); if (value !== null && value !== undefined) amount.setAttribute("title", "Exact: " + value + " " + currency); row.append(element("span", label), amount); breakdown.append(row); }
+    const margin = result.economics?.economic_margin; const percent = presentExactDecimal(margin, {shift:2}); const marginRow = element("div", undefined, "demo-cost-row"); const marginValue = element("strong", percent === EMPTY ? EMPTY : percent + "%");
+    if (margin !== null && margin !== undefined) marginValue.setAttribute("title", "Exact margin fraction: " + margin);
+    marginRow.append(element("span", "Economic margin / " + (result.economics?.margin_basis === "gross_billings" ? "gross billings" : result.economics?.margin_basis || "basis unknown")), marginValue); breakdown.append(marginRow);
+    const provenance = byId("demo-provenance"); provenance.replaceChildren(element("p", "Declared scenario with a hypothetical reference. The purchase ceiling is a model diagnostic; the actual submitted bid remains held and unavailable. No trade or inventory change is made.", "field-help"));
+    if (result.hold_reasons?.length) provenance.append(element("p", "Evidence holds: " + result.hold_reasons.join(" · "), "field-help"));
+    byId("demo-output").textContent = JSON.stringify(envelope, null, 2); byId("demo-output").hidden = false;
   }
   function metric(container, label, value) { const card = element("div", undefined, "result-metric"); card.append(element("span", label), element("strong", value ?? EMPTY)); container.append(card); }
   function renderDashboard() {
@@ -423,7 +609,7 @@
       const identity = record.hardware.model + ":" + record.price.currency;
       if (displayed.has(identity)) continue;
       displayed.add(identity); const native = currencyPrice(record); const months = record.extensions.reservation_months;
-      const tenor = months === null ? "no reserved tenor" : months + (months === 1 ? " month" : " months");
+      const tenor = months === null ? "unspecified term" : months + (months === 1 ? " month" : " months");
       const row = element("tr"); row.append(element("td", modelOf(record)), element("td", native.amount + " " + native.currency + " / GPU-hour", "price-cell"), element("td", record.extensions.billing_type.replaceAll("_", " ").toLowerCase() + " · " + tenor), element("td", record.source_id.replace(/^source:/, ""), "muted")); pulse.append(row);
       if (++rows === 7) break;
     }
@@ -855,6 +1041,26 @@
   byId("underwriting-input").addEventListener("input", underwritingEdited);
   byId("underwriting-query").addEventListener("input", renderUnderwritingRows);
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
+  byId("curve-model").addEventListener("change", renderCurveGroups);
+  byId("curve-group").addEventListener("change", () => { state.selectedCurveNode = null; renderCommitmentChart(); });
+  byId("market-compare-deal").addEventListener("click", () => { showView("pricing"); byId("demo-form-help").focus(); });
+  byId("demo-load-sample").addEventListener("click", () => {
+    const sample = state.demoContract?.sample;
+    if (sample?.classification !== "synthetic" || !sample.inputs) { notify("No labeled invented scenario is available.", true); return; }
+    state.demoFields.forEach((input, name) => { const parts = name.split("."); const value = parts.length === 2 ? sample.inputs[parts[0]]?.[parts[1]] : sample.inputs[name]; input.value = value === null || value === undefined ? "" : String(value); });
+    state.demoSynthetic = true; demoEdited(); text("demo-scenario-mode", "Invented scenario · editable");
+    notify("Invented deal loaded into this form only. Retained market references and inventory are unchanged.");
+  });
+  byId("demo-clear").addEventListener("click", () => { state.demoFields.forEach(input => { input.value = ""; }); state.demoSynthetic = false; state.demoResult = null; resetDemoResults(); setBusy(state.busy); });
+  byId("demo-scenario-form").addEventListener("submit", event => {
+    event.preventDefault();
+    return runAction("Calculating the declared deal and dated cash…", async () => {
+      const packet = demoPacket(); const raw = JSON.stringify(packet);
+      const envelope = await api("/v1/demo/scenario", {method:"POST", body:raw}); renderDemoResult(envelope);
+      try { if (JSON.stringify(demoPacket()) !== raw) demoEdited(); } catch (_) { demoEdited(); }
+      notify("Scenario calculated from your explicit terms. Source admission and execution remain held.");
+    });
+  });
   byId("connect-session").addEventListener("click", openWorkspace);
   byId("disconnect").addEventListener("click", () => {
     const csrf = state.csrf; const handshake = sessionHandshake?.done; clearSession();
@@ -916,13 +1122,13 @@
   setInterval(() => {
     if (!state.session || state.busy) return;
     return runAction("Synchronizing retained evidence…", async () => {
-      await loadIndex(); await loadRefreshStatus();
+      await loadIndex(); await loadRefreshStatus(); renderMarketMvp();
       const untouched = state.inventory && byId("inventory-input").value === JSON.stringify(state.inventory.state, null, 2);
       if (untouched && !state.inventoryDemo && byId("inventory-live").checked) await readInventory(true);
       renderDashboard();
     });
   }, 60000);
   setBusy(false);
-  renderInventory(); renderDashboard();
+  renderInventory(); renderDashboard(); renderMarketMvp(); resetDemoResults(); showView("market", false);
   window.addEventListener("load", openWorkspace);
 })();

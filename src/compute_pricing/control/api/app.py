@@ -17,7 +17,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
 from compute_pricing.control import __version__ as SERVICE_VERSION
-from compute_pricing.control._numbers import strict_json
+from compute_pricing.control._numbers import digest, strict_json
 from compute_pricing.control.connectors import ConnectorError, ReadOnlyTransport, collect_source, source_status
 from compute_pricing.control.connectors.transport import SourcePolicy, parse_utc
 from compute_pricing.control.domain import SCHEMA_VERSION
@@ -299,6 +299,37 @@ def create_app(*, api_key: str | None = None, store_path: Path,
             return await run_in_threadpool(market_index, store, policies, plan)
         except SnapshotStoreError:
             raise HTTPException(503, detail="snapshot_store_unavailable") from None
+
+    @app.get("/v1/demo/market", dependencies=[Depends(authenticated)])
+    async def demo_market_display():
+        from .demo_market import demo_market
+        try:
+            packet = await run_in_threadpool(demo_market, store, policies, plan)
+            packet["refresh_operations"] = app.state.auto_refresh.status()
+            return packet
+        except SnapshotStoreError:
+            raise HTTPException(503, detail="snapshot_store_unavailable") from None
+
+    @app.get("/v1/demo/contract", dependencies=[Depends(authenticated)])
+    async def demo_input_contract():
+        from .demo import demo_contract
+        return demo_contract()
+
+    @app.post("/v1/demo/scenario", dependencies=[Depends(authenticated)])
+    async def demo_scenario(request: Request):
+        from .demo import build_demo_pricing_request, demo_supplier_cash_schedule
+        compact = await _json_body(request)
+        try:
+            payload = build_demo_pricing_request(compact)
+            output = await run_in_threadpool(bound_pricing, payload)
+            output["scenario_supplier_cash_schedule"] = await run_in_threadpool(demo_supplier_cash_schedule, payload)
+            output["demo_scenario"] = payload["demo_scenario"]
+            output["decision_hash"] = digest({key: value for key, value in output.items() if key != "decision_hash"})
+        except (SnapshotStoreError, PolicyStoreError, sqlite3.Error):
+            raise HTTPException(503, detail="pricing_evidence_store_unavailable") from None
+        except (ValueError, TypeError, KeyError, ArithmeticError):
+            raise HTTPException(422, detail="invalid_demo_scenario_input") from None
+        return await run_in_threadpool(save, "pricing", payload, output)
 
     @app.get("/v1/market/curves", dependencies=[Depends(authenticated)])
     async def current_curves() -> dict[str, Any]:

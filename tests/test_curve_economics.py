@@ -124,6 +124,27 @@ class CurveEconomicsTests(unittest.TestCase):
 
 
 class PublishedCurveTests(unittest.TestCase):
+    def test_curve_display_budget_is_explicit_and_gaps_are_not_filled(self):
+        book = retained([published_point("example:a", 3), published_point("example:b", 9)])
+        result = observed_commitment_curves(book, group_limit=1, node_limit=1)
+        self.assertEqual(result["coverage"]["total_nodes"], 2)
+        self.assertEqual(result["coverage"]["returned_nodes"], 1)
+        self.assertTrue(result["coverage"]["display_truncated"])
+        self.assertEqual(result["coverage"]["node_limit"], 1)
+        for kwargs in ({"group_limit": True}, {"group_limit": 0}, {"node_limit": 1025}):
+            with self.subTest(kwargs=kwargs), self.assertRaisesRegex(ValueError, "invalid_native_curve_display_budget"):
+                observed_commitment_curves(book, **kwargs)
+
+    def test_retained_fractional_capture_and_expiry_preserve_real_server_precision(self):
+        book = retained([published_point("example:fractional-capture")])
+        book["snapshots"][0]["captured_at"] = "2052-06-11T18:00:00.654321Z"
+        book["observations"][0]["expires_at"] = "2052-07-01T00:00:00.123456Z"
+        book["observations"][0]["rights"]["expires_at"] = "2052-07-01T00:00:00.999999Z"
+        result = observed_commitment_curves(book)
+        self.assertEqual(result["coverage"]["eligible_rows"], 1)
+        self.assertEqual(result["groups"][0]["nodes"][0]["references"][0]["captured_at"],
+                         "2052-06-11T18:00:00.654321Z")
+
     def test_native_marks_with_fractional_server_asof_keep_period_and_references(self):
         result = observed_commitment_curves(retained([published_point("example:three"), published_point("example:nine", 9, "0.49")]))
         self.assertEqual(len(result["groups"]), 1)

@@ -5,12 +5,15 @@ transparent contract economics. It combines market evidence, configurable
 risk factors, inventory, power costs and cash-flow modeling to assess bids,
 selling floors, margins and funding needs.
 
-The local application has nine tabs: Overview, Markets, Inventory, Underwriting,
-Pricing, Inference, Cash & funding, Portfolio and Policies. The new curve, power
-and hedge models are backend APIs; dedicated frontend controls are subsequent work.
+The focused local demonstration follows three primary workflows: Market, Deal
+economics and Inventory. Additional policy, evidence, inference, cash and portfolio
+workspaces remain in the Tools menu. The market screen displays native commitment
+points; the compact deal screen uses explicit terms and the full dated cash model.
+Power allocation and hedge studies also remain available through backend APIs.
 
 | Area | Working functionality |
 | --- | --- |
+| Demo workflow | Three primary screens, dynamically discovered deal fields, empty intake and deliberate synthetic sample, scenario margin/selling floor/funding diagnostics, actual supplier-rate cash chart and separated advertised commitment points |
 | Overview | Market cohorts, feed health, declared capacity and current assessment summaries; top navigation, light/dark themes and automatic local sessions |
 | Market ingestion | Eight admitted anonymous source roles: GetDeploying datasets, Azure retail prices, AWS published regional prices, ECB FX, Hugging Face metadata and endpoint catalogs, OpenRouter model catalogs and Energinet power references; explicit scopes, native units, pagination budgets and source cooldowns |
 | Automatic updates | Backend refresh at configured source cadence, per-source backoff and retained immutable snapshots; browser synchronizes retained index and feed status every minute; freshness and publication lag stay visible |
@@ -48,6 +51,6 @@ are verified. Documented compute futures are research leads, not proof of live
 availability, liquidity or a qualified hedge for any physical offer. Financial
 contract multipliers and basis must stay separate from actual calendar capacity.
 
-API discovery is available at `/v1/cash/contract`, `/v1/curves/contract`,
+API discovery is available at `/v1/demo/contract`, `/v1/cash/contract`, `/v1/curves/contract`,
 `/v1/power/contract` and `/v1/hedges/contract`. Evaluation routes store their
 registered model versions and never enable execution.

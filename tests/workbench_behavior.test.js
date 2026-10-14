@@ -57,9 +57,10 @@ function harness({ prefersDark = false } = {}) {
   const fetch = (url, options) => {
     allCalls.push({ url, options });
     if (url.startsWith("/v1/session/")) sessionCalls.push({ url, options });
-    else if (!initializing || url === "/v1/market/index") calls.push({ url, options });
+    else if (!initializing || url === "/v1/demo/market") calls.push({ url, options });
     if (url === "/v1/session/logout") return logoutResponses.shift() || logoutWait || resolved({ auth_mode: "disconnected" });
     if (initializing && url === "/v1/session/bootstrap") return resolved({ auth_mode: "local_session", csrf_token: "c".repeat(64), expires_at: "2099-05-06T00:00:00Z" });
+    if (initializing && url === "/v1/demo/contract") return resolved(demoContractFixture());
     if (initializing && url === "/v1/market/refresh/status") return resolved({ enabled: true, running: false, scopes: [] });
     if (initializing && url.startsWith("/v1/inventory")) return resolved({ revision: null, as_of: "2033-05-06T00:00:00Z", state: { schema_version: "paper-inventory/1.0", sites: [], lots: [], positions: [] }, summary: { by_unit_kind: {} }, sites: [], lots: [], timeline: [] });
     if (initializing && url === "/v1/underwriting/template") return resolved({ requirements_version: "invented-public-7", requirements: [], scope_options: [], request: { scopes: [], subjects: {}, requirements: [], evidence: [] } });
@@ -84,6 +85,16 @@ function harness({ prefersDark = false } = {}) {
 }
 
 const observation = (id, amount, overrides = {}) => ({ id, source_id: "feed:prices", kind: "listing_ask", hardware: { model: id, accelerator_count: "1" }, price: { amount, currency: "USD", unit: "gpu_hour" }, observed_at: "2026-01-01T00:00:00Z", expires_at: "2099-01-01T00:00:00Z", status: "claimed", region: { country_code: "US" }, ...overrides });
+function demoContractFixture() {
+  const inputs = { gpu_count: "2", delivery_start: "2061-03-09T00:00:00Z", delivery_end: "2061-03-10T00:00:00Z", supplier_rate: "2.125", buyer_rate: "4.35", billed_utilization: "0.81", collection_share: "0.96", opening_cash: "280", reference_rate: "2.9", fee_on_collected: "0.01", fee_on_gross: "0.003", fixed_operating_cost: "17", minimum_cash: "12", required_margin: "0.18", tick_size: "0.005", payment_dates: { supplier_payment_on: "2061-03-09", buyer_invoice_on: "2061-03-09", buyer_receipt_on: "2061-03-10", operating_cost_on: "2061-03-09", fees_on: "2061-03-10", writeoff_on: "2061-03-10" } };
+  const fields = Object.keys(inputs).filter(name => name !== "payment_dates").map(name => ({name, label:name.replaceAll("_", " "), type:name.startsWith("delivery_") ? "utc" : "decimal", group:["reference_rate", "fee_on_collected", "fee_on_gross", "fixed_operating_cost", "minimum_cash", "required_margin", "tick_size"].includes(name) ? "assumptions" : "primary", required:true}));
+  Object.keys(inputs.payment_dates).forEach(name => fields.push({name:"payment_dates." + name,label:name,type:"date",group:"payment_dates",required:true}));
+  return { schema_version:"demo-scenario/1.0.0", fields, sample:{classification:"synthetic", inputs}, template_unknown:{} };
+}
+function demoField(h, name) {
+  const id = "demo-field-" + name.replaceAll(".", "-");
+  return [h.node("demo-primary-fields"), h.node("demo-additional-fields")].flatMap(container => container.children).flatMap(label => label.children).find(node => node.id === id);
+}
 function indexFixture(overrides = {}) {
   const scopes = [{ captured_at: "2026-01-01T00:00:00Z", observation_count: 1, catalog_record_count: 0, filters: {}, stale: false, coverage: { complete: false } }];
   return { as_of: "2026-01-01T00:00:00Z", sources: [{ source_id: "feed:prices", enabled: true, can_attempt_read: true, rights_status: "allowed", permissions: { benchmark: "PASS" }, max_age_s: 7200, scopes, latest: scopes[0] }], observations: [observation("GPU-A", "2.0000000000000000000000001")], catalog_records: [], snapshots: [{ snapshot_id: "a".repeat(64), source_id: "feed:prices" }], ...overrides };
@@ -114,6 +125,61 @@ test("each workspace navigation action has one handler and updates current page"
   assert.equal(nav.listeners.get("click").length, 1); await nav.emit("click");
   assert.equal(h.node("inventory-view").hidden, false); assert.equal(h.node("market-view").hidden, true);
   assert.equal(nav.attributes["aria-current"], "page");
+});
+
+test("MVP starts with three primary workflows and retains advanced tools", () => {
+  const h = harness(); const primary = html.match(/<nav class="navigation"[^>]*>([\s\S]*?)<\/nav>/)[1];
+  assert.deepEqual([...primary.matchAll(/data-view="([^"]+)"/g)].map(match => match[1]), ["market", "pricing", "inventory"]);
+  assert.equal(h.node("market-view").hidden, false); assert.equal(h.node("dashboard-view").hidden, true);
+  assert.ok(h.nav.some(node => node.dataset.view === "policy"));
+});
+
+test("scenario form remains unknown until explicit sample action and submits exact flat strings", async () => {
+  const h = harness(); await h.connect();
+  assert.equal(demoField(h, "gpu_count").value, ""); assert.equal(demoField(h, "payment_dates.buyer_receipt_on").value, "");
+  await h.node("demo-scenario-form").emit("submit"); assert.equal(h.calls.length, 1); assert.match(h.node("notice").textContent, /Unknown inputs remain empty/);
+  await h.node("demo-load-sample").emit("click"); assert.match(h.node("demo-scenario-mode").textContent, /Invented scenario/);
+  const exact = "2.125000000000000000001"; demoField(h, "supplier_rate").value = exact; await demoField(h, "supplier_rate").emit("input");
+  h.reply({result:{status:"held",bid:null,pricing_provenance:{source_evidence_eligible:false},cash_constraint:{tested_purchase_tick:"1.905",supplied_ask_required_extra_cash:"7.031",supplied_ask_cash_feasible:false},ask:{sell_floor_tick:"3.275"},economics:{currency:"USD",economic_profit:"41.032",gross_billings:"169.128",expected_collections:"162.36288",economic_cost:"121.33088",fees:"2.13188",capital_charge:"0"},scenario_supplier_cash_schedule:{currency:"USD",days:[{on:"2061-03-09",free_cash:"5",minimum_ordered_free_cash:"-2.031"},{on:"2061-03-10",free_cash:"46.032",minimum_ordered_free_cash:"5"}]},hold_reasons:["source_evidence_not_bound"]}});
+  await h.node("demo-scenario-form").emit("submit");
+  const call = h.calls.at(-1); assert.equal(call.url, "/v1/demo/scenario"); const sent = JSON.parse(call.options.body);
+  assert.equal(sent.supplier_rate, exact); assert.equal(sent.payment_dates.buyer_receipt_on, "2061-03-10"); assert.equal(sent.inputs, undefined);
+  assert.match(h.node("demo-results").textContent, /1\.905 USD/); assert.match(h.node("demo-results").textContent, /7\.04 USD/); assert.equal(h.node("demo-results").children[3].children[1].attributes.title,"Exact: 7.031 USD");
+  assert.equal(h.node("demo-cash-blocker").hidden, false); assert.match(h.node("demo-provenance").textContent, /actual submitted bid remains held/);
+  assert.match(h.node("demo-cash-caption").textContent, /At your supplier price/); assert.equal(h.node("demo-cash-empty").hidden, true);
+  assert.ok(h.node("demo-cash-chart").children.some(node => node.tagName === "polyline" && node.attributes.class === "chart-trough"));
+  demoField(h, "opening_cash").value = "300"; await demoField(h, "opening_cash").emit("input"); assert.equal(h.node("demo-result-state").textContent, "Previous input");
+  const draft = demoField(h, "opening_cash").value; h.reply(indexFixture()); h.reply({enabled:true,running:true,scopes:[]}); await h.intervals[0](); assert.equal(demoField(h, "opening_cash").value, draft);
+  await h.node("disconnect").emit("click"); assert.equal(h.node("demo-primary-fields").children.length, 0); assert.equal(h.node("demo-cash-chart").children.length, 0); assert.equal(h.node("demo-output").textContent, "");
+});
+
+test("scenario totals use exact cent presentation, funding rounds upward and rates retain tick precision", async () => {
+  const h = harness(); await h.connect(); await h.node("demo-load-sample").emit("click");
+  const result = {status:"held",bid:null,ask:{sell_floor_tick:"4.005"},cash_constraint:{tested_purchase_tick:"3.875",supplied_ask_required_extra_cash:"0.000000000000000001"},economics:{currency:"USD",economic_profit:"12345678901234567890.1251",economic_cost:null,economic_margin:"0.1234567890123456789",margin_basis:"gross_billings"},scenario_supplier_cash_schedule:{currency:"USD",minimum_cash_floor:"12",days:[{on:"2061-03-09",free_cash:"21",minimum_ordered_free_cash:"11.999999999999999999"}]}};
+  h.reply({result}); await h.node("demo-scenario-form").emit("submit"); const cards = h.node("demo-results").children;
+  assert.equal(cards[0].children[1].textContent,"3.875 USD"); assert.equal(cards[1].children[1].textContent,"4.005 USD");
+  assert.equal(cards[2].children[1].textContent,"12,345,678,901,234,567,890.13 USD"); assert.equal(cards[2].children[1].attributes.title,"Exact: 12345678901234567890.1251 USD");
+  assert.equal(cards[3].children[1].textContent,"0.01 USD"); assert.match(h.node("demo-cost-breakdown").textContent,/Economic margin \/ gross billings12\.35%/);
+  assert.equal(h.node("demo-cost-breakdown").children[2].children[1].textContent,"—");
+  assert.ok(h.node("demo-cash-chart").children.some(node => node.attributes.class === "chart-floor" && node.children[0].textContent === "Minimum cash floor: 12 USD"));
+  h.reply({result:{...result,economics:{...result.economics,economic_profit:"-0.0049",economic_margin:null},cash_constraint:{...result.cash_constraint,supplied_ask_required_extra_cash:"0"}}}); await h.node("demo-scenario-form").emit("submit");
+  assert.equal(h.node("demo-results").children[2].children[1].textContent,"0.00 USD"); assert.equal(h.node("demo-results").children[3].children[1].textContent,"0.00 USD");
+  assert.equal(h.node("demo-cost-breakdown").children.at(-1).children[1].textContent,"—");
+});
+
+test("commitment chart keeps native currency, gaps and billing weeks separate with no curve interpolation", async () => {
+  const h = harness();
+  const node = (months, rate) => ({reservation_months:months,rate_per_gpu_hour:rate,status:"observed_reference",references:[{captured_at:"2099-01-08T02:14:06.123Z"}]});
+  const group = (billing, currency, week, nodes) => ({cohort:{source_id:"getdeploying",hardware:{model:"Example-GPU"},currency,billing_type:billing,week_start:week},nodes});
+  await h.connect(indexFixture({commitment_curves:{groups:[group("CUSTOM","USD","2099-01-05",[node(null,"9.4")]),group("RESERVATION","EUR","2099-01-05",[node(null,"2.7"),node(1,"2.125000000000000000001"),node(12,"1.8")]),group("RESERVATION","USD","2098-12-29",[node(6,"4.7")])]},sources:[{source_id:"getdeploying",scopes:[{captured_at:"2099-01-08T02:14:06.123Z",stale:false}],can_attempt_read:true}]}));
+  assert.equal(h.node("curve-group").value,"1"); assert.equal(h.node("curve-unit").textContent,"EUR / GPU-hour");
+  assert.match(h.node("market-selected-reference").textContent,/1\.8 EUR/); assert.match(h.node("market-selected-reference").textContent,/12 month average/);
+  assert.match(h.node("curve-nodes").textContent,/Unspecified term/); assert.doesNotMatch(h.node("curve-nodes").textContent,/No reserved term/);
+  await h.node("curve-nodes").children[1].emit("click"); assert.match(h.node("market-selected-reference").textContent,/2\.125000000000000000001 EUR/);
+  const plot = h.node("commitment-chart"); assert.equal(plot.children.filter(child => child.tagName === "circle").length, 3); assert.equal(plot.children.filter(child => child.tagName === "polyline").length, 0);
+  assert.doesNotMatch(h.node("curve-nodes").textContent,/6 months/);
+  h.node("curve-group").value="2"; await h.node("curve-group").emit("change"); assert.equal(h.node("curve-unit").textContent,"USD / GPU-hour"); assert.match(h.node("curve-caption").textContent,/2098-12-29/);
+  await h.node("market-compare-deal").emit("click"); assert.equal(h.node("pricing-view").hidden,false); assert.equal(demoField(h,"reference_rate").value,"");
 });
 
 test("actual ECB quote_per_base is exact, separate from prices and model metadata", async () => {
@@ -321,7 +387,7 @@ test("retained synchronization updates untouched inventory but preserves edited 
   assert.equal(inventoryReads(), 2); assert.equal(h.node("inventory-input").value, '{"invented_unsaved":"kept"}');
   h.node("inventory-input").value = JSON.stringify(inventoryFixture().state, null, 2); h.node("inventory-live").checked = false;
   await synchronize(false); assert.equal(inventoryReads(), 2);
-  assert.equal(h.calls.filter((call) => call.url === "/v1/market/index").length, 4);
+  assert.equal(h.calls.filter((call) => call.url === "/v1/demo/market").length, 4);
 });
 
 test("policy controls preserve decimal strings and require explicit JSON write before saving", async () => {
