@@ -180,22 +180,35 @@
   }
 
   /* Motion. The Brief plays its entrance once, on first load; after the person has left it, coming back is a plain fade.
-     Sections below the fold fade in as they scroll into view. Without IntersectionObserver, or when motion is reduced,
-     nothing is hidden and the page simply shows. */
+     Blocks below the fold rise in as they scroll into view (siblings follow in order, in CSS). Without IntersectionObserver, or when
+     motion is reduced, nothing is hidden and the page simply shows. A block that is already above the screen (a reload part way
+     down, a jump to an anchor) is shown at once rather than left hidden. */
   const REVEAL = ["brief-problem-head", "brief-problem-1", "brief-problem-2", "brief-problem-3", "brief-how-head", "brief-steps", "brief-basis", "brief-close"];
+  const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
   function armReveal() {
-    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
-    if (reduced || typeof window.IntersectionObserver !== "function") return;
+    if (reducedMotion() || typeof window.IntersectionObserver !== "function") return;
     const watcher = new window.IntersectionObserver((entries) => entries.forEach((entry) => {
-      if (entry.isIntersecting) { entry.target.classList.add("rv-in"); watcher.unobserve(entry.target); }
+      const passed = entry.isIntersecting !== true && Number(entry.boundingClientRect?.bottom) < 0;
+      if (entry.isIntersecting || passed) { entry.target.classList.add("rv-in"); watcher.unobserve(entry.target); }
     }), { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
     byId("brief-view").classList.add("rv-on"); REVEAL.forEach((id) => watcher.observe(byId(id)));
   }
-  D.host.onView((name) => { if (name !== "brief") byId("brief-view").classList.add("bf-entered"); });
-  ["lp-open", "brief-open-desk", "brief-open-desk-end"].forEach((id) => byId(id).addEventListener("click", () => showView("desk"))); byId("brief-open-quotes").addEventListener("click", () => showView("quotes"));
+  /* Leaving the landing page: the page fades out for LEAVE_MS, then the app opens (and fades in, in CSS). With reduced motion, with
+     no timers, in a hidden tab or when a second click arrives, it switches at once, so a click is never lost or left waiting. */
+  const LEAVE_MS = 180;
+  const LEAVING = ["lp-header", "brief-view", "lp-footer"];
+  let leaving = false;
+  const clearLeaving = () => { leaving = false; LEAVING.forEach((id) => byId(id).classList.remove("lp-leaving")); };
+  function openApp(view) {
+    const wait = window.setTimeout;
+    if (leaving || reducedMotion() || typeof wait !== "function" || document.hidden === true) { clearLeaving(); showView(view); return; }
+    leaving = true; LEAVING.forEach((id) => byId(id).classList.add("lp-leaving"));
+    wait.call(window, () => { if (leaving) { clearLeaving(); showView(view); } }, LEAVE_MS);
+  }
+  D.host.onView((name) => { clearLeaving(); if (name !== "brief") byId("brief-view").classList.add("bf-entered"); });
+  [["lp-open", "desk"], ["brief-open-desk", "desk"], ["brief-open-desk-end", "desk"], ["brief-open-quotes", "quotes"]].forEach(([id, view]) => byId(id).addEventListener("click", () => openApp(view)));
   function goTo(sectionId, titleId) {
-    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
-    byId(sectionId).scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" }); byId(titleId).focus({ preventScroll: true });
+    byId(sectionId).scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" }); byId(titleId).focus({ preventScroll: true });
   }
   [["brief-see-problem", "brief-problem", "brief-problem-title"], ["lp-go-problem", "brief-problem", "brief-problem-title"], ["lp-go-how", "brief-how", "brief-how-title"]]
     .forEach(([button, section, title]) => byId(button).addEventListener("click", () => goTo(section, title)));

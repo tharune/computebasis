@@ -221,6 +221,62 @@ test("every block the page marks for reveal is one the script reveals", () => {
   assert.equal(withClass, REVEAL_IDS.length, "every block marked for reveal has an id the script can find");
 });
 
+test("a block that has already scrolled past the top is shown at once, never left hidden", () => {
+  const seen = fakeObserver(); const page = makePage(base, { browser: { IntersectionObserver: seen.IntersectionObserver } });
+  const [watcher] = seen.watchers; const [gone, below] = [page.el("brief-problem-1"), page.el("brief-problem-3")];
+  watcher.callback([{ isIntersecting: false, boundingClientRect: { bottom: -40 }, target: gone }, { isIntersecting: false, boundingClientRect: { bottom: 1400 }, target: below }]);
+  assert.equal(gone.has("rv-in"), true, "a reload part way down, or a jump to an anchor, must not leave the blocks above hidden");
+  assert.equal(below.has("rv-in"), false, "a block still below the screen waits for its turn");
+});
+
+/* Page transitions: the landing page fades for 180ms, then the app opens; with no timers, reduced motion or a hidden tab, it opens at once. */
+function fakeTimers() {
+  const pending = [];
+  return { pending, setTimeout: function (action, ms) { pending.push({ action, ms }); return pending.length; }, run: () => pending.splice(0).forEach((item) => item.action()) };
+}
+const LEAVING = ["lp-header", "brief-view", "lp-footer"];
+
+test("Open the overview fades the landing page out for 180ms, then switches; going back clears the fade", async () => {
+  const timers = fakeTimers(); const page = makePage(base, { browser: { setTimeout: timers.setTimeout } });
+  await page.el("brief-open-desk").click();
+  assert.deepEqual(page.shown, [], "the app has not opened yet");
+  LEAVING.forEach((id) => assert.ok(page.el(id).has("lp-leaving"), id + " is fading out"));
+  assert.equal(timers.pending.length, 1); assert.equal(timers.pending[0].ms, 180);
+  timers.run();
+  assert.deepEqual(page.shown, ["desk"]);
+  LEAVING.forEach((id) => assert.equal(page.el(id).has("lp-leaving"), false, id + " is not left faded for the way back"));
+  page.host.showView("brief");
+  LEAVING.forEach((id) => assert.equal(page.el(id).has("lp-leaving"), false));
+});
+
+test("every way out of the landing page leaves through the same fade, to the right page", async () => {
+  for (const [id, view] of [["lp-open", "desk"], ["brief-open-desk", "desk"], ["brief-open-desk-end", "desk"], ["brief-open-quotes", "quotes"]]) {
+    const timers = fakeTimers(); const page = makePage(base, { browser: { setTimeout: timers.setTimeout } });
+    await page.el(id).click(); assert.deepEqual(page.shown, [], id + " waits for the fade"); timers.run();
+    assert.deepEqual(page.shown, [view], id);
+  }
+});
+
+test("a second click during the fade opens the app once, at once", async () => {
+  const timers = fakeTimers(); const page = makePage(base, { browser: { setTimeout: timers.setTimeout } });
+  await page.el("brief-open-desk").click(); await page.el("brief-open-quotes").click();
+  assert.deepEqual(page.shown, ["quotes"], "the later choice wins and nothing waits");
+  timers.run();
+  assert.deepEqual(page.shown, ["quotes"], "the timer that was already running does not open a second page");
+});
+
+test("reduced motion, no timers or a hidden tab switch pages with no wait and no fade", async () => {
+  const timers = fakeTimers();
+  const reduced = makePage(base, { browser: { setTimeout: timers.setTimeout, matchMedia: () => ({ matches: true }) } });
+  await reduced.el("brief-open-desk").click();
+  assert.deepEqual(reduced.shown, ["desk"]); assert.equal(timers.pending.length, 0, "no timer is even set");
+  LEAVING.forEach((id) => assert.equal(reduced.el(id).has("lp-leaving"), false));
+  const bare = makePage(base);
+  await bare.el("brief-open-quotes").click(); assert.deepEqual(bare.shown, ["quotes"], "without timers a click is never lost");
+  const hidden = makePage(base, { browser: { setTimeout: timers.setTimeout } }); hidden.doc.hidden = true;
+  await hidden.el("brief-open-desk").click(); assert.deepEqual(hidden.shown, ["desk"], "a throttled background tab does not wait on a timer");
+});
+
 test("the Brief's entrance is for the first visit; once the person has left, coming back is a plain fade", () => {
   const page = makePage(base);
   assert.equal(page.el("brief-view").has("bf-entered"), false);

@@ -35,7 +35,7 @@
     <symbol id="icon-moon" viewBox="0 0 16 16"><path d="M13.4 9.3A5.6 5.6 0 0 1 6.7 2.6a5.6 5.6 0 1 0 6.7 6.7Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
   </svg>
   <div class="app-shell">
-    <header class="lp-header">
+    <header id="lp-header" class="lp-header">
       <div class="lp-bar">
         <a class="brand" href="/" aria-label="ComputeBasis home" data-view="brief">
           <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#logo-mark"/></svg>
@@ -46,7 +46,6 @@
           <button id="lp-go-how" class="lp-link" type="button">How it works</button>
         </nav>
         <div class="lp-actions">
-          <span class="lp-chip">Simulated data</span>
           <button id="lp-theme-toggle" class="icon-button" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark theme"><svg class="icon icon-sun" aria-hidden="true" focusable="false"><use href="#icon-sun"/></svg><svg class="icon icon-moon" aria-hidden="true" focusable="false"><use href="#icon-moon"/></svg></button>
           <button id="lp-open" class="primary-button" type="button">Open the overview</button>
         </div>
@@ -78,81 +77,118 @@
       <div class="activity-bar" id="activity-bar" hidden><span id="activity-label" role="status" aria-live="polite">Working…</span><button id="cancel-request" class="quiet-button">Stop waiting</button></div>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
       <section id="brief-view" class="view brief">
-        <div class="bf-hero bf-grid">
-          <div class="bf-hero-copy">
-            <h1 id="brief-title" tabindex="-1">Compare GPU quotes by all-in cost</h1>
-            <p class="bf-sub">ComputeBasis grades GPU sellers and adds financing and the expected loss from seller failure to the quoted price. Built for teams that buy or finance reserved GPU capacity.</p>
-            <div class="bf-actions"><button id="brief-open-desk" class="primary-button bf-button" type="button">Open the overview</button><button id="brief-see-problem" class="secondary-button bf-button" type="button">See the problem</button></div>
+        <div class="bf-hero">
+          <div class="bf-wrap bf-cols">
+            <div class="bf-hero-copy">
+              <h1 id="brief-title" tabindex="-1">Compare GPU quotes by all-in cost</h1>
+              <p class="bf-sub">ComputeBasis grades each GPU seller, then adds financing and the expected loss from seller failure to the quoted price, so every quote is compared on what it costs all-in.</p>
+              <div class="bf-actions"><button id="brief-open-desk" class="primary-button bf-button" type="button">Open the overview</button><button id="brief-see-problem" class="secondary-button bf-button" type="button">See the problem</button></div>
+            </div>
+            <div class="bf-hero-visual">
+              <figure class="bf-hero-figure bf-panel" aria-labelledby="brief-live-title">
+                <figcaption class="bf-figure-head"><p id="brief-live-title" class="bf-figure-title">Basis by GPU model</p><p>Best eligible all-in cost compared with the lowest quote, in dollars per GPU-hour.</p></figcaption>
+                <div id="brief-live" class="bf-live"><p class="empty-state">Loading the simulated market…</p></div>
+              </figure>
+            </div>
           </div>
-          <figure class="bf-hero-figure" aria-labelledby="brief-live-title">
-            <figcaption class="bf-figure-head"><p id="brief-live-title" class="bf-figure-title">Basis by GPU model</p><p>Best eligible all-in cost compared with the lowest quote, in dollars per GPU-hour.</p></figcaption>
-            <div id="brief-live" class="bf-live"><p class="empty-state">Loading the simulated market…</p></div>
-          </figure>
         </div>
-        <div id="brief-facts" class="bf-numbers bf-grid" role="group" aria-label="The simulated market right now"></div>
+        <div class="bf-band bf-band-numbers"><div class="bf-wrap"><div id="brief-facts" class="bf-numbers bf-cols" role="group" aria-label="The simulated market right now"></div></div></div>
         <section id="brief-problem" class="bf-section" aria-labelledby="brief-problem-title">
-          <header id="brief-problem-head" class="bf-section-head bf-grid rv">
-            <h2 id="brief-problem-title" class="bf-h2" tabindex="-1">A quote's price is only part of what it costs</h2>
-            <p class="bf-intro">Each figure below is measured on the simulated market and updates as it moves.</p>
-          </header>
-          <ul class="bf-problems">
-            <li id="brief-problem-1" class="bf-problem bf-grid rv">
-              <div class="bf-problem-copy">
-                <h3 class="bf-h3">Many quotes leave key terms blank</h3>
-                <p>Sellers list prices in their own formats, and many leave out terms a buyer needs to compare quotes like for like.</p>
-                <div id="brief-fact-gaps" class="bf-stat"></div>
-              </div>
-              <figure class="bf-problem-figure">
-                <figcaption class="bf-figure-head"><p class="bf-figure-title">The five terms quotes most often leave blank</p></figcaption>
-                <div id="brief-gaps" class="bf-slot"></div>
-                <p class="bf-caption">The ten key terms are location, country, minimum order, interconnect, cooling, lead time, contract length, down payment, payment terms and expiry.</p>
-              </figure>
-            </li>
-            <li id="brief-problem-2" class="bf-problem bf-grid is-flipped rv">
-              <div class="bf-problem-copy">
-                <h3 class="bf-h3">The quoted price leaves out financing and failure risk</h3>
-                <p>Sellers ask for a down payment, and the buyer pays to finance it. If the seller fails, the buyer can lose that deposit and pay more to replace the capacity. Neither shows in the quoted price.</p>
-                <div id="brief-fact-cost" class="bf-stat"></div>
-              </div>
-              <figure class="bf-problem-figure">
-                <figcaption class="bf-figure-head"><p class="bf-figure-title">What one quote costs per GPU-hour</p></figcaption>
-                <div id="brief-anatomy" class="bf-slot"></div>
-              </figure>
-            </li>
-            <li id="brief-problem-3" class="bf-problem bf-grid rv">
-              <div class="bf-problem-copy">
-                <h3 class="bf-h3">The lowest price says nothing about the seller</h3>
-                <p>A quote shows a price, not the seller's record. In this simulation, lower-grade sellers price lower by design, so the lowest quote usually comes from the weakest seller.</p>
-                <div id="brief-fact-grades" class="bf-stat"></div>
-              </div>
-              <figure class="bf-problem-figure">
-                <figcaption class="bf-figure-head"><p class="bf-figure-title">How far the lowest quote sits below the median quote</p></figcaption>
-                <div id="brief-grades" class="bf-slot"></div>
-              </figure>
-            </li>
-          </ul>
-        </section>
-        <section id="brief-how" class="bf-section" aria-labelledby="brief-how-title">
-          <header id="brief-how-head" class="bf-section-head bf-grid rv">
-            <h2 id="brief-how-title" class="bf-h2" tabindex="-1">From quoted price to all-in cost</h2>
-            <p class="bf-intro">Four steps, applied to every quote that states a contract length.</p>
-          </header>
-          <ol id="brief-steps" class="bf-pipeline bf-grid rv-group">
-            <li class="bf-stage"><span class="bf-stage-n" aria-hidden="true">1</span><h3 class="bf-h3">Grade the seller</h3><p>Six weighted categories give each seller a score out of 100, and the score sets a grade from A to D.</p><div id="brief-weights" class="bf-slot"></div></li>
-            <li class="bf-stage"><span class="bf-stage-n" aria-hidden="true">2</span><h3 class="bf-h3">Estimate the odds of failure</h3><p>The grade sets the yearly chance that a seller fails to deliver.</p><div id="brief-odds" class="bf-slot"></div></li>
-            <li class="bf-stage"><span class="bf-stage-n" aria-hidden="true">3</span><h3 class="bf-h3">Price the risk</h3><p>Financing on the down payment and the expected loss from failure are added to the quoted price.</p><div class="bf-slot"><ul class="bf-sum"><li>quoted price</li><li><span aria-hidden="true">+</span><span class="sr-only">plus </span>financing</li><li><span aria-hidden="true">+</span><span class="sr-only">plus </span>expected loss</li><li class="bf-sum-total"><span aria-hidden="true">=</span><span class="sr-only">equals </span>all-in cost</li></ul></div></li>
-            <li class="bf-stage"><span class="bf-stage-n" aria-hidden="true">4</span><h3 class="bf-h3">Rank what is eligible</h3><p>A quote is eligible when its seller is graded C or better, it states a contract length and a down payment, and at most three of the ten key terms are blank.</p><div id="brief-eligible" class="bf-slot bf-stat"></div></li>
-          </ol>
-          <div id="brief-basis" class="bf-basis bf-grid rv">
-            <div class="bf-basis-copy"><p class="bf-term">Market basis</p><p class="bf-definition">The gap between the lowest quoted price and the best all-in cost among eligible quotes.</p></div>
-            <p id="brief-basis-live" class="bf-basis-live"></p>
+          <div class="bf-wrap">
+            <header id="brief-problem-head" class="bf-section-head bf-cols rv-group">
+              <h2 id="brief-problem-title" class="bf-h2" tabindex="-1">A quote's price is only part of what it costs</h2>
+              <p class="bf-intro">Each figure below is measured on the current book and updates as it moves.</p>
+            </header>
+            <ul class="bf-problems">
+              <li id="brief-problem-1" class="bf-problem bf-cols rv-group">
+                <div class="bf-problem-copy">
+                  <h3 class="bf-h3">Many quotes leave key terms blank</h3>
+                  <p>Many quotes leave out terms a buyer needs to compare them like for like, and a quote with a blank key term is not eligible.</p>
+                  <div id="brief-fact-gaps" class="bf-stat"></div>
+                </div>
+                <figure class="bf-problem-figure bf-panel">
+                  <figcaption class="bf-figure-head"><p class="bf-figure-title">The terms quotes most often leave blank</p></figcaption>
+                  <div id="brief-gaps" class="bf-slot"></div>
+                  <p class="bf-caption">The ten key terms are location, country, minimum order, interconnect, cooling, lead time, contract length, down payment, payment terms and expiry.</p>
+                </figure>
+              </li>
+              <li id="brief-problem-2" class="bf-problem bf-cols rv-group">
+                <div class="bf-problem-copy">
+                  <h3 class="bf-h3">The quoted price leaves out financing and failure risk</h3>
+                  <p>Sellers ask for a down payment, and the buyer pays to finance it. If the seller fails, the buyer can lose part of that deposit and pay more to replace the capacity. Neither shows in the quoted price.</p>
+                  <div id="brief-fact-cost" class="bf-stat"></div>
+                </div>
+                <figure class="bf-problem-figure bf-panel">
+                  <figcaption class="bf-figure-head"><p class="bf-figure-title">What one quote costs per GPU-hour</p></figcaption>
+                  <div id="brief-anatomy" class="bf-slot"></div>
+                </figure>
+              </li>
+              <li id="brief-problem-3" class="bf-problem bf-cols rv-group">
+                <div class="bf-problem-copy">
+                  <h3 class="bf-h3">The lowest price does not show the seller's record</h3>
+                  <p>A quote shows a price, not how reliably the seller delivers. The lowest quote for a GPU model can come from a seller graded C or D.</p>
+                  <div id="brief-fact-grades" class="bf-stat"></div>
+                </div>
+                <figure class="bf-problem-figure bf-panel">
+                  <figcaption class="bf-figure-head"><p class="bf-figure-title">How far the lowest quote sits below the median quote</p></figcaption>
+                  <div id="brief-grades" class="bf-slot"></div>
+                </figure>
+              </li>
+            </ul>
           </div>
-          <p class="bf-fineprint">Scorecard weights, grade bands, the 12% cost of capital, failure rates and reference prices are placeholder assumptions from a mock provider workbook, not calibrated estimates. Expected loss counts the deposit at risk plus the cost of replacing the GPUs at an on-demand reference price.</p>
         </section>
-        <section id="brief-close" class="bf-close bf-grid rv" aria-labelledby="brief-close-title">
-          <div class="bf-close-copy"><h2 id="brief-close-title" class="bf-h2">Test it on the simulated market</h2>
-          <p class="bf-intro">Every number here comes from one simulated market. In the overview, trigger a price war, a supply shock or a provider downgrade and watch the basis move.</p></div>
-          <div class="bf-actions"><button id="brief-open-desk-end" class="primary-button bf-button" type="button">Open the overview</button><button id="brief-open-quotes" class="secondary-button bf-button" type="button">Browse the quotes</button></div>
+        <section id="brief-how" class="bf-section bf-band bf-band-how" aria-labelledby="brief-how-title">
+          <div class="bf-wrap">
+            <header id="brief-how-head" class="bf-section-head bf-cols rv-group">
+              <h2 id="brief-how-title" class="bf-h2" tabindex="-1">From quoted price to all-in cost</h2>
+              <p class="bf-intro">Four steps turn a quoted price into an all-in cost and decide which quotes can be ranked.</p>
+            </header>
+            <ol id="brief-steps" class="bf-pipeline bf-cols rv-group">
+              <li class="bf-stage">
+                <div class="bf-stage-head"><span class="bf-stage-n" aria-hidden="true">1</span><h3 class="bf-h3">Grade the seller</h3></div>
+                <p>Six weighted ratings give each seller a score out of 100. The score sets the grade: A at 90 or more, B at 75, C at 60, and D below 60.</p>
+                <div class="bf-stage-visual"><div id="brief-weights" class="bf-slot"></div></div>
+              </li>
+              <li class="bf-stage">
+                <div class="bf-stage-head"><span class="bf-stage-n" aria-hidden="true">2</span><h3 class="bf-h3">Set the odds of failure</h3></div>
+                <p>Each grade carries a chance that the seller fails to deliver within a year.</p>
+                <div class="bf-stage-visual">
+                  <dl class="bf-odds" aria-label="Chance of failure within a year, by grade">
+                    <div class="g-a"><dt><span class="grade g-a" aria-hidden="true">A</span><span class="sr-only">Grade A</span></dt><dd><span class="bf-odds-bar" aria-hidden="true"><span class="bf-odds-fill"></span></span><span class="bf-odds-value">0.8%</span></dd></div>
+                    <div class="g-b"><dt><span class="grade g-b" aria-hidden="true">B</span><span class="sr-only">Grade B</span></dt><dd><span class="bf-odds-bar" aria-hidden="true"><span class="bf-odds-fill"></span></span><span class="bf-odds-value">2.4%</span></dd></div>
+                    <div class="g-c"><dt><span class="grade g-c" aria-hidden="true">C</span><span class="sr-only">Grade C</span></dt><dd><span class="bf-odds-bar" aria-hidden="true"><span class="bf-odds-fill"></span></span><span class="bf-odds-value">6.1%</span></dd></div>
+                    <div class="g-d"><dt><span class="grade g-d" aria-hidden="true">D</span><span class="sr-only">Grade D</span></dt><dd><span class="bf-odds-bar" aria-hidden="true"><span class="bf-odds-fill"></span></span><span class="bf-odds-value">17.3%</span></dd></div>
+                  </dl>
+                  <div id="brief-odds" class="bf-slot"></div>
+                </div>
+              </li>
+              <li class="bf-stage">
+                <div class="bf-stage-head"><span class="bf-stage-n" aria-hidden="true">3</span><h3 class="bf-h3">Price the risk</h3></div>
+                <p>Financing costs 8.5% a year on the seller's down payment. Expected loss is the chance of failure times what a failure costs: the 65% of the deposit that is not recovered, plus any extra cost of replacing the GPUs at a reference price.</p>
+                <div class="bf-stage-visual"><ul class="bf-sum"><li>quoted price</li><li><span aria-hidden="true">+</span><span class="sr-only">plus </span>financing</li><li><span aria-hidden="true">+</span><span class="sr-only">plus </span>expected loss</li><li class="bf-sum-total"><span aria-hidden="true">=</span><span class="sr-only">equals </span>all-in cost</li></ul></div>
+              </li>
+              <li class="bf-stage">
+                <div class="bf-stage-head"><span class="bf-stage-n" aria-hidden="true">4</span><h3 class="bf-h3">Rank what is eligible</h3></div>
+                <p>A quote is eligible only when all of these hold. Eligible quotes are ranked by all-in cost.</p>
+                <div class="bf-stage-visual">
+                  <ul class="bf-rules"><li>The seller is rated.</li><li>The contract start is not in the past.</li><li>The quote has not expired.</li><li>It states all ten key terms.</li></ul>
+                  <div id="brief-eligible" class="bf-slot bf-stat"></div>
+                </div>
+              </li>
+            </ol>
+            <div id="brief-basis" class="bf-basis bf-cols rv-group">
+              <div class="bf-basis-copy"><h3 class="bf-h3">Market basis</h3><p>The gap between the lowest quoted price and the best all-in cost among eligible quotes.</p></div>
+              <p id="brief-basis-live" class="bf-basis-live"></p>
+            </div>
+            <p class="bf-fineprint">The scorecard also computes a grade premium. It is an alternative way to cost the same risk and is never added to the all-in cost.</p>
+          </div>
+        </section>
+        <section class="bf-band bf-band-close" aria-labelledby="brief-close-title">
+          <div id="brief-close" class="bf-wrap bf-close bf-cols rv-group">
+            <div class="bf-close-copy"><h2 id="brief-close-title" class="bf-h2">Test it on the simulated market</h2>
+            <p class="bf-intro">In the overview, trigger a price war, a supply shock or a provider downgrade and watch the basis move.</p></div>
+            <div class="bf-actions"><button id="brief-open-desk-end" class="primary-button bf-button" type="button">Open the overview</button><button id="brief-open-quotes" class="secondary-button bf-button" type="button">Browse the quotes</button></div>
+          </div>
         </section>
       </section>
       <section id="desk-view" class="view desk" aria-labelledby="desk-title" hidden>
@@ -253,9 +289,11 @@
       <section id="cash-view" class="view" aria-labelledby="cash-title" hidden><div class="page-heading"><div><span class="eyebrow">06 / SETTLE</span><h1 id="cash-title" tabindex="-1">Dated cash</h1><p>Unrestricted funds, segregated advances and ordered liquidity troughs.</p></div><div class="heading-actions"><button id="evaluate-cash" class="primary-button" disabled>Evaluate funding path</button></div></div><div class="editor-layout"><section class="card"><div class="section-heading"><h2>Cash schedule</h2><span class="muted">Declared settlements</span></div><p class="muted">Actual dates, cleared amounts, entity/account/currency and facility terms. Restricted deposits remain separate.</p><div class="form-toolbar"><strong>Settlement inputs</strong><div><button id="cash-new-draft" class="quiet-button" type="button" title="Reset this unsaved draft to blank inputs">Reset inputs</button><button id="cash-read-fields" class="quiet-button" type="button">Read draft into fields</button></div></div><p id="cash-fields-state" class="field-help">Begin with a blank draft or load an existing request. Unknown values stay empty.</p><div id="cash-fields" class="structured-fields"></div><details class="response-details advanced-editor"><summary>Advanced request JSON</summary><label class="sr-only" for="cash-input">Cash request JSON</label><textarea id="cash-input" spellcheck="false" placeholder="Paste your dated cash scenario JSON."></textarea></details><p id="cash-input-state" class="field-help">No input supplied.</p></section><section class="card result-card"><div class="section-heading"><h2>Cash &amp; funding path</h2><span id="cash-result-state" class="pill">Not evaluated</span></div><div id="cash-summary" class="result-summary"><p class="empty-state">Review daily cash and the ordered same-day minimum.</p></div><details class="response-details"><summary>Complete response &amp; snapshot</summary><pre id="cash-output" tabindex="0" hidden></pre></details></section></div></section>
       <section id="portfolio-view" class="view" aria-labelledby="portfolio-title" hidden><div class="page-heading"><div><h1 id="portfolio-title" tabindex="-1">Portfolio reconciliation</h1><p>Three offtake routes. One supply ledger, cash account and set of exposure limits.</p></div><div class="heading-actions"><button id="evaluate-portfolio" class="primary-button" disabled>Assess shared portfolio</button></div></div><div class="editor-layout"><section class="card"><div class="section-heading"><h2>Shared candidate</h2><span class="muted">Supply, cash &amp; ownership</span></div><p class="muted">Join inference, resale and forward routes to exclusive physical reservations, owned cash events and dated evidence. Unallocated supply cost remains in the portfolio.</p><div class="form-toolbar"><strong>Portfolio inputs</strong><div><button id="portfolio-new-draft" class="quiet-button" type="button" title="Reset this unsaved draft to blank inputs">Reset inputs</button><button id="portfolio-read-fields" class="quiet-button" type="button">Read draft into fields</button></div></div><p id="portfolio-fields-state" class="field-help">All amounts, identities and limits must be supplied.</p><div id="portfolio-fields" class="structured-fields"></div><details class="response-details advanced-editor"><summary>Advanced portfolio JSON</summary><label class="sr-only" for="portfolio-input">Shared portfolio request JSON</label><textarea id="portfolio-input" spellcheck="false" placeholder="Supply a complete shared portfolio candidate."></textarea></details><p id="portfolio-input-state" class="field-help">No input supplied.</p></section><section class="card result-card"><div class="section-heading"><h2>Joint economics &amp; constraints</h2><span id="portfolio-result-state" class="pill">Not evaluated</span></div><div id="portfolio-summary" class="result-summary"><p class="empty-state">Independent profitable routes can still overcommit the same capacity or funding. Reconcile them here.</p></div><details class="response-details"><summary>Complete reconciliation &amp; snapshot</summary><pre id="portfolio-output" tabindex="0" hidden></pre></details></section></div></section>
     </main>
-    <footer class="lp-footer">
-      <span class="brand"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#logo-mark"/></svg><span class="brand-name">ComputeBasis</span></span>
-      <p class="lp-footer-note">Simulated data, not market prices. Indicative only; nothing here executes a trade.</p>
+    <footer id="lp-footer" class="lp-footer">
+      <div class="lp-footer-inner">
+        <span class="brand"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#logo-mark"/></svg><span class="brand-name">ComputeBasis</span></span>
+        <p class="lp-footer-note">All figures are simulated and independently invented. Nothing here is inventory, a firm price or executable.</p>
+      </div>
     </footer>
     <footer class="app-footer"><div class="footer-inner"><span>ComputeBasis</span><span>Overview and Quotes run on a local simulation. Indicative only; nothing here executes a trade.</span></div></footer>
   </div>
