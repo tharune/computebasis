@@ -2,7 +2,7 @@
    VIEWS in workbench.js; tests hold the two together. */
 (function () {
   "use strict";
-  var APP = /^(desk|quotes|pricing|dashboard|market|inventory|underwriting|inference|cash|portfolio|policy)$/;
+  var APP = /^(desk|quotes|pricing)$/;
   document.documentElement.setAttribute("data-page", APP.test(location.hash.slice(1)) ? "app" : "landing");
   if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 })();

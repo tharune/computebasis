@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def sample():
-    return json.loads((ROOT / "src/compute_pricing/control/workbench/assets/synthetic-policy-document.json").read_text())
+    return json.loads((ROOT / "tests/fixtures/synthetic-policy-document.json").read_text())
 
 
 class PolicyV4Tests(unittest.TestCase):
