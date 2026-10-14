@@ -314,6 +314,23 @@
       "liveness": "not_verified",
       "attribution": "Source: Energinet, Energi Data Service (https://www.energidataservice.dk), CC BY 4.0. Normalized timestamps and prices; no endorsement.",
       "verified_by": "open-energy-reference-review"
+    },
+    "gpuhunt_catalog": {
+      "enabled": true,
+      "rights_status": "allowed",
+      "rights_evidence": "https://github.com/dstackai/gpuhunt and its README document public provider-catalog query/use; https://github.com/dstackai/gpuhunt/blob/main/src/gpuhunt/_internal/catalog.py documents anonymous versioned AWS/Azure/GCP archives. Narrowly admitted documented local normalized catalog-cost comparison only, no raw public redistribution, direct vendor access, inventory qualification or execution. Repository code license is MPL-2.0 (https://github.com/dstackai/gpuhunt/blob/main/LICENSE); parser is independently implemented without copying MPL code. Reviewed 2026-10-14.",
+      "permissions": {
+        "observe": "PASS",
+        "retain": "PASS",
+        "benchmark": "PASS",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 172800,
+      "min_interval_s": 1,
+      "liveness": "not_verified",
+      "attribution": "GPUHunt, dstackai/gpuhunt (https://github.com/dstackai/gpuhunt); publisher-derived cloud instance references, normalized by ComputeBasis; no vendor endorsement or verified capacity",
+      "verified_by": "documented-publisher-catalog-integration-review"
     }
   }
 }

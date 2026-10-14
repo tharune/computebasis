@@ -15,6 +15,8 @@ from typing import Any, Mapping
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
+from starlette.responses import Response, StreamingResponse
+from starlette.background import BackgroundTask
 
 from compute_pricing.control import __version__ as SERVICE_VERSION
 from compute_pricing.control._numbers import digest, strict_json
@@ -397,6 +399,46 @@ def create_app(*, api_key: str | None = None, store_path: Path,
     @app.get("/v1/market/refresh/status", dependencies=[Depends(authenticated)])
     async def refresh_status():
         return automatic.status()
+
+    from .live_market import MarketReader, MarketStreams, market_events
+    market_reader = MarketReader(store, policies, plan, automatic.status)
+    market_streams = MarketStreams()
+    app.state.market_reader, app.state.market_streams = market_reader, market_streams
+
+    @app.get("/v1/market/current", dependencies=[Depends(authenticated)])
+    async def current_market_view(request: Request):
+        try:
+            view = await run_in_threadpool(market_reader.read)
+        except SnapshotStoreError:
+            raise HTTPException(503, detail="retained_market_unavailable") from None
+        etag = '"' + view.revision + '"'
+        headers = {"ETag": etag, "Cache-Control": "private, no-cache", "Vary": "Cookie, Authorization"}
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers=headers)
+        return Response(view.body, media_type="application/json", headers=headers)
+
+    @app.get("/v1/market/events", dependencies=[Depends(authenticated)])
+    async def current_market_events(request: Request, lease_seconds: int = 30):
+        if not 1 <= lease_seconds <= 60:
+            raise HTTPException(422, detail="invalid_market_stream_lease")
+        permit = market_streams.acquire()
+        if permit is None:
+            raise HTTPException(429, detail="market_stream_capacity", headers={"Retry-After": "2"})
+        stream = market_events(request, market_reader, permit, lease_seconds=lease_seconds,
+                               read_view=run_in_threadpool, authorize=authenticated)
+        return StreamingResponse(stream, media_type="text/event-stream",
+            headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+            background=BackgroundTask(permit.release))
+
+    @app.get("/v1/quotes/contract", dependencies=[Depends(authenticated)])
+    async def quote_input_contract():
+        from compute_pricing.control.market_quotes import quote_contract
+        return quote_contract()
+
+    @app.post("/v1/quotes/evaluate", dependencies=[Depends(authenticated)])
+    async def quote_comparison(request: Request):
+        from compute_pricing.control.market_quotes import evaluate_quote_payload
+        return await pure_evaluation(request, evaluate_quote_payload, "quote_study")
 
     @app.post("/v1/market/refresh", dependencies=[Depends(authenticated)])
     async def refresh(request: Request) -> dict[str, Any]:

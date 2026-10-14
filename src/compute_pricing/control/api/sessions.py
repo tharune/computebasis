@@ -153,6 +153,7 @@ def request_scope(request: Request) -> str:
         "/v1/inventory/evaluate", "/v1/policies", "/v1/policies/validate",
         "/v1/power/evaluate", "/v1/power/from-reference", "/v1/curves/evaluate", "/v1/hedges/evaluate",
         "/v1/demo/scenario",
+        "/v1/quotes/evaluate",
     }:
         return "evaluate"
     # Future write routes require an explicit browser-session scope decision.

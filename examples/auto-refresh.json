@@ -10,7 +10,8 @@
     "ecb": 21600,
     "huggingface": 3600,
     "huggingface_catalog": 3600,
-    "energinet_day_ahead": 86400
+    "energinet_day_ahead": 86400,
+    "gpuhunt_catalog": 3600
   },
   "backoff_initial_s": 60,
   "backoff_max_s": 21600

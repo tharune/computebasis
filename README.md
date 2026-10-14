@@ -23,12 +23,14 @@ Maintained by **Tharun Ekambaram**.
 - Durable local paper commands, exact idempotent receipts, version-bound approvals, restart-safe uncertain-effect holds and a nonexecuting paper outbox.
 - One shared portfolio candidate assessment for exclusive capacity, complete supply cost, dated funding and baseline exposure limits.
 - Research-only regional/configuration regression with temporal and group/lot-separated holdouts.
+- Exact comparable bid/ask studies for spot, physical forwards and financial futures, with separate advertised commitment references, whole-node size checks and explicit source-evidence holds.
+- Anonymous publisher-derived AWS/Azure/GCP GPU/VM references, plus conditional retained-market reads and bounded server-sent change notifications.
 
 This is a local read-only and paper development release. Source and qualification assertions are not independently verified assets or bank evidence. Calibration uses research diagnostics; no live regional premium, credit probability or confidence interval is asserted. Local durable paper commands and snapshots still require production identity, authoritative transactional cash/capacity coordination, accounting and witnessed operating evidence before real execution.
 
 ## Run the local workbench
 
-The [workbench guide](docs/workbench.md) starts the local application. It opens a short-lived same-origin workspace session automatically. Eight configured anonymous source roles provide advertised GPU references, regional retail meters, native cloud tariffs, inference token rates, informational FX, model/recipe discovery and wholesale energy references. The backend refreshes explicitly configured scopes with permission checks, cooldowns, coalescing and backoff; the browser synchronizes retained evidence without overwriting drafts. Native economic units stay separate. Configured access is distinct from runtime availability and public redistribution permission.
+The [workbench guide](docs/workbench.md) starts the local application. It opens a short-lived same-origin workspace session automatically. Nine configured anonymous source roles provide advertised GPU references, regional retail meters, native cloud tariffs, inference token rates, informational FX, model/recipe discovery, wholesale energy references and publisher-derived GPU/VM catalogs. The backend refreshes explicitly configured scopes with permission checks, cooldowns, coalescing and backoff; the browser synchronizes retained evidence without overwriting drafts. Native economic units stay separate. Configured access is distinct from runtime availability and public redistribution permission.
 
 Start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json` after installation, then open `http://127.0.0.1:8000`. No credential paste is needed. Source reads run only while the local app runs; no system jobs are installed. `--no-auto-refresh` selects manual operation. Review [source scope](docs/source-adapters.md), [session and refresh](docs/local-session-refresh.md) and [workspace workflows](docs/workspace-workflows.md).
 
@@ -85,6 +87,7 @@ The tool does not presume a universal US premium or turn every additional factor
 
 ## Read more
 
+- [Backend/frontend integration contract](docs/backend-frontend-handoff.md), [quote readiness](docs/quote-readiness.md) and [provider coverage](docs/provider-source-coverage.md)
 - [Design](docs/architecture.md)
 - [Three-screen demo runbook and sprint scope](docs/demo-sprint.md)
 - [Control-plane methods and operating boundaries](docs/control-plane.md)

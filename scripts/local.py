@@ -138,6 +138,7 @@ def main():
     parser.add_argument("--auto-refresh-config", type=Path)
     parser.add_argument("--no-auto-refresh", action="store_true")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--browser-origin", help="Exact loopback frontend origin when using a same-origin development proxy")
     args = parser.parse_args()
     try:
         runtime = runtime_directory(args.runtime)
@@ -234,6 +235,8 @@ def _command(args, runtime):
             command += [option, str(value.resolve())]
     if args.no_auto_refresh:
         command.append("--no-auto-refresh")
+    if getattr(args, "browser_origin", None):
+        command += ["--browser-origin", args.browser_origin]
     log_path = runtime / "server.log"
     with log_path.open("ab") as log:
         child = subprocess.Popen(command, cwd=REPO, env=environment, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)

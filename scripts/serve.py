@@ -14,6 +14,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--store", required=True, type=Path, help="Absolute SQLite path outside every Git checkout")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--browser-origin", help="Exact loopback frontend origin for a same-origin development proxy; defaults to the service origin")
     parser.add_argument("--source-config", type=Path, default=defaults / "source-admission.json", help="Reviewed source permissions; defaults to the repository example")
     parser.add_argument("--collection-plan", type=Path, default=defaults / "collection-plan.json", help="Explicit bounded public source/filter scopes")
     parser.add_argument("--auto-refresh-config", type=Path, default=defaults / "auto-refresh.json", help="Application-owned refresh cadence/backoff settings")
@@ -37,7 +38,7 @@ def main() -> None:
         app = create_app(api_key=key, store_path=args.store,
                          source_policies=load_policies(args.source_config),
                          collection_plan=document(args.collection_plan), auto_refresh=automatic,
-                         workbench_origin=f"http://127.0.0.1:{args.port}",
+                         workbench_origin=args.browser_origin or f"http://127.0.0.1:{args.port}",
                          local_instance_id=os.environ.get("COMPUTEBASIS_LOCAL_INSTANCE_ID"))
     except (ValueError, OSError):
         parser.error("supply an absolute store path outside Git and valid reviewed configuration; optional API client keys must be strong")

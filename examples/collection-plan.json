@@ -38,14 +38,6 @@
     }
   },
   {
-    "source_id": "azure",
-    "filters": {
-      "region": "eastus",
-      "sku_prefix": "Standard_D",
-      "max_pages": 1
-    }
-  },
-  {
     "source_id": "aws_public_pricing",
     "filters": {
       "service": "AmazonLightsail",
@@ -170,22 +162,6 @@
   {
     "source_id": "azure",
     "filters": {
-      "region": "westeurope",
-      "sku_prefix": "Standard_D",
-      "max_pages": 1
-    }
-  },
-  {
-    "source_id": "azure",
-    "filters": {
-      "region": "southeastasia",
-      "sku_prefix": "Standard_D",
-      "max_pages": 1
-    }
-  },
-  {
-    "source_id": "azure",
-    "filters": {
       "region": "eastus",
       "sku_prefix": "Standard_E",
       "max_pages": 1
@@ -211,6 +187,30 @@
     "filters": {
       "rolling_days": 1,
       "price_area": "DK2",
+      "limit": 1000
+    }
+  },
+  {
+    "source_id": "gpuhunt_catalog",
+    "filters": {
+      "provider": "aws",
+      "location_prefix": "us-",
+      "limit": 1000
+    }
+  },
+  {
+    "source_id": "gpuhunt_catalog",
+    "filters": {
+      "provider": "azure",
+      "location_prefix": "eastus",
+      "limit": 1000
+    }
+  },
+  {
+    "source_id": "gpuhunt_catalog",
+    "filters": {
+      "provider": "gcp",
+      "location_prefix": "us-",
       "limit": 1000
     }
   }

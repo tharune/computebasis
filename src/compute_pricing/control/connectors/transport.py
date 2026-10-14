@@ -149,6 +149,9 @@ class SourceSpec:
 
 
 SOURCE_SPECS = {
+    "gpuhunt_catalog": SourceSpec("gpuhunt_catalog", "dstack-gpu-pricing.s3.eu-west-1.amazonaws.com",
+        r"/v3/(?:aws|azure|gcp)/(?:version|[0-9]{8}-[0-9]{1,12}/catalog\.zip)",
+        content_types=frozenset({"text/plain", "application/zip", "application/octet-stream", "binary/octet-stream"})),
     "energinet_day_ahead": SourceSpec("energinet_day_ahead", "api.energidataservice.dk", r"/dataset/DayAheadPrices",
         query_keys=frozenset({"start", "end", "limit", "filter", "columns", "sort"})),
     "huggingface_catalog": SourceSpec("huggingface_catalog", "endpoints.huggingface.co", r"/api/v1/catalog/list",

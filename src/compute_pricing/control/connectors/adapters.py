@@ -492,6 +492,9 @@ class SourceAdapter:
         if self.source_id not in SOURCE_SPECS:
             raise ConnectorError("source_transport_not_implemented")
         spec = SOURCE_SPECS[self.source_id]
+        if self.source_id == "gpuhunt_catalog":
+            from .gpuhunt import gpuhunt_request
+            return gpuhunt_request(filters)
         if self.source_id == "energinet_day_ahead":
             from .energy import energinet_request
             return energinet_request(filters)
@@ -533,6 +536,11 @@ class SourceAdapter:
     def parse(self, raw: RawResponse, policy: SourcePolicy, *, filters: Mapping[str, Any] | None = None) -> ConnectorBatch:
         if raw.source_id != self.source_id or policy.source_id != self.source_id:
             raise ConnectorError("source_policy_mismatch")
+        if self.source_id == "gpuhunt_catalog":
+            from .gpuhunt import parse_gpuhunt
+            if not isinstance(filters, Mapping) or "version" not in filters:
+                raise ConnectorError("gpuhunt_pinned_parse_version_required")
+            return parse_gpuhunt(raw, policy, filters=filters, version=filters["version"])
         if self.source_id == "energinet_day_ahead":
             from .energy import parse_energinet
             return parse_energinet(raw, policy, filters=filters)
@@ -548,6 +556,9 @@ class SourceAdapter:
 
 
 ADAPTERS = {adapter.source_id: adapter for adapter in (
+    SourceAdapter("gpuhunt_catalog", "publisher_gpu_vm_reference", "https://github.com/dstackai/gpuhunt", "implemented"),
+    SourceAdapter("gcp_cloud_billing", "direct_vendor_sku_tariff", "https://docs.cloud.google.com/billing/v1/how-tos/catalog-api", "not_implemented", "api_key_and_bounded_read_contract_required"),
+    SourceAdapter("skypilot_catalog", "publisher_gpu_vm_reference", "https://github.com/skypilot-org/skypilot-catalog", "rights_review_pending", "catalog_data_license_unresolved"),
     SourceAdapter("energinet_day_ahead", "energy_market_reference", "https://www.energidataservice.dk/guides/api-guides", "implemented"),
     SourceAdapter("huggingface_catalog", "model_recipe_metadata", "https://huggingface.co/docs/inference-endpoints/en/api_reference", "implemented"),
     SourceAdapter("aws_public_pricing", "native_cloud_meter_tariff", "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html", "implemented"),
@@ -598,6 +609,17 @@ def source_status(policies: Mapping[str, SourcePolicy], now: dt.datetime | None 
                 "one_of_scope": [["start", "end"], ["rolling_days"]], "max_days": 7, "max_limit": 1000,
                 "native_unit": "MWh", "signed_prices": True, "price_areas": ["DK1", "DK2", "DE", "NO2", "SE3", "SE4"],
                 "recommended_refresh_s": 86400, "price_eligible": False}
+        if name == "gpuhunt_catalog":
+            result[-1]["collection_parameters"] = {"required": ["provider", "limit"],
+                "one_of_scope": [["location"], ["location_prefix"]], "optional": ["gpu_name", "spot", "version"],
+                "providers": ["aws", "azure", "gcp"], "max_limit": 1000, "max_scanned_rows": 100000,
+                "max_archive_bytes": 2097152, "max_uncompressed_csv_bytes": 16777216,
+                "price_unit": "USD_per_instance_hour", "gpu_division": "diagnostic_per_publisher_count_only",
+                "direct_vendor_quotes": False, "vendor_price_age_known": False, "price_eligible": False}
+        if name == "gcp_cloud_billing":
+            result[-1].update(auth_required=True, auth_present=False, auth_state="not_configured")
+            result[-1]["blockers"].append("authentication_missing")
+            result[-1]["can_attempt_read"] = False
     return result
 
 
@@ -612,6 +634,9 @@ def collect_source(source_id: str, policies: Mapping[str, SourcePolicy], *,
     # purposes before constructing a request or processing user query filters.
     for purpose in ("observe", "retain", "benchmark"):
         policy.require(purpose, client.clock())
+    if source_id == "gpuhunt_catalog":
+        from .gpuhunt import collect_gpuhunt
+        return collect_gpuhunt(policy, client, filters)
     if source_id == "energinet_day_ahead":
         from .energy import collect_energinet
         return collect_energinet(policy, client, filters)
