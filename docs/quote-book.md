@@ -66,6 +66,7 @@ Simulation offers do not enter either evidence population or the paper inventory
 | --- | --- | --- |
 | `GET /v1/book` | `read` | One coherent simulated snapshot; conditional ETag reads return 304 when unchanged |
 | `POST /v1/book/control` | `book` | Explicit pause, resume, reset or named synthetic scenario |
+| `GET /v1/book/desk` | `read` | Invented desk positions, brokered bids and where supply sits; strong ETag, 304 when unchanged |
 
 Control bodies are exactly `{"action":"pause"}`, `{"action":"resume"}`,
 `{"action":"reset"}` or `{"action":"scenario","scenario":"price_war"}`.
@@ -87,3 +88,32 @@ values retain their unknown meaning. Counts remain integers. Use schema/version
 metadata and `synthetic` flags instead of assuming another service's DTO has
 the same meaning. The frontend controls and rendering remain a separate
 integration task.
+
+## Desk ledger
+
+`GET /v1/book/desk` (schema `synthetic-desk-ledger/1.0`, full field contract in
+[desk-ledger-contract.md](desk-ledger-contract.md)) lays an invented desk over the
+book: one site per distinct quote location, fourteen brokered bids on starting-book
+quotes, and a position for each filled bid. It uses the same cookie session, CSRF and
+`read` scope rules as `GET /v1/book`, and the same `ETag`, `If-None-Match`, `304`,
+`Cache-Control: no-store` and `Vary` handling; its `ETag` is strong because it covers
+exactly the bytes sent.
+
+The ledger is a pure function of one book snapshot: the same seed, epoch and tick give
+the same bytes, and a different seed gives a different but equally valid ledger. Bids and
+positions are fixed for an epoch and join to the book by quote, provider and site ids.
+Only the figures that depend on the book move: `mark` (the model's current best eligible
+all-in cost, `null` when the model has none), `unrealized_usd`, site capacity and the
+summary. Capacity follows the book's live-quote rule, so `summary.supply_gpus` equals
+`kpis.gpus` in the same snapshot. After `reset` the ledger returns to its starting state
+under the new `meta.epoch`. Money is exact decimal strings and an unknown value is `null`.
+
+Positions and bids are not trades, inventory or firm prices (`inventory_verified`,
+`firm_price_eligible` and `execution_enabled` are `false`). Site placement assigns each
+invented site a well-known data-centre metro (US sites by a stable hash of the site id,
+spread across distinct states; every other country at one fixed capital or main metro).
+It is a picture, labelled `illustrative_metro_assignment_not_vendor_location`, and says
+nothing about where any real seller operates. The builder is
+`quote_book/desk.py`; the placement tables are `quote_book/desk_placement.py`. The
+frontend fixture `tests/fixtures/desk-ledger.json` is this endpoint's real output for
+seed 4271 at tick 0; regenerate it with `python tests/test_desk_ledger.py --write-fixture`.
