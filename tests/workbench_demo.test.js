@@ -69,7 +69,7 @@ test("the first poll draws the Brief from the simulated book and marks the works
   assert.ok(page.el("brief-facts").textContent.length > 0);
 });
 
-const BRIEF_SLOTS = ["brief-live", "brief-facts", "brief-fact-gaps", "brief-gaps", "brief-fact-cost", "brief-anatomy", "brief-fact-grades", "brief-grades", "brief-weights", "brief-eligible", "brief-basis-live"];
+const BRIEF_SLOTS = ["brief-live", "brief-facts", "brief-fact-gaps", "brief-gaps", "brief-fact-cost", "brief-anatomy", "brief-fact-grades", "brief-grades", "brief-weights", "brief-odds", "brief-eligible", "brief-basis-live"];
 
 test("the Brief states the problem with figures from the book and draws clean bars, not dumbbells", async () => {
   const page = makePage(base); page.connect(); await settle();
@@ -78,11 +78,13 @@ test("the Brief states the problem with figures from the book and draws clean ba
   assert.equal(byClass(page.el("brief-facts"), "bf-number").length, 4);
   assert.match(page.el("brief-facts").textContent, new RegExp(String(base.kpis.live_quotes)));
   assert.match(page.el("brief-fact-grades").textContent, new RegExp("of " + book.base.models.length));
-  assert.equal(byClass(page.el("brief-gaps"), "bf-bar").length, 5, "the five most often omitted terms");
+  const blankTerms = Object.entries(base.field_gaps).filter(([field, count]) => count > 0 && field !== "grade").length;
+  assert.equal(byClass(page.el("brief-gaps"), "bf-bar").length, Math.min(5, blankTerms), "up to the five terms quotes most often leave blank, never a seller's missing grade");
+  assert.equal(byClass(page.el("brief-odds"), "bf-bar").length, 4, "one yearly failure rate per grade");
   const anatomy = page.el("brief-anatomy"); const stack = byClass(anatomy, "bf-bar-group")[1];
   assert.equal(byClass(stack, "bf-bar").length, 3, "the all-in bar stacks price, financing and expected loss");
   assert.match(anatomy.textContent, /Quoted/); assert.match(anatomy.textContent, /All-in/);
-  assert.match(page.el("brief-fact-cost").textContent, /^\+\d+%Quote Q\d+/);
+  assert.match(page.el("brief-fact-cost").textContent, /^\+\d+(\.\d)?%Quote Q\d+/);
   assert.equal(byClass(page.el("brief-weights"), "bf-bar").length, 6, "six scorecard weights");
 });
 
@@ -96,7 +98,8 @@ test("the Brief copes with a book that has no eligible seller and no priced quot
   assert.equal(byClass(page.el("brief-live"), "bf-bar").length, 0);
   assert.match(page.el("brief-live").textContent, /No eligible seller/);
   assert.match(page.el("brief-anatomy").textContent, /No comparison available/);
-  assert.equal(page.el("brief-basis-live").children.length, 0);
+  assert.match(page.el("brief-basis-live").textContent, /no basis to explain/, "the basis band says why it has no chart");
+  assert.match(page.el("brief-eligible").textContent, /^0 of \d+live quotes pass every check/);
 });
 
 test("Brief buttons open the Overview and Quotes, and See the problem scrolls to the problem section", async () => {
@@ -221,6 +224,62 @@ test("every block the page marks for reveal is one the script reveals", () => {
   assert.equal(withClass, REVEAL_IDS.length, "every block marked for reveal has an id the script can find");
 });
 
+test("a block that has already scrolled past the top is shown at once, never left hidden", () => {
+  const seen = fakeObserver(); const page = makePage(base, { browser: { IntersectionObserver: seen.IntersectionObserver } });
+  const [watcher] = seen.watchers; const [gone, below] = [page.el("brief-problem-1"), page.el("brief-problem-3")];
+  watcher.callback([{ isIntersecting: false, boundingClientRect: { bottom: -40 }, target: gone }, { isIntersecting: false, boundingClientRect: { bottom: 1400 }, target: below }]);
+  assert.equal(gone.has("rv-in"), true, "a reload part way down, or a jump to an anchor, must not leave the blocks above hidden");
+  assert.equal(below.has("rv-in"), false, "a block still below the screen waits for its turn");
+});
+
+/* Page transitions: the landing page fades for 180ms, then the app opens; with no timers, reduced motion or a hidden tab, it opens at once. */
+function fakeTimers() {
+  const pending = [];
+  return { pending, setTimeout: function (action, ms) { pending.push({ action, ms }); return pending.length; }, run: () => pending.splice(0).forEach((item) => item.action()) };
+}
+const LEAVING = ["lp-header", "brief-view", "lp-footer"];
+
+test("Open the overview fades the landing page out for 180ms, then switches; going back clears the fade", async () => {
+  const timers = fakeTimers(); const page = makePage(base, { browser: { setTimeout: timers.setTimeout } });
+  await page.el("brief-open-desk").click();
+  assert.deepEqual(page.shown, [], "the app has not opened yet");
+  LEAVING.forEach((id) => assert.ok(page.el(id).has("lp-leaving"), id + " is fading out"));
+  assert.equal(timers.pending.length, 1); assert.equal(timers.pending[0].ms, 180);
+  timers.run();
+  assert.deepEqual(page.shown, ["desk"]);
+  LEAVING.forEach((id) => assert.equal(page.el(id).has("lp-leaving"), false, id + " is not left faded for the way back"));
+  page.host.showView("brief");
+  LEAVING.forEach((id) => assert.equal(page.el(id).has("lp-leaving"), false));
+});
+
+test("every way out of the landing page leaves through the same fade, to the right page", async () => {
+  for (const [id, view] of [["lp-open", "desk"], ["brief-open-desk", "desk"], ["brief-open-desk-end", "desk"], ["brief-open-quotes", "quotes"]]) {
+    const timers = fakeTimers(); const page = makePage(base, { browser: { setTimeout: timers.setTimeout } });
+    await page.el(id).click(); assert.deepEqual(page.shown, [], id + " waits for the fade"); timers.run();
+    assert.deepEqual(page.shown, [view], id);
+  }
+});
+
+test("a second click during the fade opens the app once, at once", async () => {
+  const timers = fakeTimers(); const page = makePage(base, { browser: { setTimeout: timers.setTimeout } });
+  await page.el("brief-open-desk").click(); await page.el("brief-open-quotes").click();
+  assert.deepEqual(page.shown, ["quotes"], "the later choice wins and nothing waits");
+  timers.run();
+  assert.deepEqual(page.shown, ["quotes"], "the timer that was already running does not open a second page");
+});
+
+test("reduced motion, no timers or a hidden tab switch pages with no wait and no fade", async () => {
+  const timers = fakeTimers();
+  const reduced = makePage(base, { browser: { setTimeout: timers.setTimeout, matchMedia: () => ({ matches: true }) } });
+  await reduced.el("brief-open-desk").click();
+  assert.deepEqual(reduced.shown, ["desk"]); assert.equal(timers.pending.length, 0, "no timer is even set");
+  LEAVING.forEach((id) => assert.equal(reduced.el(id).has("lp-leaving"), false));
+  const bare = makePage(base);
+  await bare.el("brief-open-quotes").click(); assert.deepEqual(bare.shown, ["quotes"], "without timers a click is never lost");
+  const hidden = makePage(base, { browser: { setTimeout: timers.setTimeout } }); hidden.doc.hidden = true;
+  await hidden.el("brief-open-desk").click(); assert.deepEqual(hidden.shown, ["desk"], "a throttled background tab does not wait on a timer");
+});
+
 test("the Brief's entrance is for the first visit; once the person has left, coming back is a plain fade", () => {
   const page = makePage(base);
   assert.equal(page.el("brief-view").has("bf-entered"), false);
@@ -247,7 +306,10 @@ test("the basis breakdown adds up to the basis and to the server's own figure", 
     const parts = basisBreakdown(snapshot);
     assert.ok(parts, name + " has a breakdown");
     assert.ok(Math.abs(parts.screen + parts.costing - parts.basis) < 1e-12, name + ": screen and costing add up to the basis");
-    assert.ok(Math.abs(parts.basis - snapshot.kpis.basis) < 6e-4, name + ": " + parts.basis + " matches the server's " + snapshot.kpis.basis);
+    assert.ok(Math.abs(parts.basis - snapshot.kpis.basis) < 1e-9, name + ": " + parts.basis + " matches the server's " + snapshot.kpis.basis);
+    assert.ok(Math.abs(parts.screen + parts.price + parts.financing + parts.loss - parts.basis) < 1e-12, name + ": screen, price, financing and expected loss add up to the basis");
+    assert.ok(Math.abs(parts.price + parts.financing + parts.loss - parts.costing) < 1e-12, name + ": costing is the three of them");
+    [parts.price, parts.financing, parts.loss].forEach((part) => assert.ok(Number.isFinite(part) && part >= -1e-12, name + ": each part is a non-negative number"));
     assert.ok(parts.screen >= 0 && parts.costing >= 0, name + ": both sources are non-negative");
     assert.ok(parts.models >= 1 && parts.models <= parts.modelsTotal);
     [parts.basis, parts.screen, parts.costing, parts.gpus].forEach((value) => assert.ok(Number.isFinite(value)));
@@ -264,6 +326,7 @@ test("the basis breakdown says nothing when no model has an eligible, priced quo
   const one = { models: [{ model: "X", gpus: 8, best: { risk_adjusted: 6 } }], quotes: [{ gpu: "X", price: "4", eligible: false }, { gpu: "X", price: "5", eligible: true }] };
   const parts = basisBreakdown(one);
   assert.ok(Math.abs(parts.basis - 0.5) < 1e-12 && Math.abs(parts.screen - 0.25) < 1e-12 && Math.abs(parts.costing - 0.25) < 1e-12);
+  assert.equal(parts.financing, null, "without the best quote's own financing there is no finer split, and none is invented");
 });
 
 test("the sources keep to the content security policy", () => {

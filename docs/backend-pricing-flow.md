@@ -7,6 +7,10 @@ Frontend code can use both flows without copying pricing or settlement formulas.
 
 | Step | API | State and binding |
 | --- | --- | --- |
+| Populate editable demonstrations | `GET /v1/pricing/demo/contract` | Independent H100/L40S/A4000 cases, exact field paths/types/groups and an unknown-only intake template |
+| Assess declared full contracts | `POST /v1/pricing/demo/evaluate` | Exact whole allocation, power and costs once, dated cash, restricted escrow, unfitted tenor/shock sensitivity; immutable synthetic receipt |
+| Inspect scenario hardware context | `GET /v1/pricing/demo/references?hardware_model=H100` | Explicit model spelling aliases only; original configurations, ages, currencies and native units remain separate; display does not bind or alter economic caps |
+| Download evaluated agreement | `GET /v1/pricing/demo/{snapshot_id}/agreement.pdf` | Authenticated saved demo receipt only, canonical integrity check, unsigned/nonbinding agreement and quote schedule; no source fetch or reevaluation |
 | Browse refreshed sources | `GET /v1/market/current`, `GET /v1/market/events` | Shared retained cache, source timestamps, coverage and conditional revisions; clients do not fetch vendors |
 | Compare retained evidence | `GET /v1/market/reference/contract`, `POST /v1/market/reference/evaluate` | Exact source scopes, current saved benchmark policy and comparable cohort; server resolves permitted rows |
 | Inspect commitment observations | `GET /v1/market/curves` | Observed reservation durations; missing future-start quotes remain gaps |

@@ -61,7 +61,7 @@ function harness({ prefersDark = false, hash = "" } = {}) {
   const fetch = (url, options) => {
     allCalls.push({ url, options });
     if (url.startsWith("/v1/session/")) sessionCalls.push({ url, options });
-    else if (!booting || url === "/v1/market/index") calls.push({ url, options });
+    else if (!booting || url === "/v1/market/current") calls.push({ url, options });
     if (url === "/v1/session/logout") return logoutResponses.shift() || Promise.resolve({ ok: true, status: 200, json: async () => ({ ended: true }) });
     const response = responses.shift(); assert.ok(response, "Unexpected request: " + url); return response(options);
   };
@@ -565,7 +565,7 @@ test("missing source eligibility cannot label a qualified reference or purchase 
 });
 
 const unchanged = (tag, asOf = "2026-01-01T00:05:00Z") => ({ etag: tag, headers: { ETag: tag, "X-Index-As-Of": asOf } });
-const indexCalls = (h) => h.calls.filter((call) => call.url === "/v1/market/index");
+const indexCalls = (h) => h.calls.filter((call) => call.url === "/v1/market/current");
 
 test("a conditional index reload keeps the held index and its view when the server confirms it unchanged", async () => {
   const h = harness(); await h.connect(indexFixture(), { ETag: 'W/"one"' });
@@ -622,7 +622,7 @@ test("a hidden tab neither polls nor takes the busy lock, and returning refreshe
   await h.visibility(false); assert.equal(h.calls.length, baseline, "returning inside the interval does not refetch");
   const sync = () => { h.reply(null, 304, unchanged('W/"one"').headers); h.reply({ enabled: true, running: false, scopes: [] }); h.reply(inventoryFixture()); };
   h.clock.advance(61000); sync(); h.reply(landFixture); await h.visibility(false);
-  assert.deepEqual(h.calls.slice(baseline).map((call) => call.url), ["/v1/market/index", "/v1/market/refresh/status", "/v1/inventory", "/workbench/assets/world-land.json"]);
+  assert.deepEqual(h.calls.slice(baseline).map((call) => call.url), ["/v1/market/current", "/v1/market/refresh/status", "/v1/inventory", "/workbench/assets/world-land.json"]);
   assert.equal(h.calls[baseline].options.headers["If-None-Match"], 'W/"one"');
   await h.visibility(false); assert.equal(h.calls.length, baseline + 4, "a fresh confirmation resets the clock");
   sync(); await h.intervals[0]();

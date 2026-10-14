@@ -45,13 +45,20 @@ decorative gradient, glow or shadow, and no motion beyond a short colour change.
 ## Motion
 
 Motion shows what arrived or what changed; it is not decoration. The Brief plays one
-entrance, once, on first load: the headline, lede and buttons rise 100ms apart, the
-chart's rule draws, and when the book arrives each chart row lands 70ms after the one
-above it (label, bar, then value) before the four figures follow. Blocks below the
-fold fade up once, as they scroll into view. Between pages, and when the More menu
-opens, there is a short fade of a few pixels. Coming back to the Brief is that plain
-fade, not the entrance again. Live updates redraw without any entrance, so nothing
-flickers while the book ticks.
+entrance, once, on first load, in steps of 60 to 90ms: the header fades, then the
+headline, the sentence and the buttons rise, the chart panel follows, and when the
+book arrives each chart row lands 50ms after the one above it (label and bar, then
+the value) while the four figures rise beside them. Everything is in place by about
+1.2s. Below the fold, each block rises as it scrolls into view and its children
+follow 90ms apart (a block that is already above the screen is shown at once). Where
+the browser supports scroll-driven animation, a block that scrolls up under the
+header fades and drifts over its last stretch only: the range is measured from the
+block's trailing edge, so a block taller than the screen fades just the strip that is
+leaving, and nothing on screen is ever hidden. Choosing Open the overview or Browse
+the quotes fades the whole landing page out over 180ms, then the app fades in; going
+back fades the landing page in again, not the entrance. With reduced motion, no
+timers, a hidden tab or a second click, the page switches at once. Live updates
+redraw without any entrance, so nothing flickers while the book ticks.
 
 Entrances animate opacity and transform only, with the shared ease token. All of it
 sits inside `prefers-reduced-motion: no-preference`; with reduced motion, or without
@@ -67,7 +74,7 @@ and nothing on screen implies an executed trade. A hold is explained, not hidden
 
 ## Checks
 
-Working text is 12–14px on desktop. On mobile, buttons, tabs and form fields outside
+Working text in the app is 12–14px on desktop. The Brief has its own fluid scale in `landing.css` (display, h2, h3, lede, intro, body, small, figure), which grows with the viewport from 390 to 2000px: nothing is under 13px and body copy is 17px or more from 1024px up. The Brief sits on full-width tonal bands (canvas, band, panel, one deep closing band); each surface resets `--canvas` so a chart's text halo matches it. On mobile, buttons, tabs and form fields outside
 tables are at least 44px tall and inputs use 16px text; table rows stay compact, and
 the disclosure rows in the advanced editors are smaller than 44px. Tables and editors
 scroll inside their own region, and the page never scrolls sideways.
