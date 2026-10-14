@@ -124,6 +124,11 @@ class SnapshotStore:
                 pass
             self.path.chmod(0o600)
             with self._connect() as connection:
+                # Journal mode changes before any schema/write transaction. WAL
+                # lets a retained-evidence read keep its snapshot while a new
+                # decision commits; durability remains FULL on every connection.
+                if connection.execute("PRAGMA journal_mode=WAL").fetchone()[0].lower() != "wal":
+                    raise SnapshotStoreError("snapshot_store_unavailable")
                 connection.execute("CREATE TABLE IF NOT EXISTS snapshots (digest TEXT PRIMARY KEY CHECK(length(digest)=64), created_at TEXT NOT NULL, canonical_document TEXT NOT NULL)")
                 connection.execute("CREATE INDEX IF NOT EXISTS snapshot_kind_order ON snapshots(json_extract(canonical_document,'$.kind'), created_at DESC, digest DESC)")
                 connection.execute("CREATE INDEX IF NOT EXISTS snapshot_collection_scope ON snapshots(json_extract(canonical_document,'$.kind'),json_extract(canonical_document,'$.output.source_id'),coalesce(json_remove(json_extract(canonical_document,'$.input.filters'),'$.max_pages'),'{}'),created_at DESC,digest DESC)")
@@ -136,6 +141,7 @@ class SnapshotStore:
     def _connect(self):
         connection = sqlite3.connect(self.path, timeout=5)
         try:
+            connection.execute("PRAGMA synchronous=FULL")
             connection.execute("PRAGMA trusted_schema=OFF")
             connection.execute("PRAGMA busy_timeout=5000")
             with connection:
@@ -145,7 +151,7 @@ class SnapshotStore:
 
     def put(self, *, kind: str, input_payload: Mapping[str, Any], output_payload: Mapping[str, Any],
             versions: Mapping[str, str]) -> Snapshot:
-        if kind not in {"pricing", "pricing_scenarios", "cash", "cash_calendar", "market_collection", "market_refresh", "paper_decision", "inference", "calibration", "financing", "portfolio", "power", "term_curve", "hedge_study", "quote_study", "market_reference"}:
+        if kind not in {"pricing", "pricing_scenarios", "cash", "cash_calendar", "market_collection", "market_refresh", "paper_decision", "inference", "calibration", "financing", "portfolio", "power", "term_curve", "hedge_study", "quote_study", "market_reference", "demo_pricing"}:
             raise SnapshotStoreError("unknown_snapshot_kind")
         if not isinstance(input_payload, Mapping) or not isinstance(output_payload, Mapping) or not isinstance(versions, Mapping) or not versions:
             raise SnapshotStoreError("snapshot_object_required")
