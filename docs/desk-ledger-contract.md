@@ -92,8 +92,8 @@ Capacity the desk holds under contract. Every position is at one site and one mo
   "price": "7.0500",                       // contract price, USD per GPU-hour
   "mark": "7.1008",                        // the book's current best eligible all-in cost for the model, USD per GPU-hour; null when none
   "mark_basis": "model_best_eligible_all_in",
-  "unrealized_usd": "-31840.12",           // (mark - price) x gpus x remaining contract hours; null when mark is null
-  "remaining_hours": 2208, "notional_usd": "2641305.60"
+  "unrealized_usd": "28714.60",            // (mark - price) x gpus x remaining contract hours; null when mark is null
+  "remaining_hours": 2208, "notional_usd": "7969996.80"
 }
 ```
 

@@ -4,10 +4,10 @@
 // table per chart, one precision rule, and graceful degradation. The fake DOM throws on inline styles, as the CSP would.
 const { test } = require("node:test");
 const { assert, El, walk, classes, byClass, byTag, settle, assertClean, makePage, base, book, layout, assertLive } = require("./demo_harness.js");
-const BRIEF_SLOTS = ["brief-live", "brief-facts", "brief-fact-gaps", "brief-gaps", "brief-fact-cost", "brief-anatomy", "brief-fact-grades", "brief-grades", "brief-weights", "brief-eligible", "brief-basis-live"];
+const BRIEF_SLOTS = ["brief-live", "brief-facts", "brief-fact-gaps", "brief-gaps", "brief-fact-cost", "brief-anatomy", "brief-fact-grades", "brief-grades", "brief-weights", "brief-odds", "brief-eligible", "brief-basis-live"];
 
 /* ---- The landing charts (landing-charts.js): drawn at their own width, patched in place, never rebuilt under the pointer ---- */
-const CHARTS = ["brief-live", "brief-gaps", "brief-anatomy", "brief-grades", "brief-weights"];
+const CHARTS = ["brief-live", "brief-gaps", "brief-anatomy", "brief-grades", "brief-weights", "brief-odds", "brief-basis-live"];
 const chartParts = (page, id) => { const host = page.el(id).children[0]; const [svg, hits, twin] = host.children; return { host, svg, hits, twin, table: twin.children[0] }; };
 const textsOf = (node, name) => byClass(node, name).map((item) => item.textContent);
 const heroTicks = (page) => textsOf(chartParts(page, "brief-live").svg, "bf-tick");

@@ -120,4 +120,6 @@ Current functionality and backend curve, power and hedge boundaries are listed i
 A separate [simulated quote book](docs/quote-book.md) provides independently generated
 providers, offer terms and scenario changes through authenticated `/v1/book` routes.
 These invented records remain separate from live reference collection, retained
-market evidence and declared inventory.
+market evidence and declared inventory. `GET /v1/book/desk` adds an equally invented
+desk ledger (positions, brokered bids and where supply sits) described in the
+[desk ledger contract](docs/desk-ledger-contract.md).
