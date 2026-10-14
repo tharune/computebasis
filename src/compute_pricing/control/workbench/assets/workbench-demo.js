@@ -120,19 +120,20 @@
     axis.forEach((tick) => chart.append(svgNode("line", { x1: r2(x(tick.value)), x2: r2(x(tick.value)), y1: top - 10, y2: height, class: "bf-grid" }), svgText(tick.text, x(tick.value), 4, "bf-tick", "middle")));
     rows.forEach((row, index) => {
       const cy = top + index * rowHeight + rowHeight / 2;
-      if (row.label) chart.append(svgText(row.label, 0, row.sub ? cy - 8 : cy, "bf-row-label"));
-      if (row.sub) chart.append(svgText(row.sub, 0, cy + 10, "bf-row-sub"));
+      const rank = " bf-r" + index;  // the row's place in the entrance stagger; see .bf-grow in workbench.css
+      if (row.label) chart.append(svgText(row.label, 0, row.sub ? cy - 8 : cy, "bf-row-label" + rank));
+      if (row.sub) chart.append(svgText(row.sub, 0, cy + 10, "bf-row-sub" + rank));
       const parts = row.parts || [{ value: row.value, className: row.className, title: row.title }];
       const total = parts.reduce((sum, part) => sum + (part.value > 0 ? part.value : 0), 0);
       if (total > 0) {
-        const group = svgNode("g", { class: "bf-bar-group" }); let cursor = 0;
+        const group = svgNode("g", { class: "bf-bar-group" + rank }); let cursor = 0;
         parts.forEach((part) => {
           if (!(part.value > 0)) return;
           const from = x(cursor); cursor += part.value;
           group.append(svgTip(svgNode("rect", { x: r2(from), y: r2(cy - bar / 2), width: Math.max(2, r2(x(cursor) - from - (cursor < total ? 1 : 0))), height: bar, rx: 2, class: "bf-bar " + (part.className || "") }), part.title));
         });
-        chart.append(group); if (row.text) chart.append(svgText(row.text, x(total) + 10, cy, "bf-value"));
-      } else if (row.text) chart.append(svgText(row.text, labelWidth, cy, "bf-note"));
+        chart.append(group); if (row.text) chart.append(svgText(row.text, x(total) + 10, cy, "bf-value" + rank));
+      } else if (row.text) chart.append(svgText(row.text, labelWidth, cy, "bf-note" + rank));
     });
     return chart;
   }
@@ -142,7 +143,7 @@
     const slots = ["brief-facts", "brief-fact-gaps", "brief-gaps", "brief-fact-cost", "brief-anatomy", "brief-fact-grades", "brief-grades", "brief-weights", "brief-eligible", "brief-basis-live"];
     if (!live()) { replace("brief-live", empty(state.error || "Opening the simulated book…")); slots.forEach((id) => replace(id)); return; }
     const grow = !briefDrawn; briefDrawn = true;
-    briefHero(state.data, grow); briefNumbers(state.data); briefProblems(state.data, grow); briefMethod(state.data, grow);
+    briefHero(state.data, grow); briefNumbers(state.data, grow); briefProblems(state.data, grow); briefMethod(state.data, grow);
   }
   function briefHero(data, grow) {
     const kpis = data.kpis;
@@ -161,7 +162,7 @@
     replace("brief-live", briefBars({ rows, max: reach, width: briefWidth(600), labelWidth: 100, valueWidth: 76, rowHeight: 56, bar: 14, axis, grow, description }),
       h("p", "bf-caption", "Under each model: the lowest quote → the best eligible all-in cost, per GPU-hour. " + int(kpis.live_quotes) + " live quotes from " + kpis.providers_quoting + " providers; simulated, refreshed every few seconds."));
   }
-  function briefNumbers(data) {
+  function briefNumbers(data, grow) {
     const k = data.kpis; const s = data.series;
     const items = [
       { label: "Live quotes", value: int(k.live_quotes), sub: "from " + k.providers_quoting + " providers", spark: s.live },
@@ -169,7 +170,7 @@
       { label: "Eligible quotes", value: k.eligible_share === null ? "—" : pct(k.eligible_share, 0), sub: int(k.eligible_quotes) + " clear the bar", spark: s.eligible_share },
       { label: "Market basis", value: k.basis === null ? "—" : pct(k.basis, 1, true), sub: "best eligible over lowest quote", spark: s.basis },
     ];
-    replace("brief-facts", items.map((item) => h("div", "bf-number", h("span", "bf-number-label", item.label), h("strong", "bf-number-value", item.value), h("span", "bf-number-sub", item.sub), item.spark ? charts.sparkline(item.spark, { width: 120, height: 32 }) : null)));
+    replace("brief-facts", items.map((item) => h("div", grow ? "bf-number bf-in" : "bf-number", h("span", "bf-number-label", item.label), h("strong", "bf-number-value", item.value), h("span", "bf-number-sub", item.sub), item.spark ? charts.sparkline(item.spark, { width: 120, height: 32 }) : null)));
   }
   /* One model's lowest quote whose hidden costs are worth showing. The pick sticks while it stays the lowest quote of its
      model, so the figure does not jump between quotes as the book ticks. */
@@ -453,6 +454,19 @@
     if (state.view === "brief") renderBrief(); else if (state.view === "desk") renderDesk(); else if (state.view === "quotes") renderQuotes();
     state.flash = new Set(); state.fresh = new Set();  // a change is highlighted once, then left alone
   }
+  /* Motion. The Brief plays its entrance once, on first load; after the person has left it, coming back is a plain fade.
+     Sections below the fold fade in as they scroll into view. Without IntersectionObserver, or when motion is reduced,
+     nothing is hidden and the page simply shows. */
+  const REVEAL = ["brief-problem-head", "brief-problem-1", "brief-problem-2", "brief-problem-3", "brief-how-head", "brief-steps", "brief-basis", "brief-close"];
+  function armReveal() {
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+    if (reduced || typeof window.IntersectionObserver !== "function") return;
+    const watcher = new window.IntersectionObserver((entries) => entries.forEach((entry) => {
+      if (entry.isIntersecting) { entry.target.classList.add("rv-in"); watcher.unobserve(entry.target); }
+    }), { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
+    byId("brief-view").classList.add("rv-on"); REVEAL.forEach((id) => watcher.observe(byId(id)));
+  }
+  host.onView((name) => { if (name !== "brief") byId("brief-view").classList.add("bf-entered"); });
   host.onView((name) => { state.view = name; if (["brief", "desk", "quotes"].includes(name)) { paintControls(); render(); poll(true); } });
   host.onSession((connected) => {
     if (!connected) { state.data = null; state.tag = ""; state.lastAlert = null; state.kpi.clear(); state.error = ""; render(); return; }
@@ -469,5 +483,5 @@
   window.addEventListener?.("resize", () => { if (!["desk", "quotes"].includes(state.view) || !live()) return; clearTimeout(deskResize); deskResize = setTimeout(render, 150); });
   setInterval(() => poll(false), POLL_MS);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(true); });
-  paintControls(); render();
+  armReveal(); paintControls(); render();
 })();

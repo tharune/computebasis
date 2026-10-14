@@ -70,12 +70,12 @@
         </div>
         <div id="brief-facts" class="bf-numbers" role="group" aria-label="The simulated book right now"></div>
         <section id="brief-problem" class="bf-section" aria-labelledby="brief-problem-title">
-          <header class="bf-section-head">
+          <header id="brief-problem-head" class="bf-section-head rv">
             <h2 id="brief-problem-title" class="bf-h2" tabindex="-1">The cheapest quote is rarely the cheapest compute</h2>
             <p class="bf-intro">Price is the one number every quote carries, so it wins the comparison. Three things sit behind it.</p>
           </header>
           <ol class="bf-problems">
-            <li class="bf-problem">
+            <li id="brief-problem-1" class="bf-problem rv">
               <div class="bf-problem-copy">
                 <h3 class="bf-h3">Quotes arrive without the terms that matter</h3>
                 <p>Prices come in chat threads, PDFs and spreadsheets, each in its own format. Term, down payment, location and expiry are often simply missing, and every buyer fills the gaps by hand.</p>
@@ -86,7 +86,7 @@
                 <div id="brief-gaps" class="bf-slot"></div>
               </figure>
             </li>
-            <li class="bf-problem">
+            <li id="brief-problem-2" class="bf-problem rv">
               <div class="bf-problem-copy">
                 <h3 class="bf-h3">The headline price leaves out what you pay</h3>
                 <p>Sellers ask for a down payment, and the buyer pays to finance it. If the seller then fails to deliver, the buyer takes the loss. Neither is in the quoted price.</p>
@@ -97,7 +97,7 @@
                 <div id="brief-anatomy" class="bf-slot"></div>
               </figure>
             </li>
-            <li class="bf-problem">
+            <li id="brief-problem-3" class="bf-problem rv">
               <div class="bf-problem-copy">
                 <h3 class="bf-h3">The lowest quotes come from the least vetted sellers</h3>
                 <p>Cheap capacity tends to come from sellers with thin certification, late delivery and weak SLAs. The quote carries a price, not a track record.</p>
@@ -111,21 +111,21 @@
           </ol>
         </section>
         <section id="brief-how" class="bf-section" aria-labelledby="brief-how-title">
-          <header class="bf-section-head">
+          <header id="brief-how-head" class="bf-section-head rv">
             <h2 id="brief-how-title" class="bf-h2">One all-in price for every quote</h2>
           </header>
-          <ol class="bf-steps">
+          <ol id="brief-steps" class="bf-steps rv-group">
             <li><span class="bf-index">Step 1</span><h3 class="bf-h3">Score the seller</h3><p>Six weighted categories, from certification to responsiveness, give every provider a grade from A to D.</p><div id="brief-weights" class="bf-slot"></div></li>
             <li><span class="bf-index">Step 2</span><h3 class="bf-h3">Price the risk</h3><p>The grade sets the odds that the seller fails. Financing on the down payment and the expected loss are added to the quoted price.</p><div class="bf-slot"><ul class="bf-sum"><li>quoted price</li><li><span aria-hidden="true">+</span>financing</li><li><span aria-hidden="true">+</span>expected loss</li><li class="bf-sum-total"><span aria-hidden="true">=</span>all-in cost</li></ul></div></li>
             <li><span class="bf-index">Step 3</span><h3 class="bf-h3">Rank what is eligible</h3><p>Only sellers graded C or better, with a stated term and down payment and at most three of ten key terms missing, can be ranked.</p><div id="brief-eligible" class="bf-slot bf-stat"></div></li>
           </ol>
-          <div class="bf-basis">
+          <div id="brief-basis" class="bf-basis rv">
             <div><p class="bf-term">Basis</p><p class="bf-definition">What the best eligible quote costs all-in, above the lowest quote.</p></div>
             <p id="brief-basis-live" class="bf-basis-live"></p>
           </div>
           <p class="bf-fineprint">Weights and grade bands come from the mock provider workbook. Cost of capital and failure rates are its placeholders, not calibrated estimates.</p>
         </section>
-        <section class="bf-close" aria-labelledby="brief-close-title">
+        <section id="brief-close" class="bf-close rv" aria-labelledby="brief-close-title">
           <div class="bf-close-copy"><h2 id="brief-close-title" class="bf-h2">See it on the live book</h2>
           <p class="bf-intro">Every number on this page comes from one simulated book. Open it, hit it with a price war or a supply shock, and watch the basis move.</p></div>
           <div class="bf-actions"><button id="brief-open-desk-end" class="primary-button bf-button" type="button">Launch the overview</button><button id="brief-open-quotes" class="secondary-button bf-button" type="button">Browse the quotes</button></div>

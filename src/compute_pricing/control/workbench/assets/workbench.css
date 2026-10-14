@@ -688,7 +688,8 @@ p.standing { margin: 12px 0 0; font-size: 12.5px; }
 .bf-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 40px; }
 .bf-button { min-height: 44px; padding: 0 22px; font-size: 14px; }
 .bf-hero-figure, .bf-problem-figure { min-width: 0; margin: 0; }
-.bf-hero-figure { padding-top: 20px; border-top: 1px solid var(--border); }
+.bf-hero-figure { position: relative; padding-top: 20px; }
+.bf-hero-figure::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--border); transform-origin: left center; }
 .bf-figure-head p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .bf-figure-head .bf-figure-title { margin-bottom: 4px; color: var(--ink); font-size: 14px; font-weight: 600; letter-spacing: -.005em; }
 .bf-live { min-height: 408px; margin-top: 20px; }
@@ -704,17 +705,56 @@ p.standing { margin: 12px 0 0; font-size: 12.5px; }
 .bf-chart .bf-note { font-size: 12.5px; }
 .bf-grid { stroke: var(--border); stroke-width: 1; }
 .bf-bar { fill: var(--gc, var(--accent)); }
-@keyframes bf-grow { from { transform: scaleX(0); } }
-.bf-grow .bf-bar-group { transform-box: fill-box; transform-origin: left center; animation: bf-grow 720ms var(--ease) both; }
-.bf-grow .bf-bar-group:nth-of-type(2) { animation-delay: 70ms; } .bf-grow .bf-bar-group:nth-of-type(3) { animation-delay: 140ms; }
-.bf-grow .bf-bar-group:nth-of-type(4) { animation-delay: 210ms; } .bf-grow .bf-bar-group:nth-of-type(5) { animation-delay: 280ms; }
-.bf-grow .bf-bar-group:nth-of-type(6) { animation-delay: 350ms; }
+/* Motion. One entrance on first load, a quiet reveal for what sits below the fold, a short fade between pages.
+   All of it lives inside no-preference: with reduced motion nothing is hidden, moved or timed. Opacity and transform only.
+   Entrance, in order: headline, lede and buttons rise 100ms apart; the chart's rule draws and its title fades in; when the
+   book arrives each chart row lands 70ms after the one above (label, bar, then value) and the four figures follow. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes bf-rise { from { opacity: 0; transform: translateY(12px); } }
+  @keyframes bf-fade { from { opacity: 0; } }
+  @keyframes bf-rule { from { transform: scaleX(0); } }
+  @keyframes bf-grow { from { transform: scaleX(0); } }
+  @keyframes view-in { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } }
+
+  .brief:not(.bf-entered) .bf-hero-copy h1 { animation: bf-rise 800ms var(--ease) backwards; }
+  .brief:not(.bf-entered) .bf-hero-copy .bf-sub { animation: bf-rise 800ms var(--ease) 100ms backwards; }
+  .brief:not(.bf-entered) .bf-hero-copy .bf-actions { animation: bf-rise 800ms var(--ease) 200ms backwards; }
+  .brief:not(.bf-entered) .bf-hero-figure::before { animation: bf-rule 900ms var(--ease) 150ms backwards; }
+  .brief:not(.bf-entered) .bf-hero-figure .bf-figure-head { animation: bf-fade 700ms var(--ease) 300ms backwards; }
+  .bf-live > .empty-state { animation: bf-fade 400ms var(--ease) 600ms backwards; }  /* a fast load never shows it */
+
+  .bf-grow .bf-bar-group { transform-box: fill-box; transform-origin: left center; animation: bf-grow 720ms var(--ease) backwards; }
+  .bf-grow .bf-row-label, .bf-grow .bf-row-sub { animation: bf-fade 500ms var(--ease) backwards; }
+  .bf-grow .bf-value, .bf-grow .bf-note { animation: bf-fade 400ms var(--ease) 420ms backwards; }
+  .bf-grow .bf-r1 { animation-delay: 70ms; } .bf-grow .bf-r2 { animation-delay: 140ms; } .bf-grow .bf-r3 { animation-delay: 210ms; }
+  .bf-grow .bf-r4 { animation-delay: 280ms; } .bf-grow .bf-r5 { animation-delay: 350ms; } .bf-grow .bf-r6 { animation-delay: 420ms; }
+  .bf-grow .bf-value.bf-r1, .bf-grow .bf-note.bf-r1 { animation-delay: 490ms; } .bf-grow .bf-value.bf-r2, .bf-grow .bf-note.bf-r2 { animation-delay: 560ms; }
+  .bf-grow .bf-value.bf-r3, .bf-grow .bf-note.bf-r3 { animation-delay: 630ms; } .bf-grow .bf-value.bf-r4, .bf-grow .bf-note.bf-r4 { animation-delay: 700ms; }
+  .bf-grow .bf-value.bf-r5, .bf-grow .bf-note.bf-r5 { animation-delay: 770ms; } .bf-grow .bf-value.bf-r6, .bf-grow .bf-note.bf-r6 { animation-delay: 840ms; }
+
+  .bf-number.bf-in { animation: bf-rise 700ms var(--ease) 260ms backwards; }
+  .bf-number.bf-in:nth-child(2) { animation-delay: 330ms; } .bf-number.bf-in:nth-child(3) { animation-delay: 400ms; } .bf-number.bf-in:nth-child(4) { animation-delay: 470ms; }
+
+  /* Below the fold: each block fades up once, as it scrolls in. The hidden state needs .rv-on, which the script sets only
+     when it can also reveal; the transition lives on the revealed state so that arming the page never fades content out. */
+  .brief.rv-on .rv:not(.rv-in), .brief.rv-on .rv-group:not(.rv-in) > * { opacity: 0; transform: translateY(14px); }
+  .brief.rv-on .rv.rv-in, .brief.rv-on .rv-group.rv-in > * { transition: opacity 800ms var(--ease), transform 800ms var(--ease); }
+  .brief.rv-on .rv-group.rv-in > :nth-child(2) { transition-delay: 100ms; } .brief.rv-on .rv-group.rv-in > :nth-child(3) { transition-delay: 200ms; }
+  .brief.rv-on .bf-problem.rv-in .bf-problem-figure { animation: bf-fade 900ms var(--ease) 160ms backwards; }
+
+  /* Between pages, and the menu. Opacity and a few pixels of travel; the Brief's own entrance replaces the page fade the first time. */
+  .view:not(.brief):not([hidden]), .brief.bf-entered:not([hidden]) { animation: view-in 280ms var(--ease) backwards; }
+  .more[open] .more-panel { animation: menu-in 160ms var(--ease) backwards; }
+  .tab { transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease); }
+}
+@media print { .brief.rv-on .rv:not(.rv-in), .brief.rv-on .rv-group:not(.rv-in) > * { opacity: 1; transform: none; } }
 
 /* The numbers band */
 .bf-numbers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: 188px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .bf-number { display: flex; flex-direction: column; min-width: 0; padding: 32px 32px 28px 0; }
 .bf-number + .bf-number { padding-left: 32px; border-left: 1px solid var(--border); }
-.bf-number-label { color: var(--muted); font-size: 11.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+.bf-number-label { color: var(--muted); font-size: 13px; font-weight: 500; }
 .bf-number-value { margin-top: 12px; font-size: clamp(36px, 3.7vw, 54px); font-weight: 500; letter-spacing: -.035em; line-height: 1.05; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .bf-number-sub { margin: 8px 0 20px; color: var(--muted); font-size: 13px; }
 .bf-number .chart-inline { width: 120px; height: 32px; margin-top: auto; }

@@ -52,7 +52,7 @@ function assertClean(node, label = "chart") {
   });
 }
 
-function makePage(initial, { priceQuote } = {}) {
+function makePage(initial, { priceQuote, browser = {} } = {}) {
   const ids = new Map();
   for (const tag of html.matchAll(/<([a-z][a-z0-9]*)\b([^>]*)>/g)) {
     const id = /\bid="([^"]+)"/.exec(tag[2]); if (id) ids.set(id[1], new El(tag[1]));
@@ -82,7 +82,7 @@ function makePage(initial, { priceQuote } = {}) {
     onView: (listener) => viewListeners.push(listener), onSession: (listener) => sessionListeners.push(listener),
     ...(priceQuote ? { priceQuote: (quote) => { priced.push(quote); } } : {}),
   };
-  const window = { ComputeHost: host };
+  const window = { ComputeHost: host, ...browser };  // browser: IntersectionObserver and matchMedia stand-ins
   const context = vm.createContext({ window, document: doc, setInterval: (fn, ms) => intervals.push({ fn, ms }), console });
   vm.runInContext(chartsSource, context, { filename: "workbench-charts.js" });
   vm.runInContext(demoSource, context, { filename: "workbench-demo.js" });
@@ -375,6 +375,67 @@ test("without a pricing handler the button simply opens Pricing", async () => {
   const page = makePage(base); page.connect(); await settle(); page.host.showView("quotes"); await settle();
   await page.button("quotes-detail", "Price this quote").click();
   assert.equal(page.shown.at(-1), "pricing");
+});
+
+/* Motion: what the script decides, since the CSS cannot be drawn in a browserless DOM. */
+const REVEAL_IDS = ["brief-problem-head", "brief-problem-1", "brief-problem-2", "brief-problem-3", "brief-how-head", "brief-steps", "brief-basis", "brief-close"];
+function fakeObserver() {
+  const watchers = [];
+  class Watcher {
+    constructor(callback, options) { this.callback = callback; this.options = options; this.observed = []; this.unobserved = []; watchers.push(this); }
+    observe(node) { this.observed.push(node); }
+    unobserve(node) { this.unobserved.push(node); }
+  }
+  return { watchers, IntersectionObserver: Watcher };
+}
+
+test("sections below the fold are hidden only when the script can also reveal them, and each is revealed once", async () => {
+  const seen = fakeObserver(); const page = makePage(base, { browser: { IntersectionObserver: seen.IntersectionObserver } });
+  assert.ok(page.el("brief-view").has("rv-on"), "the hidden state is armed");
+  assert.equal(seen.watchers.length, 1);
+  const [watcher] = seen.watchers;
+  assert.deepEqual(watcher.observed.map((node) => node), REVEAL_IDS.map((id) => page.el(id)));
+  const [above, visible] = [page.el("brief-problem-1"), page.el("brief-problem-2")];
+  watcher.callback([{ isIntersecting: false, target: above }, { isIntersecting: true, target: visible }]);
+  assert.equal(above.has("rv-in"), false, "a block that has not scrolled in stays hidden");
+  assert.equal(visible.has("rv-in"), true);
+  assert.deepEqual(watcher.unobserved, [visible], "a revealed block is not watched again, so it never replays");
+});
+
+test("nothing is hidden without IntersectionObserver or when motion is reduced", () => {
+  const none = makePage(base);
+  assert.equal(none.el("brief-view").has("rv-on"), false);
+  REVEAL_IDS.forEach((id) => assert.equal(none.el(id).has("rv-in"), false));
+  const seen = fakeObserver(); const reduced = makePage(base, { browser: { IntersectionObserver: seen.IntersectionObserver, matchMedia: () => ({ matches: true }) } });
+  assert.equal(reduced.el("brief-view").has("rv-on"), false);
+  assert.equal(seen.watchers.length, 0, "no observer is even created");
+});
+
+test("every block the page marks for reveal is one the script reveals", () => {
+  const marked = [...html.matchAll(/<[a-z0-9]+\b[^>]*\bid="([^"]+)"[^>]*\bclass="([^"]*)"|<[a-z0-9]+\b[^>]*\bclass="([^"]*)"[^>]*\bid="([^"]+)"/g)]
+    .map((tag) => ({ id: tag[1] || tag[4], cls: (tag[2] || tag[3]).split(/\s+/) })).filter((tag) => tag.cls.includes("rv") || tag.cls.includes("rv-group")).map((tag) => tag.id);
+  assert.deepEqual([...marked].sort(), [...REVEAL_IDS].sort(), "a block with rv but no entry in REVEAL would stay invisible");
+  const withClass = [...html.matchAll(/class="([^"]*)"/g)].filter((tag) => tag[1].split(/\s+/).some((name) => name === "rv" || name === "rv-group")).length;
+  assert.equal(withClass, REVEAL_IDS.length, "every block marked for reveal has an id the script can find");
+});
+
+test("the Brief's entrance is for the first visit; once the person has left, coming back is a plain fade", () => {
+  const page = makePage(base);
+  assert.equal(page.el("brief-view").has("bf-entered"), false);
+  page.host.showView("desk"); assert.ok(page.el("brief-view").has("bf-entered"));
+  page.host.showView("brief"); assert.ok(page.el("brief-view").has("bf-entered"), "returning does not restart the sequence");
+});
+
+test("the figures and chart rows stagger in on the first draw only, never again on a poll", async () => {
+  const page = makePage(base); page.connect(); await settle();
+  assert.equal(byClass(page.el("brief-facts"), "bf-in").length, 4, "the four figures enter in turn");
+  assert.ok(byClass(page.el("brief-live"), "bf-grow").length > 0, "the hero chart draws in");
+  const groups = byClass(page.el("brief-live"), "bf-bar-group");
+  groups.forEach((group, index) => assert.ok(classes(group).some((name) => /^bf-r\d+$/.test(name)), "bar " + index + " carries its row rank"));
+  assert.equal(byClass(page.el("brief-live"), "bf-value").every((node) => classes(node).some((name) => /^bf-r\d+$/.test(name))), true);
+  page.server.snapshot = structuredClone(base); page.server.snapshot.meta.tick += 1; page.server.tag = 'W/"two"'; page.poll(); await settle();
+  assert.equal(byClass(page.el("brief-facts"), "bf-in").length, 0, "a later poll redraws without the entrance, so nothing flickers");
+  assert.equal(byClass(page.el("brief-live"), "bf-grow").length, 0);
 });
 
 test("the sources keep to the content security policy", () => {

@@ -40,7 +40,24 @@ Filled buttons mark the principal action on a page: **Launch the overview**,
 **Price this quote**, **Evaluate scenario**. Outlined buttons start a scenario or
 open a related page. Quiet text buttons are utilities such as Pause and Reset. Each
 has visible hover, pressed, disabled and keyboard-focus states. Controls carry no
-decorative gradient, glow, shadow or motion.
+decorative gradient, glow or shadow, and no motion beyond a short colour change.
+
+## Motion
+
+Motion shows what arrived or what changed; it is not decoration. The Brief plays one
+entrance, once, on first load: the headline, lede and buttons rise 100ms apart, the
+chart's rule draws, and when the book arrives each chart row lands 70ms after the one
+above it (label, bar, then value) before the four figures follow. Blocks below the
+fold fade up once, as they scroll into view. Between pages, and when the More menu
+opens, there is a short fade of a few pixels. Coming back to the Brief is that plain
+fade, not the entrance again. Live updates redraw without any entrance, so nothing
+flickers while the book ticks.
+
+Entrances animate opacity and transform only, with the shared ease token. All of it
+sits inside `prefers-reduced-motion: no-preference`; with reduced motion, or without
+`IntersectionObserver`, nothing is hidden, moved or timed. A block marked `rv` in
+`index.html` must also be listed in `REVEAL` in `workbench-demo.js`, or it would stay
+invisible; a test holds the two together.
 
 ## Honesty about the data
 
