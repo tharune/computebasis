@@ -13,10 +13,18 @@
    component never carries a theme-specific colour of its own.
    ========================================================================== */
 
+/* Geist (SIL OFL 1.1, see fonts/OFL-Geist.txt): one variable file, weights 400-700, Latin plus arrows and minus signs. Self-hosted, so
+   font-src 'self' holds and a projector with no network still shows the right type. The fallback is metric-matched, so a late
+   font swaps without moving the layout. */
+@font-face { font-family: "Geist"; font-style: normal; font-weight: 400 700; font-display: swap; src: url("/workbench/assets/fonts/geist-latin-wght.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+2248, U+2260, U+2264-2265, U+FEFF, U+FFFD; }
+@font-face { font-family: "Geist Fallback"; src: local("Arial"), local("Helvetica Neue"), local("Liberation Sans"), local("Arimo"); size-adjust: 104.1%; ascent-override: 96.6%; descent-override: 28.3%; line-gap-override: 0%; }
+
 /* 1 · Tokens ------------------------------------------------------------- */
 :root {
   color-scheme: light;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  --font: "Geist", "Geist Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --logo-accent: #188674;  /* the mark's accent is the same in both themes: 4.31:1 on the light canvas, 4.30:1 on the dark */
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Surfaces */
@@ -31,11 +39,11 @@
   --ink: #151a1f;
   --ink-soft: #2f3943;
   --muted: #5c6771;
-  --faint: #8b959e;
+  --faint: #7b868f;
 
   /* Rules */
   --border: rgba(21, 26, 31, .11);
-  --control-border: #8a949c;
+  --control-border: #848e97;
 
   /* One accent, three semantics */
   --accent: #16695e;
@@ -66,7 +74,7 @@
   --map-select: #172a35; --map-focus: #a36219; --map-label: #3b5448;
   --tl-track: #eef2ed; --tl-base: #b4cbbb; --tl-availability: #7a8c82;
   --tl-sold: #55758d; --tl-reserved: #9c792f; --tl-maintenance: #6d7d72; --tl-now: #172a35;
-  --grade-a: #1f7a63; --grade-b: #4b7aa6; --grade-c: #b0801f; --grade-d: #b4483b;
+  --grade-a: #1f7a63; --grade-b: #44709b; --grade-c: #b0801f; --grade-d: #b4483b;
   --ramp-0: #16695e; --ramp-1: #3b8579; --ramp-2: #62a094; --ramp-3: #8dbab0; --ramp-4: #b3d2cb; --ramp-5: #d3e5e0;
 
   /* Shape, layout, motion */
@@ -160,16 +168,14 @@ code { font-family: var(--mono); }
 .app-header { position: sticky; top: 0; z-index: 40; background: var(--chrome); border-bottom: 1px solid var(--border); -webkit-backdrop-filter: saturate(1.5) blur(14px); backdrop-filter: saturate(1.5) blur(14px); }
 .top-bar { display: flex; align-items: center; gap: 40px; height: 56px; }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); }
-.brand-mark { width: 34px; height: 16px; flex: none; }
+.brand-mark { width: 24px; height: 24px; flex: none; }
 .logo-ink { fill: var(--ink); }
-.logo-ink-line { stroke: var(--ink); stroke-width: 1.5; }
-.logo-ring { fill: none; stroke: var(--accent); stroke-width: 2; }
+.logo-accent { fill: var(--logo-accent); }
 /* Two pages in one document: the landing page and the workbench. route.js and showView set data-page on <html>. */
 html[data-page="landing"] .lp-header { display: block; }
 html[data-page="landing"] .app-header, html[data-page="landing"] .app-footer { display: none; }
 html[data-page="app"] #brief-view { display: none; }
-.brand-name { font-size: 16px; font-weight: 500; letter-spacing: -.016em; line-height: 1; }
-.brand-name b { font-weight: 700; }
+.brand-name { font-size: 17px; font-weight: 600; letter-spacing: -.02em; line-height: 1; }
 .header-utilities { display: flex; align-items: center; gap: 14px; margin-left: auto; font-size: 12px; color: var(--muted); }
 .session-status { display: flex; align-items: center; gap: 8px; }
 .status-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--faint); }

@@ -1,26 +1,48 @@
 /* The landing page: its own header, then the Brief. Loaded after workbench.css, which owns the tokens. */
-.lp-header { display: none; position: sticky; top: 0; z-index: 40; background: var(--chrome); border-bottom: 1px solid var(--border); -webkit-backdrop-filter: saturate(1.5) blur(14px); backdrop-filter: saturate(1.5) blur(14px); }
+.lp-header { display: none; position: sticky; top: 0; z-index: 40; background: var(--canvas); border-bottom: 1px solid var(--border); }
 .lp-bar { display: flex; align-items: center; gap: 40px; width: min(100% - 2 * var(--gutter), var(--content)); height: 64px; margin-inline: auto; }
 .lp-nav { display: flex; gap: 28px; }
 .lp-link { padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; transition: color var(--fast) var(--ease); }
 .lp-link:hover { color: var(--ink); }
 .lp-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+@media (max-width: 860px) {
+  .lp-nav { display: none; }
+  .lp-bar { gap: 12px; }
+}
+@media (max-width: 480px) {
+  .lp-actions { gap: 8px; }
+  .lp-actions .icon-button { width: 40px; height: 40px; }
+  .lp-actions .primary-button { padding: 0 14px; font-size: 13px; }
+}
+@media (max-width: 380px) {
+  .lp-header .brand-name { font-size: 15px; }
+}
 
 /* Brief */
 /* The landing page. Six sizes: display, section heading, h3, lede, body, caption. Hairlines instead of cards, one accent,
    grade colour only where it carries meaning. Charts are SVG whose text and marks take their colour from these rules. */
-.bf-hero { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 6fr); gap: 80px; align-items: center; padding: 80px 0 64px; }
-.bf-hero-copy h1 { max-width: 10.5em; font-size: clamp(40px, 4.7vw, 68px); font-weight: 600; letter-spacing: -.035em; line-height: 1.02; text-wrap: balance; }
-.bf-sub { max-width: 44ch; margin: 28px 0 0; color: var(--ink-soft); font-size: clamp(16px, 1.35vw, 19px); line-height: 1.55; }
+/* Grid. One 12-column grid for the page, so every block starts on a column line. Two axes carry the layout: the left margin and
+   the line at column 7, where the hero chart, the third figure, the right-hand problem charts, the third stage, the basis figure
+   and the closing buttons all begin. Spacing steps: 8 16 24 32 48 64 96 128. */
+.brief { --gap: 24px; --fig: clamp(32px, 3.2vw, 44px); }
+html[data-page="landing"] { --content: 1560px; }
+.bf-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gap); }
+
+/* The hero fills the first screen below the 64px header, so the figures begin exactly at the fold. */
+.bf-hero { align-content: center; align-items: stretch; min-height: clamp(560px, calc(100svh - 64px), 860px); padding: 64px 0; }
+.bf-hero-copy { grid-column: 1 / span 6; display: flex; flex-direction: column; min-width: 0; }
+.bf-hero-copy h1 { max-width: 9.5em; margin: -.12em 0 0 -.05em; font-size: clamp(36px, 4.4vw, 64px); font-weight: 600; letter-spacing: -.03em; line-height: 1.05; text-wrap: balance; }
+.bf-sub { max-width: 42ch; margin: 24px 0 0; color: var(--ink-soft); font-size: clamp(16px, 1.3vw, 18px); line-height: 1.55; text-wrap: pretty; }
 .bf-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 40px; }
+.bf-hero-copy .bf-actions { margin-top: auto; padding-top: 40px; }
 .bf-button { min-height: 44px; padding: 0 22px; font-size: 14px; }
 .bf-hero-figure, .bf-problem-figure { min-width: 0; margin: 0; }
-.bf-hero-figure { position: relative; padding-top: 20px; }
+.bf-hero-figure { grid-column: 7 / span 6; position: relative; padding-top: 20px; }
 .bf-hero-figure::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--border); transform-origin: left center; }
-.bf-figure-head p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.bf-figure-head p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .bf-figure-head .bf-figure-title { margin-bottom: 4px; color: var(--ink); font-size: 14px; font-weight: 600; letter-spacing: -.005em; }
 .bf-live { min-height: 408px; margin-top: 20px; }
-.bf-caption { margin: 16px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.bf-caption { margin: 16px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.55; text-wrap: pretty; }
 
 /* Chart marks and text */
 .bf-chart { display: block; width: 100%; height: auto; overflow: visible; }
@@ -67,7 +89,7 @@
      when it can also reveal; the transition lives on the revealed state so that arming the page never fades content out. */
   .brief.rv-on .rv:not(.rv-in), .brief.rv-on .rv-group:not(.rv-in) > * { opacity: 0; transform: translateY(14px); }
   .brief.rv-on .rv.rv-in, .brief.rv-on .rv-group.rv-in > * { transition: opacity 800ms var(--ease), transform 800ms var(--ease); }
-  .brief.rv-on .rv-group.rv-in > :nth-child(2) { transition-delay: 100ms; } .brief.rv-on .rv-group.rv-in > :nth-child(3) { transition-delay: 200ms; }
+  .brief.rv-on .rv-group.rv-in > :nth-child(2) { transition-delay: 100ms; } .brief.rv-on .rv-group.rv-in > :nth-child(3) { transition-delay: 200ms; } .brief.rv-on .rv-group.rv-in > :nth-child(4) { transition-delay: 300ms; }
   .brief.rv-on .bf-problem.rv-in .bf-problem-figure { animation: bf-fade 900ms var(--ease) 160ms backwards; }
 
   /* Between pages, and the menu. Opacity and a few pixels of travel; the Brief's own entrance replaces the page fade the first time. */
@@ -77,96 +99,114 @@
 }
 @media print { .brief.rv-on .rv:not(.rv-in), .brief.rv-on .rv-group:not(.rv-in) > * { opacity: 1; transform: none; } }
 
-/* The numbers band */
-.bf-numbers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: 188px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.bf-number { display: flex; flex-direction: column; min-width: 0; padding: 32px 32px 28px 0; }
-.bf-number + .bf-number { padding-left: 32px; border-left: 1px solid var(--border); }
+/* The numbers band: four figures on the quarter lines, so the third begins where the hero chart begins. */
+.bf-numbers { border-top: 1px solid var(--border); }
+.bf-number { grid-column: span 3; display: flex; flex-direction: column; min-width: 0; padding: 32px 0 48px; }
+.bf-numbers { min-height: 236px; }  /* reserved, so the page does not jump when the figures arrive */
 .bf-number-label { color: var(--muted); font-size: 13px; font-weight: 500; }
-.bf-number-value { margin-top: 12px; font-size: clamp(36px, 3.7vw, 54px); font-weight: 500; letter-spacing: -.035em; line-height: 1.05; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bf-number-value { margin: 12px 0 0 -.04em; font-size: var(--fig); font-weight: 500; letter-spacing: -.03em; line-height: 1.05; white-space: nowrap; }
 .bf-number-sub { margin: 8px 0 20px; color: var(--muted); font-size: 13px; }
 .bf-number .chart-inline { width: 120px; height: 32px; margin-top: auto; }
 
-/* Sections */
-.bf-section { padding-top: 120px; scroll-margin-top: 64px; }
-.bf-section-head { max-width: 760px; }
-.bf-h2 { max-width: 16em; font-size: clamp(28px, 3.2vw, 46px); font-weight: 600; letter-spacing: -.03em; line-height: 1.06; text-wrap: balance; }
-.bf-intro { max-width: 52ch; margin: 24px 0 0; color: var(--ink-soft); font-size: clamp(16px, 1.3vw, 18px); line-height: 1.55; }
-.bf-index { display: block; margin-bottom: 20px; color: var(--muted); font: 500 12px/1 var(--mono); letter-spacing: .04em; }
-.bf-h3 { margin: 0; font-size: clamp(20px, 1.8vw, 25px); font-weight: 600; letter-spacing: -.022em; line-height: 1.2; text-wrap: balance; }
-.bf-problem-copy > p, .bf-steps > li > p { margin: 14px 0 0; color: var(--ink-soft); font-size: 15px; line-height: 1.6; }
+/* Sections: the heading sits on the left axis and its introduction on the column-7 axis. */
+.bf-section { padding-top: 96px; scroll-margin-top: 64px; }
+.bf-section-head { align-items: end; row-gap: 24px; }
+.bf-h2 { grid-column: 1 / span 6; margin-left: -.03em; font-size: clamp(26px, 2.8vw, 40px); font-weight: 600; letter-spacing: -.025em; line-height: 1.1; text-wrap: balance; }
+.bf-intro { grid-column: 7 / span 5; max-width: 44ch; margin: 0; color: var(--ink-soft); font-size: clamp(16px, 1.3vw, 18px); line-height: 1.55; text-wrap: pretty; }
+.bf-h3 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.015em; line-height: 1.25; text-wrap: balance; }
+.bf-problem-copy > p, .bf-stage > p { margin: 12px 0 0; max-width: 46ch; color: var(--ink-soft); font-size: 15px; line-height: 1.6; text-wrap: pretty; }
 
-/* The problem: three rows, copy on the left, one chart on the right */
-.bf-problems { margin: 64px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
-.bf-problem { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); gap: 96px; padding: 56px 0; border-bottom: 1px solid var(--border); }
-.bf-problem-copy { max-width: 540px; }
+/* The problem: three rows. Copy and chart swap sides on the middle row; both always start on the left axis or the column-7 axis. */
+.bf-problems { margin: 48px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
+.bf-problem { align-items: start; padding: 48px 0; border-bottom: 1px solid var(--border); }
+.bf-problem-copy { grid-column: 1 / span 5; grid-row: 1; min-width: 0; }
+.bf-problem-figure { grid-column: 7 / span 6; grid-row: 1; }
+.bf-problem.is-flipped .bf-problem-figure { grid-column: 1 / span 6; }
+.bf-problem.is-flipped .bf-problem-copy { grid-column: 7 / span 5; }
 .bf-stat { display: flex; flex-direction: column; margin-top: 32px; }
-.bf-stat-value { font-size: clamp(36px, 3.4vw, 48px); font-weight: 500; letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+.bf-stat-value { margin-left: -.04em; font-size: var(--fig); font-weight: 500; letter-spacing: -.03em; line-height: 1; }
 .bf-nowrap { white-space: nowrap; }
-.bf-stat-text { max-width: 52ch; margin-top: 10px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.bf-stat-text { max-width: 46ch; margin-top: 10px; color: var(--muted); font-size: 13.5px; line-height: 1.5; text-wrap: pretty; }
 .bf-slot { min-width: 0; margin-top: 24px; min-height: 232px; }
 .bf-split { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 24px 0 0; padding-top: 16px; border-top: 1px solid var(--border); }
 .bf-split dt { display: flex; align-items: center; color: var(--muted); font-size: 12px; }
 .bf-split dd { margin: 6px 0 0; font-size: 18px; font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 .bf-problem-figure .chart-legend { margin-top: 16px; }
 
-/* How it works */
-.bf-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 64px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
-.bf-steps > li { min-width: 0; padding: 32px 40px 0 0; }
-.bf-steps > li + li { padding-left: 40px; border-left: 1px solid var(--border); }
-.bf-steps .bf-slot { min-height: 112px; margin-top: 28px; }
-.bf-steps .chart-legend { margin-top: 14px; }
-.bf-steps .bf-stat { margin-top: 28px; }
-.bf-steps .bf-stat-value { font-size: clamp(32px, 3vw, 44px); }
-.bf-steps .bf-stat-text { margin-top: 14px; }
-.bf-sum { display: grid; gap: 6px; max-width: 280px; margin: 0; padding: 0; list-style: none; font: 500 15px/1.4 var(--mono); }
+/* How it works: four stages on the quarter lines, joined by one rule that runs through the gutters. */
+.bf-pipeline { margin: 48px 0 0; padding: 0; list-style: none; row-gap: 48px; }
+.bf-stage { grid-column: span 3; position: relative; min-width: 0; padding-top: 32px; border-top: 1px solid var(--border); }
+.bf-stage:not(:last-child) { margin-right: calc(var(--gap) * -1); padding-right: var(--gap); }
+.bf-stage::before { content: ""; position: absolute; top: -4px; left: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--canvas); }
+.bf-stage-n { display: block; margin-bottom: 12px; color: var(--accent); font-size: 13px; font-weight: 600; }
+.bf-stage .bf-slot { min-height: 112px; margin-top: 28px; }
+.bf-stage .chart-legend { margin-top: 14px; }
+.bf-stage .bf-stat { margin-top: 28px; }
+.bf-stage .bf-stat-text { margin-top: 14px; }
+.bf-sum { display: grid; gap: 6px; max-width: 280px; margin: 0; padding: 0; list-style: none; font-size: 15px; font-weight: 500; line-height: 1.4; font-variant-numeric: tabular-nums; }
 .bf-sum li { display: flex; gap: 12px; }
 .bf-sum li > span { width: 1ch; color: var(--accent); }
 .bf-sum li:first-child { padding-left: calc(1ch + 12px); }
 .bf-sum-total { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--control-border); }
-.bf-basis { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 64px; align-items: end; margin-top: 72px; padding: 40px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.bf-term { margin: 0 0 14px; color: var(--accent); font-size: 15px; font-weight: 600; }
-.bf-definition { max-width: 22em; margin: 0; font-size: clamp(22px, 2.3vw, 32px); font-weight: 500; letter-spacing: -.025em; line-height: 1.2; text-wrap: balance; }
-.bf-basis-live { min-height: 76px; margin: 0; color: var(--muted); font-size: 13.5px; }
-.bf-basis-live strong { display: block; margin-bottom: 10px; color: var(--ink); font-size: clamp(36px, 3.4vw, 48px); font-weight: 500; letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
-.bf-fineprint { max-width: 70ch; margin: 24px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.bf-basis { align-items: start; margin-top: 80px; padding-top: 48px; border-top: 1px solid var(--border); }
+.bf-basis-copy { grid-column: 1 / span 6; }
+.bf-term { margin: 0 0 12px; color: var(--ink); font-size: 13px; font-weight: 600; }
+.bf-definition { max-width: 22em; margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.015em; line-height: 1.25; text-wrap: balance; }
+.bf-basis-live { grid-column: 7 / span 6; min-height: 76px; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+.bf-basis-live strong { display: block; margin: 0 0 10px -.04em; color: var(--ink); font-size: var(--fig); font-weight: 500; letter-spacing: -.03em; line-height: 1; }
+.bf-fineprint { max-width: 62ch; margin: 48px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; text-wrap: pretty; }
 
 /* Closing band and footer */
-.bf-close { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 48px; align-items: end; padding: 120px 0 104px; }
-.bf-close .bf-actions { margin-top: 0; }
-.bf-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 32px; padding: 20px 0 8px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.bf-close { align-items: end; padding: 96px 0 80px; }
+.bf-close-copy { grid-column: 1 / span 6; }
+.bf-close-copy .bf-intro { margin-top: 24px; }
+.bf-close .bf-actions { grid-column: 7 / span 6; margin-top: 0; }
+.bf-footer { align-items: center; padding: 24px 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+.bf-footer .brand { grid-column: 1 / span 6; }
+.bf-footer-note { grid-column: 7 / span 6; margin: 0; }
 
 @media (max-width: 1100px) {
-  .bf-hero { grid-template-columns: minmax(0, 1fr); gap: 56px; padding: 56px 0 56px; }
-  .bf-hero-copy h1 { max-width: 12em; }
+  .brief { --gap: 20px; }
+  .bf-hero { row-gap: 48px; min-height: 0; padding: 48px 0 56px; }
+  .bf-hero-copy, .bf-hero-figure { grid-column: 1 / -1; }
+  .bf-hero-copy .bf-actions { margin-top: 40px; padding-top: 0; }
   .bf-live { min-height: 0; }
-  .bf-numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 0; }
-  .bf-number:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .bf-number { grid-column: span 6; }
   .bf-number:nth-child(n + 3) { border-top: 1px solid var(--border); }
-  .bf-section { padding-top: 88px; }
-  .bf-problem { grid-template-columns: minmax(0, 1fr); gap: 40px; }
-  .bf-problem-copy { max-width: 620px; }
-  .bf-problem-figure { max-width: 520px; }
-  .bf-slot { min-height: 0; }
-  .bf-steps { grid-template-columns: minmax(0, 1fr); }
-  .bf-steps > li, .bf-steps > li + li { padding: 32px 0; border-left: 0; }
-  .bf-steps > li + li { border-top: 1px solid var(--border); }
-  .bf-basis { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .bf-section { padding-top: 64px; }
+  .bf-h2, .bf-intro { grid-column: 1 / -1; }
+  .bf-problem { row-gap: 40px; }
+  .bf-problem-copy, .bf-problem-figure, .bf-problem.is-flipped .bf-problem-copy, .bf-problem.is-flipped .bf-problem-figure { grid-column: 1 / -1; grid-row: auto; }
+  .bf-problem-figure { max-width: 560px; }
+  .bf-slot, .bf-stage .bf-slot { min-height: 0; }
+  .bf-numbers { min-height: 0; }
+  .bf-stage { grid-column: span 6; }
+  .bf-stage:not(:last-child) { margin-right: 0; padding-right: 0; }
+  .bf-basis { row-gap: 24px; }
+  .bf-basis-copy, .bf-basis-live { grid-column: 1 / -1; }
   .bf-basis-live { min-height: 0; }
-  .bf-close { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 88px 0 72px; }
+  .bf-close { row-gap: 32px; padding: 72px 0 64px; }
+  .bf-close-copy, .bf-close .bf-actions { grid-column: 1 / -1; }
+  .bf-footer { row-gap: 12px; }
+  .bf-footer .brand, .bf-footer-note { grid-column: 1 / -1; }
 }
 @media (max-width: 720px) {
-  .bf-hero { gap: 40px; padding: 40px 0 40px; }
+  .brief { --gap: 16px; }
+  .bf-hero { row-gap: 40px; padding: 40px 0; }
   .bf-actions { margin-top: 32px; }
   .bf-actions .bf-button { flex: 1 1 100%; }
-  .bf-number, .bf-number + .bf-number { padding: 24px 16px 20px 0; }
-  .bf-number:nth-child(even) { padding-left: 16px; }
+  .bf-number { grid-column: span 6; padding: 24px 0 28px; }
   .bf-number-value { font-size: 32px; }
   .bf-number-sub { font-size: 12px; }
-  .bf-section { padding-top: 72px; }
-  .bf-problems, .bf-steps { margin-top: 40px; }
-  .bf-problem { padding: 40px 0; }
+  .bf-section { padding-top: 48px; }
+  .bf-problems, .bf-pipeline { margin-top: 32px; }
+  .bf-problem { padding: 32px 0; }
+  .bf-h2 { font-size: 26px; }
+  .bf-h3 { font-size: 20px; }
+  .bf-hero-copy h1 { line-height: 1.08; }
+  .bf-stage { grid-column: 1 / -1; }
   .bf-split { gap: 12px; }
   .bf-split dd { font-size: 16px; }
-  .bf-close { padding: 72px 0 56px; }
+  .bf-close { padding: 56px 0 48px; }
 }
 /* end Brief */

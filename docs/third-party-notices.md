@@ -42,3 +42,12 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 Energinet Energi Data Service provides DayAheadPrices under CC BY 4.0. Live records stay in local runtime storage. The adapter normalizes documented UTC timestamps, signed EUR/DKK rates and bounded delivery intervals; retain source attribution and disclose those transformations. See https://www.energidataservice.dk/terms-and-conditions.
+
+## Geist typeface
+
+The workbench and landing page set their text in Geist, copyright 2024 The Geist
+Project Authors, licensed under the SIL Open Font License 1.1. The file served
+from `src/compute_pricing/control/workbench/assets/fonts/` is a Latin subset of
+the variable font (weights 400 to 700, plus arrows, minus and comparison signs).
+The license text accompanies it in `OFL-Geist.txt`. The font is served locally;
+no font request leaves the machine.
