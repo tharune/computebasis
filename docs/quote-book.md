@@ -66,3 +66,6 @@ are decimal strings. The snapshot holds `meta`, `kpis`, per-model `models`, `gra
 
 The package is `compute_pricing.control.quote_book`; the routes live in
 `compute_pricing/control/api/quote_book.py`.
+
+The frontend that draws this book (Brief, Overview, Quotes, Pricing) and the hand-off status are in
+[ui-handoff-notes.md](ui-handoff-notes.md).

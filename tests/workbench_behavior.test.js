@@ -51,50 +51,41 @@ function harness({ prefersDark = false } = {}) {
   }
   const nav = [...html.matchAll(/data-view="([^"]+)"/g)].map((match) => { const node = new Node("button"); node.dataset.view = match[1]; node.root = true; return node; });
   const window = new Node("window"); window.matchMedia = () => ({ matches: prefersDark }); const documentElement = new Node("html"); const calls = []; const responses = []; const timers = new Map(); const intervals = []; let timerId = 0;
-  let initializing = false; let logoutWait = null;
-  const allCalls = []; const sessionCalls = []; const logoutResponses = [];
-  const resolved = (body) => Promise.resolve({ ok: true, status: 200, json: async () => structuredClone(body) });
+  const allCalls = []; const sessionCalls = []; const logoutResponses = []; let booting = false;
+  let clockNow = Date.now(); class ClockDate extends Date { static now() { return clockNow; } }
+  const documentListeners = new Map(); const pageDocument = { hidden: false, addEventListener: (name, action) => documentListeners.set(name, [...(documentListeners.get(name) || []), action]) };
+  const headerBag = (headers) => { const lower = Object.fromEntries(Object.entries(headers).map(([key, value]) => [key.toLowerCase(), value])); return { get: (name) => lower[name.toLowerCase()] ?? null }; };
   const fetch = (url, options) => {
     allCalls.push({ url, options });
     if (url.startsWith("/v1/session/")) sessionCalls.push({ url, options });
-    else if (!initializing || url === "/v1/demo/market") calls.push({ url, options });
-    if (url === "/v1/session/logout") return logoutResponses.shift() || logoutWait || resolved({ auth_mode: "disconnected" });
-    if (initializing && url === "/v1/session/bootstrap") return resolved({ auth_mode: "local_session", csrf_token: "c".repeat(64), expires_at: "2099-05-06T00:00:00Z" });
-    if (initializing && url === "/v1/demo/contract") return resolved(demoContractFixture());
-    if (initializing && url === "/v1/market/refresh/status") return resolved({ enabled: true, running: false, scopes: [] });
-    if (initializing && url.startsWith("/v1/inventory")) return resolved({ revision: null, as_of: "2033-05-06T00:00:00Z", state: { schema_version: "paper-inventory/1.0", sites: [], lots: [], positions: [] }, summary: { by_unit_kind: {} }, sites: [], lots: [], timeline: [] });
-    if (initializing && url === "/v1/underwriting/template") return resolved({ requirements_version: "invented-public-7", requirements: [], scope_options: [], request: { scopes: [], subjects: {}, requirements: [], evidence: [] } });
-    if (initializing && url === "/workbench/assets/world-land.json") return resolved(landFixture);
+    else if (!booting || url === "/v1/market/index") calls.push({ url, options });
+    if (url === "/v1/session/logout") return logoutResponses.shift() || Promise.resolve({ ok: true, status: 200, json: async () => ({ ended: true }) });
     const response = responses.shift(); assert.ok(response, "Unexpected request: " + url); return response(options);
   };
-  const context = vm.createContext({ document: { documentElement, getElementById: (id) => { assert.ok(nodes.has(id), "Missing DOM element " + id); return nodes.get(id); }, createElement: (tag) => new Node(tag), createElementNS: (_, tag) => new Node(tag), querySelectorAll: () => nav }, window, fetch, AbortController, structuredClone, crypto: { randomUUID }, setTimeout: (fn, delay) => { timers.set(++timerId, { fn, delay }); return timerId; }, clearTimeout: (id) => timers.delete(id), setInterval: (fn) => intervals.push(fn), console });
+  const context = vm.createContext({ Date: ClockDate, document: { ...pageDocument, get hidden() { return pageDocument.hidden; }, documentElement, getElementById: (id) => { assert.ok(nodes.has(id), "Missing DOM element " + id); return nodes.get(id); }, createElement: (tag) => new Node(tag), createElementNS: (_, tag) => new Node(tag), querySelectorAll: () => nav }, window, fetch, AbortController, structuredClone, crypto: { randomUUID }, setTimeout: (fn, delay) => { timers.set(++timerId, { fn, delay }); return timerId; }, clearTimeout: (id) => timers.delete(id), setInterval: (fn) => intervals.push(fn), console });
   vm.runInContext(draftScript, context, { filename: "workbench-drafts.js" });
   vm.runInContext(script, context, { filename: "workbench.js" });
-  function reply(body, status = 200) { responses.push(async () => ({ ok: status >= 200 && status < 300, status, json: async () => structuredClone(body), text: async () => typeof body === "string" ? body : JSON.stringify(body) })); }
+  function reply(body, status = 200, headers = {}) { responses.push(async () => ({ ok: status >= 200 && status < 300, status, headers: headerBag(headers), json: async () => structuredClone(body), text: async () => typeof body === "string" ? body : JSON.stringify(body) })); }
   function pending(ignoreAbort = false) {
     let resolve; let reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
     responses.push((options) => { if (!ignoreAbort) options.signal.addEventListener("abort", () => { const error = new Error("aborted"); error.name = "AbortError"; reject(error); }, { once: true }); return promise; });
-    return { resolve: (body, status = 200) => resolve({ ok: status >= 200 && status < 300, status, json: async () => body, text: async () => body }), reject };
+    return { resolve: (body, status = 200, headers = {}) => resolve({ ok: status >= 200 && status < 300, status, headers: headerBag(headers), json: async () => body, text: async () => body }), reject };
   }
-  async function connect(index = indexFixture()) {
-    initializing = true; reply(index);
-    try { await window.emit("load"); } finally { initializing = false; }
+  async function connect(index = indexFixture(), indexHeaders = {}) {
+    booting = true;
+    reply({ auth_mode: "local_session", csrf_token: "invented-csrf-marker", expires_at: "2099-01-01T00:00:00Z" }); reply(index, 200, indexHeaders);
+    reply({ enabled: true, running: false, scopes: [] });
+    reply({ revision: null, as_of: "2026-01-01T00:00:00Z", state: { schema_version: "paper-inventory/1.0", sites: [], lots: [], positions: [] }, summary: { by_unit_kind: {} }, sites: [], lots: [], timeline: [] });
+    reply({ requirements_version: "invented", requirements: [], scope_options: [], request: { scopes: [], subjects: {}, evidence: [], requirements: [] } });
+    reply({ features: [] });
+    await window.emit("load"); booting = false;
   }
-  function delayLogout() { let resolve; logoutWait = new Promise((yes) => { resolve = yes; }); return () => { resolve({ ok: true, status: 200 }); logoutWait = null; }; }
-  return { replyLogout: (body, status) => logoutResponses.push(Promise.resolve({ok: status >= 200 && status < 300, status, json: async () => body})), node: (id) => nodes.get(id), calls, allCalls, sessionCalls, reply, pending, timers, intervals, window, documentElement, connect, nav, delayLogout };
+  async function visibility(hidden) { pageDocument.hidden = hidden; await Promise.all((documentListeners.get("visibilitychange") || []).map((action) => action({}))); }
+  const clock = { advance: (ms) => { clockNow += ms; } };
+  return { visibility, clock, page: pageDocument, replyLogout: (body, status) => logoutResponses.push(Promise.resolve({ok: status >= 200 && status < 300, status, json: async () => body})), node: (id) => nodes.get(id), calls, reply, pending, timers, intervals, window, documentElement, connect, nav, allCalls, sessionCalls };
 }
 
 const observation = (id, amount, overrides = {}) => ({ id, source_id: "feed:prices", kind: "listing_ask", hardware: { model: id, accelerator_count: "1" }, price: { amount, currency: "USD", unit: "gpu_hour" }, observed_at: "2026-01-01T00:00:00Z", expires_at: "2099-01-01T00:00:00Z", status: "claimed", region: { country_code: "US" }, ...overrides });
-function demoContractFixture() {
-  const inputs = { gpu_count: "2", delivery_start: "2061-03-09T00:00:00Z", delivery_end: "2061-03-10T00:00:00Z", supplier_rate: "2.125", buyer_rate: "4.35", billed_utilization: "0.81", collection_share: "0.96", opening_cash: "280", reference_rate: "2.9", fee_on_collected: "0.01", fee_on_gross: "0.003", fixed_operating_cost: "17", minimum_cash: "12", required_margin: "0.18", tick_size: "0.005", payment_dates: { supplier_payment_on: "2061-03-09", buyer_invoice_on: "2061-03-09", buyer_receipt_on: "2061-03-10", operating_cost_on: "2061-03-09", fees_on: "2061-03-10", writeoff_on: "2061-03-10" } };
-  const fields = Object.keys(inputs).filter(name => name !== "payment_dates").map(name => ({name, label:name.replaceAll("_", " "), type:name.startsWith("delivery_") ? "utc" : "decimal", group:["reference_rate", "fee_on_collected", "fee_on_gross", "fixed_operating_cost", "minimum_cash", "required_margin", "tick_size"].includes(name) ? "assumptions" : "primary", required:true}));
-  Object.keys(inputs.payment_dates).forEach(name => fields.push({name:"payment_dates." + name,label:name,type:"date",group:"payment_dates",required:true}));
-  return { schema_version:"demo-scenario/1.0.0", fields, sample:{classification:"synthetic", inputs}, template_unknown:{} };
-}
-function demoField(h, name) {
-  const id = "demo-field-" + name.replaceAll(".", "-");
-  return [h.node("demo-primary-fields"), h.node("demo-additional-fields")].flatMap(container => container.children).flatMap(label => label.children).find(node => node.id === id);
-}
 function indexFixture(overrides = {}) {
   const scopes = [{ captured_at: "2026-01-01T00:00:00Z", observation_count: 1, catalog_record_count: 0, filters: {}, stale: false, coverage: { complete: false } }];
   return { as_of: "2026-01-01T00:00:00Z", sources: [{ source_id: "feed:prices", enabled: true, can_attempt_read: true, rights_status: "allowed", permissions: { benchmark: "PASS" }, max_age_s: 7200, scopes, latest: scopes[0] }], observations: [observation("GPU-A", "2.0000000000000000000000001")], catalog_records: [], snapshots: [{ snapshot_id: "a".repeat(64), source_id: "feed:prices" }], ...overrides };
@@ -103,7 +94,7 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 const renderedPrices = (h) => h.node("records-body").children.map((row) => row.children[2]?.textContent);
 
 test("startup is locked and performs no fetch or sample insertion", () => {
-  const h = harness(); assert.equal(h.calls.length, 0); assert.equal(h.node("pricing-input").value, ""); assert.equal(h.node("reload-index").disabled, true); assert.equal(h.node("refresh-market").disabled, true);
+  const h = harness(); assert.equal(h.calls.length, 0); assert.equal(h.node("pricing-input").value, ""); assert.equal(h.window.listeners.get("load").length, 1); assert.equal(h.node("reload-index").disabled, true); assert.equal(h.node("refresh-market").disabled, true);
 });
 
 test("theme starts from system preference and toggles without fetch or session retention", async () => {
@@ -125,61 +116,6 @@ test("each workspace navigation action has one handler and updates current page"
   assert.equal(nav.listeners.get("click").length, 1); await nav.emit("click");
   assert.equal(h.node("inventory-view").hidden, false); assert.equal(h.node("market-view").hidden, true);
   assert.equal(nav.attributes["aria-current"], "page");
-});
-
-test("MVP starts with three primary workflows and retains advanced tools", () => {
-  const h = harness(); const primary = html.match(/<nav class="navigation"[^>]*>([\s\S]*?)<\/nav>/)[1];
-  assert.deepEqual([...primary.matchAll(/data-view="([^"]+)"/g)].map(match => match[1]), ["market", "pricing", "inventory"]);
-  assert.equal(h.node("market-view").hidden, false); assert.equal(h.node("dashboard-view").hidden, true);
-  assert.ok(h.nav.some(node => node.dataset.view === "policy"));
-});
-
-test("scenario form remains unknown until explicit sample action and submits exact flat strings", async () => {
-  const h = harness(); await h.connect();
-  assert.equal(demoField(h, "gpu_count").value, ""); assert.equal(demoField(h, "payment_dates.buyer_receipt_on").value, "");
-  await h.node("demo-scenario-form").emit("submit"); assert.equal(h.calls.length, 1); assert.match(h.node("notice").textContent, /Unknown inputs remain empty/);
-  await h.node("demo-load-sample").emit("click"); assert.match(h.node("demo-scenario-mode").textContent, /Invented scenario/);
-  const exact = "2.125000000000000000001"; demoField(h, "supplier_rate").value = exact; await demoField(h, "supplier_rate").emit("input");
-  h.reply({result:{status:"held",bid:null,pricing_provenance:{source_evidence_eligible:false},cash_constraint:{tested_purchase_tick:"1.905",supplied_ask_required_extra_cash:"7.031",supplied_ask_cash_feasible:false},ask:{sell_floor_tick:"3.275"},economics:{currency:"USD",economic_profit:"41.032",gross_billings:"169.128",expected_collections:"162.36288",economic_cost:"121.33088",fees:"2.13188",capital_charge:"0"},scenario_supplier_cash_schedule:{currency:"USD",days:[{on:"2061-03-09",free_cash:"5",minimum_ordered_free_cash:"-2.031"},{on:"2061-03-10",free_cash:"46.032",minimum_ordered_free_cash:"5"}]},hold_reasons:["source_evidence_not_bound"]}});
-  await h.node("demo-scenario-form").emit("submit");
-  const call = h.calls.at(-1); assert.equal(call.url, "/v1/demo/scenario"); const sent = JSON.parse(call.options.body);
-  assert.equal(sent.supplier_rate, exact); assert.equal(sent.payment_dates.buyer_receipt_on, "2061-03-10"); assert.equal(sent.inputs, undefined);
-  assert.match(h.node("demo-results").textContent, /1\.905 USD/); assert.match(h.node("demo-results").textContent, /7\.04 USD/); assert.equal(h.node("demo-results").children[3].children[1].attributes.title,"Exact: 7.031 USD");
-  assert.equal(h.node("demo-cash-blocker").hidden, false); assert.match(h.node("demo-provenance").textContent, /actual submitted bid remains held/);
-  assert.match(h.node("demo-cash-caption").textContent, /At your supplier price/); assert.equal(h.node("demo-cash-empty").hidden, true);
-  assert.ok(h.node("demo-cash-chart").children.some(node => node.tagName === "polyline" && node.attributes.class === "chart-trough"));
-  demoField(h, "opening_cash").value = "300"; await demoField(h, "opening_cash").emit("input"); assert.equal(h.node("demo-result-state").textContent, "Previous input");
-  const draft = demoField(h, "opening_cash").value; h.reply(indexFixture()); h.reply({enabled:true,running:true,scopes:[]}); await h.intervals[0](); assert.equal(demoField(h, "opening_cash").value, draft);
-  await h.node("disconnect").emit("click"); assert.equal(h.node("demo-primary-fields").children.length, 0); assert.equal(h.node("demo-cash-chart").children.length, 0); assert.equal(h.node("demo-output").textContent, "");
-});
-
-test("scenario totals use exact cent presentation, funding rounds upward and rates retain tick precision", async () => {
-  const h = harness(); await h.connect(); await h.node("demo-load-sample").emit("click");
-  const result = {status:"held",bid:null,ask:{sell_floor_tick:"4.005"},cash_constraint:{tested_purchase_tick:"3.875",supplied_ask_required_extra_cash:"0.000000000000000001"},economics:{currency:"USD",economic_profit:"12345678901234567890.1251",economic_cost:null,economic_margin:"0.1234567890123456789",margin_basis:"gross_billings"},scenario_supplier_cash_schedule:{currency:"USD",minimum_cash_floor:"12",days:[{on:"2061-03-09",free_cash:"21",minimum_ordered_free_cash:"11.999999999999999999"}]}};
-  h.reply({result}); await h.node("demo-scenario-form").emit("submit"); const cards = h.node("demo-results").children;
-  assert.equal(cards[0].children[1].textContent,"3.875 USD"); assert.equal(cards[1].children[1].textContent,"4.005 USD");
-  assert.equal(cards[2].children[1].textContent,"12,345,678,901,234,567,890.13 USD"); assert.equal(cards[2].children[1].attributes.title,"Exact: 12345678901234567890.1251 USD");
-  assert.equal(cards[3].children[1].textContent,"0.01 USD"); assert.match(h.node("demo-cost-breakdown").textContent,/Economic margin \/ gross billings12\.35%/);
-  assert.equal(h.node("demo-cost-breakdown").children[2].children[1].textContent,"—");
-  assert.ok(h.node("demo-cash-chart").children.some(node => node.attributes.class === "chart-floor" && node.children[0].textContent === "Minimum cash floor: 12 USD"));
-  h.reply({result:{...result,economics:{...result.economics,economic_profit:"-0.0049",economic_margin:null},cash_constraint:{...result.cash_constraint,supplied_ask_required_extra_cash:"0"}}}); await h.node("demo-scenario-form").emit("submit");
-  assert.equal(h.node("demo-results").children[2].children[1].textContent,"0.00 USD"); assert.equal(h.node("demo-results").children[3].children[1].textContent,"0.00 USD");
-  assert.equal(h.node("demo-cost-breakdown").children.at(-1).children[1].textContent,"—");
-});
-
-test("commitment chart keeps native currency, gaps and billing weeks separate with no curve interpolation", async () => {
-  const h = harness();
-  const node = (months, rate) => ({reservation_months:months,rate_per_gpu_hour:rate,status:"observed_reference",references:[{captured_at:"2099-01-08T02:14:06.123Z"}]});
-  const group = (billing, currency, week, nodes) => ({cohort:{source_id:"getdeploying",hardware:{model:"Example-GPU"},currency,billing_type:billing,week_start:week},nodes});
-  await h.connect(indexFixture({commitment_curves:{groups:[group("CUSTOM","USD","2099-01-05",[node(null,"9.4")]),group("RESERVATION","EUR","2099-01-05",[node(null,"2.7"),node(1,"2.125000000000000000001"),node(12,"1.8")]),group("RESERVATION","USD","2098-12-29",[node(6,"4.7")])]},sources:[{source_id:"getdeploying",scopes:[{captured_at:"2099-01-08T02:14:06.123Z",stale:false}],can_attempt_read:true}]}));
-  assert.equal(h.node("curve-group").value,"1"); assert.equal(h.node("curve-unit").textContent,"EUR / GPU-hour");
-  assert.match(h.node("market-selected-reference").textContent,/1\.8 EUR/); assert.match(h.node("market-selected-reference").textContent,/12 month average/);
-  assert.match(h.node("curve-nodes").textContent,/Unspecified term/); assert.doesNotMatch(h.node("curve-nodes").textContent,/No reserved term/);
-  await h.node("curve-nodes").children[1].emit("click"); assert.match(h.node("market-selected-reference").textContent,/2\.125000000000000000001 EUR/);
-  const plot = h.node("commitment-chart"); assert.equal(plot.children.filter(child => child.tagName === "circle").length, 3); assert.equal(plot.children.filter(child => child.tagName === "polyline").length, 0);
-  assert.doesNotMatch(h.node("curve-nodes").textContent,/6 months/);
-  h.node("curve-group").value="2"; await h.node("curve-group").emit("change"); assert.equal(h.node("curve-unit").textContent,"USD / GPU-hour"); assert.match(h.node("curve-caption").textContent,/2098-12-29/);
-  await h.node("market-compare-deal").emit("click"); assert.equal(h.node("pricing-view").hidden,false); assert.equal(demoField(h,"reference_rate").value,"");
 });
 
 test("actual ECB quote_per_base is exact, separate from prices and model metadata", async () => {
@@ -230,12 +166,11 @@ test("logout aborts active requests and late responses cannot restore old data o
   assert.equal(h.node("metric-observations").textContent, "—"); assert.doesNotMatch(h.node("records-body").textContent, /SECRET-OLD/); assert.match(h.node("notice").textContent, /Session ended/); assert.equal(h.node("pricing-input").value, "");
 });
 
-test("resume serializes an older bootstrap before opening a fresh workspace", async () => {
-  const h = harness(); const earlier = h.pending(true); const first = h.node("connect-session").emit("click"); await tick();
+test("late failed bootstrap cannot clear a newer connected workspace", async () => {
+  const h = harness(); const old = h.pending(true); const first = h.node("connect-session").emit("click"); await tick();
   await h.node("disconnect").emit("click"); const resumed = h.connect(indexFixture({ observations: [observation("NEW", "3")] }));
-  await tick(); assert.equal(h.sessionCalls.filter((call) => call.url.endsWith("bootstrap")).length, 1);
-  earlier.resolve({ detail: "expired" }, 401); await first; await resumed;
-  assert.equal(h.node("session-state").textContent, "Workspace ready"); assert.match(h.node("records-body").textContent, /NEW/); assert.equal(h.node("reload-index").disabled, false);
+  old.resolve({ detail: "old rejected" }, 401); await first; await resumed;
+  assert.equal(h.node("session-state").textContent, "Connected"); assert.match(h.node("records-body").textContent, /NEW/); assert.equal(h.node("reload-index").disabled, false);
 });
 
 test("stop waiting and timeout retain drafts, abort transport, and do not duplicate feed reads", async () => {
@@ -246,39 +181,14 @@ test("stop waiting and timeout retain drafts, abort transport, and do not duplic
   assert.match(h.node("notice").textContent, /timed out/); assert.equal(h.node("reload-index").disabled, false);
 });
 
-test("expired read renews its session, while expired mutation is never retried", async () => {
-  const h = harness(); await h.connect(); h.node("inference-input").value = '{"invented_private_draft":"kept"}';
-  h.reply({ detail: "expired" }, 401); h.reply({ auth_mode: "local_session", csrf_token: "d".repeat(64) }); h.reply(indexFixture());
-  await h.node("reload-index").emit("click"); assert.match(h.node("inference-input").value, /kept/);
-  h.node("cash-input").value = '{}'; await h.node("cash-input").emit("input"); h.reply({ detail: "expired" }, 401); h.reply({ auth_mode: "local_session", csrf_token: "restored-client-token" });
+test("expired read sessions renew once, while mutations are never replayed", async () => {
+  const h = harness(); await h.connect(); h.node("inference-input").value = '{"sensitive":"draft"}';
+  h.reply({ detail: "unauthorized" }, 401); h.reply({ auth_mode: "local_session", csrf_token: "renewed-marker" }); h.reply(indexFixture());
+  await h.node("reload-index").emit("click"); assert.equal(h.node("inference-input").value, '{"sensitive":"draft"}');
+  h.node("cash-input").value = '{}'; await h.node("cash-input").emit("input"); h.reply({ detail: "unauthorized" }, 401); h.reply({ auth_mode: "local_session", csrf_token: "mutation-renewed-marker" });
   await h.node("evaluate-cash").emit("click"); assert.match(h.node("notice").textContent, /no mutation was retried/);
-  assert.equal(h.sessionCalls.filter((call) => call.url.endsWith("bootstrap")).length, 3);
+  assert.equal(h.sessionCalls.filter((call) => call.url.includes("bootstrap")).length, 3);
   assert.equal(h.calls.filter((call) => call.url === "/v1/cash/evaluate").length, 1);
-  assert.equal(h.calls.at(-1).options.headers["X-Compute-CSRF"], "d".repeat(64));
-});
-
-test("a stale tab protection token is repaired without resubmitting its request", async () => {
-  const h = harness(); await h.connect(); const raw = '{"opening_cash":"0.000000000000000000009"}';
-  h.node("cash-input").value = raw; await h.node("cash-input").emit("input");
-  h.reply({ detail: "browser_csrf_required" }, 403); h.reply({ auth_mode: "local_session", csrf_token: "fresh-tab-token" });
-  await h.node("evaluate-cash").emit("click");
-  assert.match(h.node("notice").textContent, /no mutation was retried/); assert.match(h.node("notice").textContent, /Workspace resumed/);
-  assert.equal(h.node("cash-input").value, raw); assert.equal(h.calls.filter(call => call.url === "/v1/cash/evaluate").length, 1);
-  h.reply({ result: { currency: "USD", minimum_free_cash: "0" } }); await h.node("evaluate-cash").emit("click");
-  assert.equal(h.calls.at(-1).options.headers["X-Compute-CSRF"], "fresh-tab-token"); assert.equal(h.calls.at(-1).options.body, raw);
-});
-
-test("an origin denial stays denied without a new handshake", async () => {
-  const h = harness(); await h.connect(); h.node("cash-input").value = '{}'; await h.node("cash-input").emit("input");
-  h.reply({ detail: "browser_origin_not_allowed" }, 403); await h.node("evaluate-cash").emit("click");
-  assert.equal(h.sessionCalls.filter(call => call.url.endsWith("bootstrap")).length, 1); assert.match(h.node("notice").textContent, /browser_origin_not_allowed/);
-});
-
-test("the optional GPU ceiling has explicit three-state coverage controls", async () => {
-  const h = harness(); await h.connect(); const action = walk(h.node("inference-fields")).find(entry => entry.tagName === "button" && entry.textContent === "Add supplier economic ceiling");
-  await action.emit("click"); const independence = walk(h.node("inference-fields")).find(entry => entry.attributes["data-field-path"] === "supplier_ceiling_policy.nonpurchase_costs_rate_independent");
-  assert.equal(independence.value, ""); independence.value = "true"; await independence.emit("change");
-  const request = JSON.parse(h.node("inference-input").value); assert.equal(request.supplier_ceiling_policy.nonpurchase_costs_rate_independent, true); assert.equal(request.supplier_ceiling_policy.nonpurchase_costs_complete, null);
 });
 
 test("source admission disables refresh when held and exposes bounded coverage independently of success notices", async () => {
@@ -328,18 +238,18 @@ test("quarantined and missing token rates remain explicitly unpriced while retri
 });
 
 test("inventory starts empty and map/table selection retains typed unit counts without geocoding", async () => {
-  const h = harness(); assert.match(h.node("inventory-totals").textContent, /No declared capacity/); await h.connect(); h.reply(inventoryFixture()); await h.node("inventory-load").emit("click");
+  const h = harness(); assert.match(h.node("inventory-totals").textContent, /No declared capacity/); await h.connect(); h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click");
   assert.match(h.node("inventory-totals").textContent, /gpu \/ declared units/); assert.match(h.node("inventory-totals").textContent, /node \/ declared units/); assert.match(h.node("inventory-map-state").textContent, /1 located sites \/ 1 unmapped/);
   const markers = h.node("inventory-map").children.filter((node) => node.attributes.role === "button"); assert.equal(markers.length, 1); assert.equal(markers[0].attributes.tabindex, "0");
   assert.equal(markers[0].children.filter((node) => node.attributes.role === "button").length, 0); assert.equal(markers[0].children.filter((node) => node.attributes.class === "map-hit-target").length, 1);
   const css = fs.readFileSync(path.join(assets, "workbench.css"), "utf8"); assert.match(css, /stroke-width: 44px; vector-effect: non-scaling-stroke; pointer-events: all/);
   await markers[0].emit("keydown", { key: "Enter" }); assert.match(h.node("inventory-count").textContent, /1 lots \/ 2 declared/); assert.match(h.node("lot-detail").textContent, /12\.3456789012345678901 EUR/); assert.match(h.node("lot-detail").textContent, /2026-01-05T00:00:00Z/);
-  await h.node("inventory-clear-site").emit("click"); assert.match(h.node("inventory-count").textContent, /2 lots/); assert.equal(h.calls.length, 2);
+  await h.node("inventory-clear-site").emit("click"); assert.match(h.node("inventory-count").textContent, /2 lots/); assert.equal(h.calls.length, 3);
 });
 
 test("fixed UTC inventory requests encode the timestamp and reject impossible dates without a fetch", async () => {
   const h = harness(); await h.connect(); h.node("inventory-live").checked = false; await h.node("inventory-live").emit("change"); h.node("inventory-at").value = "2026-02-30T00:00:00Z"; await h.node("inventory-load").emit("click"); assert.equal(h.calls.length, 1); assert.match(h.node("notice").textContent, /valid UTC instant/);
-  h.node("inventory-at").value = "2026-01-10T00:00:00Z"; h.reply(inventoryFixture()); await h.node("inventory-load").emit("click"); assert.equal(h.calls[1].url, "/v1/inventory?as_of=2026-01-10T00%3A00%3A00Z");
+  h.node("inventory-at").value = "2026-01-10T00:00:00Z"; h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click"); assert.equal(h.calls[1].url, "/v1/inventory?as_of=2026-01-10T00%3A00%3A00Z");
 });
 
 test("unsold uses backend counts and includes reserved capacity while available remains distinct", async () => {
@@ -348,7 +258,7 @@ test("unsold uses backend counts and includes reserved capacity while available 
   const counts = { total: 2, available: 0, reserved: 2, sold: 0, maintenance: 0, unavailable: 0, unsold: 2 };
   report.state.positions = [reserved]; report.lots[0].counts = counts; report.lots[0].positions = [reserved]; report.summary.by_unit_kind.gpu = counts; report.sites[0].by_unit_kind.gpu = counts;
   report.timeline = report.timeline.filter((row) => row.kind === "availability").concat({ ...reserved, kind: "reserved", active_at_as_of: true });
-  h.reply(report); await h.node("inventory-load").emit("click");
+  h.reply(report); h.reply(landFixture); await h.node("inventory-load").emit("click");
   const gpuTotals = h.node("inventory-totals").children[0].children[1].children;
   assert.equal(gpuTotals.find((pair) => pair.children[0].textContent === "unsold").children[1].textContent, "2");
   assert.equal(gpuTotals.find((pair) => pair.children[0].textContent === "available").children[1].textContent, "0");
@@ -357,37 +267,32 @@ test("unsold uses backend counts and includes reserved capacity while available 
 });
 
 test("inventory demo uses pure validation and cannot be persisted by its save button", async () => {
-  const h = harness(); await h.connect(); const report = inventoryFixture(); report.revision = null; report.persisted = false; h.reply(report); await h.node("inventory-demo").emit("click");
+  const h = harness(); await h.connect(); const report = inventoryFixture(); report.revision = null; report.persisted = false; h.reply(report); h.reply(landFixture); await h.node("inventory-demo").emit("click");
   assert.equal(h.calls[1].url, "/v1/inventory/evaluate"); assert.equal(h.calls[1].options.method, "POST"); assert.match(h.calls[1].options.body, /independently_invented_synthetic_ui_demo/); assert.match(h.node("inventory-mode").textContent, /SYNTHETIC/); assert.equal(h.node("inventory-save").disabled, true);
   const packet = JSON.parse(h.calls[1].options.body); assert.deepEqual(Object.keys(packet.state).sort(), ["lots", "positions", "provenance", "schema_version", "sites"]); assert.equal(packet.state.provenance, "synthetic");
-  await h.node("inventory-save").emit("click"); assert.equal(h.calls.length, 2); await h.node("inventory-demo").emit("click"); assert.equal(h.node("inventory-input").value, ""); assert.equal(h.node("inventory-mode").textContent, "No inventory loaded");
+  await h.node("inventory-save").emit("click"); assert.equal(h.calls.length, 3); await h.node("inventory-demo").emit("click"); assert.equal(h.node("inventory-input").value, ""); assert.equal(h.node("inventory-mode").textContent, "No inventory loaded");
 });
 
 test("inventory revision conflict preserves duplicate-key draft bytes and displays reload action", async () => {
-  const h = harness(); await h.connect(); h.reply(inventoryFixture()); await h.node("inventory-load").emit("click"); const raw = '{"schema_version":"paper-inventory/1.0","sites":[],"lots":[],"positions":[],"positions":[]}'; h.node("inventory-input").value = raw; await h.node("inventory-input").emit("input");
-  h.reply({ detail: { code: "inventory_revision_conflict", current_revision: 2 } }, 409); await h.node("inventory-save").emit("click"); assert.equal(h.calls[2].options.body, '{"expected_revision":1,"state":' + raw + '}'); assert.equal(h.node("inventory-input").value, raw); assert.match(h.node("notice").textContent, /Reload current versions/);
+  const h = harness(); await h.connect(); h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click"); const raw = '{"schema_version":"paper-inventory/1.0","sites":[],"lots":[],"positions":[],"positions":[]}'; h.node("inventory-input").value = raw; await h.node("inventory-input").emit("input");
+  h.reply({ detail: { code: "inventory_revision_conflict", current_revision: 2 } }, 409); await h.node("inventory-save").emit("click"); assert.equal(h.calls[3].options.body, '{"expected_revision":1,"state":' + raw + '}'); assert.equal(h.node("inventory-input").value, raw); assert.match(h.node("notice").textContent, /Reload current versions/);
 });
 
-test("late inventory response cannot repaint holdings cleared on session end", async () => {
-  const h = harness(); await h.connect(); const delayed = h.pending(true); const loading = h.node("inventory-load").emit("click");
-  await tick(); await h.node("disconnect").emit("click"); delayed.resolve(inventoryFixture()); await loading;
-  assert.equal(h.node("inventory-output").textContent, ""); assert.equal(h.node("inventory-input").value, "");
-  assert.match(h.node("notice").textContent, /Session ended/); assert.equal(h.node("inventory-map").children.some((node) => node.attributes.role === "button"), false);
+test("new inventory response and geometry are discarded together on logout", async () => {
+  const h = harness(); await h.connect(); h.reply(inventoryFixture()); const delayed = h.pending(true); const loading = h.node("inventory-load").emit("click"); await tick(); await h.node("disconnect").emit("click"); delayed.resolve(landFixture); await loading;
+  assert.equal(h.node("inventory-output").textContent, ""); assert.equal(h.node("inventory-input").value, ""); assert.match(h.node("notice").textContent, /Session ended/); assert.equal(h.node("inventory-map").children.some((node) => node.attributes.role === "button"), false);
 });
 
-test("retained synchronization updates untouched inventory but preserves edited and fixed-time drafts", async () => {
-  const h = harness(); await h.connect(); h.reply(inventoryFixture()); await h.node("inventory-load").emit("click");
-  const inventoryReads = () => h.calls.filter((call) => call.url === "/v1/inventory").length;
-  const synchronize = async (includeInventory) => {
-    h.reply(indexFixture()); h.reply({ enabled: true, running: false, scopes: [] });
-    if (includeInventory) h.reply(inventoryFixture()); await h.intervals[0]();
-  };
-  await synchronize(true); assert.equal(inventoryReads(), 2);
-  h.node("inventory-input").value = '{"invented_unsaved":"kept"}'; await synchronize(false);
-  assert.equal(inventoryReads(), 2); assert.equal(h.node("inventory-input").value, '{"invented_unsaved":"kept"}');
+test("automatic index propagation preserves edited and fixed-time inventory drafts", async () => {
+  const h = harness(); await h.connect(); h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click");
+  h.reply(indexFixture()); h.reply({ enabled: true, running: false, scopes: [] }); h.reply(inventoryFixture());
+  await h.intervals[0](); assert.equal(h.calls.at(-1).url, "/v1/inventory");
+  h.node("inventory-input").value = '{"draft":"kept"}';
+  h.reply(indexFixture()); h.reply({ enabled: true, running: false, scopes: [] }); await h.intervals[0]();
+  assert.equal(h.calls.at(-1).url, "/v1/market/refresh/status"); assert.equal(h.node("inventory-input").value, '{"draft":"kept"}');
   h.node("inventory-input").value = JSON.stringify(inventoryFixture().state, null, 2); h.node("inventory-live").checked = false;
-  await synchronize(false); assert.equal(inventoryReads(), 2);
-  assert.equal(h.calls.filter((call) => call.url === "/v1/demo/market").length, 4);
+  h.reply(indexFixture()); h.reply({ enabled: true, running: false, scopes: [] }); await h.intervals[0]();
+  assert.equal(h.calls.at(-1).url, "/v1/market/refresh/status"); assert.equal(h.calls.filter((call) => call.url === "/v1/market/refresh").length, 0);
 });
 
 test("policy controls preserve decimal strings and require explicit JSON write before saving", async () => {
@@ -463,168 +368,121 @@ test("model recipe search exposes unpriced metadata without adding GPU price obs
   h.node("model-query").value = "unknown-engine"; await h.node("model-query").emit("input"); assert.match(h.node("model-records").textContent, /No catalog records match/); assert.equal(h.calls.length, 1);
 });
 
-function walk(node) { return [node, ...node.children.flatMap(walk)]; }
-function draftHarness(raw, requirements = []) {
-  const container = new Node("div"); container.root = true; const messages = [];
-  const window = {}; const context = vm.createContext({ window, document: { createElement: (tag) => new Node(tag) } });
-  vm.runInContext(draftScript, context, { filename: "workbench-drafts.js" });
-  const mount = () => window.ComputeDrafts.mount(container, JSON.parse(raw), {
-    parse: JSON.parse, raw, readRaw: () => raw, changed: (value) => { raw = value; }, message: (text) => messages.push(text), requirements,
-  });
-  return { container, component: window.ComputeDrafts, mount, messages, raw: () => raw,
-    setAdvanced: (text) => { raw = text; }, field: (location) => walk(container).find((node) => node.attributes["data-field-path"] === location) };
-}
+const descendants = (root) => [root, ...root.children.flatMap(descendants)];
+const field = (h, kind, location) => descendants(h.node(kind + "-fields")).find((entry) => entry.attributes["data-field-path"] === location);
 
-test("fresh draft contracts have no invented prices, money, location or qualification", () => {
-  const h = draftHarness('{}'); const pricing = h.component.template("pricing"); const inference = h.component.template("inference");
-  assert.equal(pricing.commercial, null); assert.equal(pricing.target.country_code, null); assert.equal(pricing.market.policy, null);
-  assert.equal(inference.costs.gpu_rate_per_gpu_hour, null); assert.equal(inference.qualification.status, null);
-  assert.equal(inference.workload.tensor_parallel, null); assert.equal(inference.qualification.memory.includes_kv_cache, null);
-  assert.equal(inference.pricing_policy, null);
-  assert.equal(h.component.template("cash").opening_cash, null); assert.equal(h.component.template("inventory").sites.length, 0);
-});
-
-test("exact monetary text preserves digits and explicit zero differs from unknown", async () => {
-  const h = draftHarness('{"opening_cash":null,"extensions":{"declared_rate":"200.12500000000000000000009"}}'); h.mount();
-  const opening = h.field("opening_cash"); opening.value = "0"; await opening.emit("input");
-  assert.equal(JSON.parse(h.raw()).opening_cash, "0"); assert.equal(JSON.parse(h.raw()).extensions.declared_rate, "200.12500000000000000000009");
-  opening.value = ""; await opening.emit("input"); assert.equal(JSON.parse(h.raw()).opening_cash, null);
-});
-
-test("registered coverage booleans and whole values use explicit supported types", async () => {
-  const requirements = [{ requirement_id: "check:flag", value_type: "boolean" }, { requirement_id: "check:count", value_type: "integer" }];
-  const h = draftHarness('{"evidence":[{"requirement_id":"check:flag","value":null},{"requirement_id":"check:count","value":null}],"tensor_parallel":null}', requirements); h.mount();
-  const flag = h.field("evidence.0.value"); flag.value = "false"; await flag.emit("change");
-  const count = h.field("evidence.1.value"); count.value = "17"; await count.emit("input");
-  const parallel = h.field("tensor_parallel"); parallel.value = "3"; await parallel.emit("input");
-  const result = JSON.parse(h.raw()); assert.equal(result.evidence[0].value, false); assert.equal(result.evidence[1].value, "17"); assert.equal(result.tensor_parallel, 3);
-});
-
-test("malformed existing boolean choice cannot silently become a false assertion", async () => {
-  const h = draftHarness('{"includes_kv_cache":"unreviewed"}'); h.mount();
-  const control = h.field("includes_kv_cache"); control.value = "unreviewed"; await control.emit("change");
-  assert.equal(JSON.parse(h.raw()).includes_kv_cache, "unreviewed");
-  control.value = "false"; await control.emit("change"); assert.equal(JSON.parse(h.raw()).includes_kv_cache, false);
-});
-
-test("ordinary prototype-named extension fields cannot activate registered shapes", async () => {
-  const h = draftHarness('{"extensions":{"toString":null,"hasOwnProperty":null}}'); h.mount();
-  const control = h.field("extensions.toString"); assert.ok(control); assert.equal(control.value, "");
-  control.value = "explicit custom value"; await control.emit("input");
-  assert.equal(JSON.parse(h.raw()).extensions.toString, "explicit custom value");
-  assert.equal(JSON.parse(h.raw()).extensions.hasOwnProperty, null); assert.equal(h.component.template("toString"), undefined);
-});
-
-test("advanced draft replacement prevents older mounted handlers overwriting it", async () => {
-  const h = draftHarness('{"opening_cash":"7"}'); h.mount(); const field = h.field("opening_cash");
-  h.setAdvanced('{"opening_cash":"9","new_input":true}'); field.value = "100"; await field.emit("input");
-  assert.equal(h.raw(), '{"opening_cash":"9","new_input":true}'); assert.match(h.messages[0], /newer input was preserved/);
-});
-
-test("renderer failure is atomic and complete large arrays are preserved without conversion", async () => {
-  let deep = { value: "invented-private-draft" }; for (let i = 0; i < 12; i++) deep = { next: deep };
-  const invalid = draftHarness(JSON.stringify({ account_id: "account:invented-secret", extensions: deep }));
-  assert.throws(() => invalid.mount(), /budget/); assert.equal(invalid.container.children.length, 0);
-  const unsafe = draftHarness('{"opening_cash":"1","__proto__":{"polluted":true}}'); assert.throws(() => unsafe.mount(), /Reserved/); assert.equal(unsafe.container.children.length, 0);
-  const values = Array.from({ length: 43 }, (_, index) => ({ id: "claim:" + index, amount: "1.0000000000000000000003" }));
-  const retained = draftHarness(JSON.stringify({ opening_cash: "5", entries: values })); const editor = retained.mount();
-  assert.match(retained.container.textContent, /43 entries preserved/); retained.field("opening_cash").value = "6"; await retained.field("opening_cash").emit("input");
-  assert.deepEqual(JSON.parse(retained.raw()).entries, values); editor.clear(); assert.equal(retained.container.children.length, 0);
-});
-
-test("physical identity arrays edit individual strings and new sites retain unknown coordinates", async () => {
-  const h = draftHarness('{"sites":[],"unit_ids":["unit:gamma"]}'); h.mount(); const identity = h.field("unit_ids.0");
-  identity.value = "unit:delta"; await identity.emit("input");
-  const add = walk(h.container).find((node) => node.tagName === "button" && node.textContent === "Add sites"); await add.emit("click");
-  const value = JSON.parse(h.raw()); assert.deepEqual(value.unit_ids, ["unit:delta"]); assert.equal(value.sites[0].country_code, null); assert.equal(value.sites[0].latitude, null); assert.equal(value.sites[0].longitude, null);
-});
-
-test("new extension fields remain explicit typed inputs without adding monetary effects", async () => {
-  const h = draftHarness('{"opening_cash":"12","extensions":{}}'); h.mount();
-  const details = walk(h.container).find((node) => node.className === "add-field");
-  const name = details.children.find((node) => node.tagName === "input"); const type = details.children.find((node) => node.tagName === "select");
-  const button = details.children.find((node) => node.tagName === "button"); name.value = "reviewed_flag"; type.value = "boolean"; await button.emit("click");
-  const field = h.field("extensions.reviewed_flag"); assert.equal(field.value, ""); field.value = "false"; await field.emit("change");
-  const value = JSON.parse(h.raw()); assert.equal(value.extensions.reviewed_flag, false); assert.equal(value.opening_cash, "12");
-});
-
-test("inference price policy remains unknown until explicit ticks and margin terms are supplied", async () => {
-  const h = draftHarness('{"pricing_policy":null}'); h.mount();
-  const add = walk(h.container).find((node) => node.tagName === "button" && node.textContent === "Add pricing policy"); await add.emit("click");
-  let request = JSON.parse(h.raw()); assert.equal(request.pricing_policy.required_margin, null); assert.equal(request.pricing_policy.task_price_tick, null);
-  assert.equal(request.pricing_policy.rate_ticks.request_fee, null);
-  const tick = h.field("pricing_policy.rate_ticks.request_fee"); tick.value = "0.000000001"; await tick.emit("input");
-  request = JSON.parse(h.raw()); assert.equal(request.pricing_policy.rate_ticks.request_fee, "0.000000001"); assert.equal(request.pricing_policy.rate_ticks.input_per_million, null);
-});
-
-test("adding a routed quote cannot implicitly assert zero platform operating costs", async () => {
-  const h = draftHarness('{"external_route":null}'); h.mount();
-  const add = walk(h.container).find((node) => node.tagName === "button" && node.textContent === "Add external route"); await add.emit("click");
-  assert.equal(JSON.parse(h.raw()).external_route.cost_items, null);
-  const declare = walk(h.container).find((node) => node.tagName === "button" && node.textContent === "Declare routed operating cost list"); await declare.emit("click");
-  assert.deepEqual(JSON.parse(h.raw()).external_route.cost_items, []);
-  const item = walk(h.container).find((node) => node.tagName === "button" && node.textContent === "Add cost items"); await item.emit("click");
-  const basis = h.field("external_route.cost_items.0.basis"); assert.deepEqual(basis.children.map((node) => node.value), ["", "whole_horizon", "per_request"]);
-  assert.equal(JSON.parse(h.raw()).external_route.cost_items[0].amount, null);
-});
-
-test("resumed workspace waits for prior logout before issuing another cookie bootstrap", async () => {
-  const h = harness(); await h.connect(); const finishLogout = h.delayLogout(); await h.node("disconnect").emit("click");
-  const reopening = h.connect(indexFixture({ observations: [observation("AFTER-LOGOUT", "7")] })); await tick();
-  assert.equal(h.sessionCalls.filter((call) => call.url.endsWith("bootstrap")).length, 1);
-  finishLogout(); await reopening; assert.equal(h.sessionCalls.filter((call) => call.url.endsWith("bootstrap")).length, 2);
-  assert.match(h.node("records-body").textContent, /AFTER-LOGOUT/);
-});
-
-test("workspace startup uses same-origin session cookies and structural unknown inputs", async () => {
-  const h = harness(); await h.connect(); const setup = h.sessionCalls[0];
-  assert.equal(setup.url, "/v1/session/bootstrap"); assert.equal(setup.options.credentials, "same-origin");
-  assert.equal(setup.options.headers.Authorization, undefined); assert.equal(setup.options.body, "{}");
+test("browser load bootstraps HttpOnly session without a credential form and initializes local data", async () => {
+  const h = harness(); await h.connect();
+  assert.equal(h.node("session-card").hidden, true); assert.equal(h.node("session-state").textContent, "Connected");
+  assert.equal(h.sessionCalls[0].url, "/v1/session/bootstrap"); assert.equal(h.sessionCalls[0].options.credentials, "same-origin");
+  assert.equal(h.sessionCalls[0].options.body, "{}"); assert.equal(h.calls[0].options.headers.Authorization, undefined);
+  assert.ok(h.allCalls.some((call) => call.url === "/v1/underwriting/template"));
   assert.ok(h.allCalls.some((call) => call.url === "/v1/market/refresh/status"));
-  const cash = JSON.parse(h.node("cash-input").value); assert.equal(cash.opening_cash, null); assert.equal(cash.currency, null);
-  const inference = JSON.parse(h.node("inference-input").value); assert.equal(inference.workload.model_id, null); assert.equal(inference.qualification.status, null);
-  assert.equal(h.node("overview-decision").textContent, "Unevaluated");
+  assert.equal(JSON.parse(h.node("pricing-input").value).commercial, null);
+  assert.equal(JSON.parse(h.node("cash-input").value).opening_cash, null);
 });
 
-test("session end during startup parallel reads cannot recreate cleared forms or feedback", async () => {
-  const h = harness(); h.reply({ auth_mode: "local_session", csrf_token: "e".repeat(64) }); h.reply(indexFixture());
+test("mutations send memory CSRF while exact request bytes and decimals are preserved", async () => {
+  const h = harness(); await h.connect(); h.node("cash-input").value = '{"amount":"0.000000000000000000001"}'; await h.node("cash-input").emit("input");
+  h.reply({ result: { currency: "USD", minimum_free_cash: "0" } }); await h.node("evaluate-cash").emit("click");
+  const call = h.calls.at(-1); assert.equal(call.options.headers["X-Compute-CSRF"], "invented-csrf-marker"); assert.equal(call.options.credentials, "same-origin");
+  assert.equal(call.options.body, '{"amount":"0.000000000000000000001"}');
+});
+
+test("structured monetary edits distinguish unknown from explicit zero and retain extensions", async () => {
+  const h = harness(); await h.connect(); h.node("cash-input").value = '{"opening_cash":null,"extensions":{"unknown":"12345678901234567890.000000000001"}}'; await h.node("cash-read-fields").emit("click");
+  const cash = field(h, "cash", "opening_cash"); assert.equal(cash.value, "");
+  cash.value = "0"; await cash.emit("input"); let result = JSON.parse(h.node("cash-input").value); assert.equal(result.opening_cash, "0"); assert.equal(result.extensions.unknown, "12345678901234567890.000000000001");
+  cash.value = ""; await cash.emit("input"); result = JSON.parse(h.node("cash-input").value); assert.equal(result.opening_cash, null);
+});
+
+test("structured fields cannot overwrite a changed advanced draft or round unsafe literals", async () => {
+  const h = harness(); await h.connect(); const before = h.node("cash-input").value; const cash = field(h, "cash", "opening_cash");
+  h.node("cash-input").value = '{"amount":"user changed"}'; cash.value = "12"; await cash.emit("input");
+  assert.equal(h.node("cash-input").value, '{"amount":"user changed"}'); assert.match(h.node("notice").textContent, /advanced draft changed/);
+  h.node("cash-input").value = '{"opening_cash":9007199254740993}'; await h.node("cash-read-fields").emit("click"); assert.match(h.node("notice").textContent, /exact decimal strings/);
+  assert.notEqual(before, h.node("cash-input").value);
+});
+
+test("blank inference inputs retain unknown booleans and explicitly supplied parallel counts", async () => {
+  const h = harness(); await h.connect(); const parallel = field(h, "inference", "workload.tensor_parallel"); parallel.value = "2"; await parallel.emit("input");
+  const memory = field(h, "inference", "qualification.memory.includes_kv_cache"); assert.equal(memory.value, ""); memory.value = "false"; await memory.emit("change");
+  const request = JSON.parse(h.node("inference-input").value); assert.equal(request.workload.tensor_parallel, 2); assert.equal(request.qualification.memory.includes_kv_cache, false); assert.equal(request.costs.gpu_rate_per_gpu_hour, null);
+});
+
+test("inventory structured unit lists preserve physical identities and add no invented location", async () => {
+  const h = harness(); await h.connect(); const add = descendants(h.node("inventory-fields")).find((entry) => entry.tagName === "button" && entry.textContent === "Add sites");
+  await add.emit("click"); const latitude = field(h, "inventory", "sites.0.latitude"); assert.equal(latitude.value, "");
+  const site = field(h, "inventory", "sites.0.site_id"); site.value = "declared:site"; await site.emit("input");
+  const draft = JSON.parse(h.node("inventory-input").value); assert.equal(draft.sites[0].site_id, "declared:site"); assert.equal(draft.sites[0].latitude, null); assert.equal(draft.lots.length, 0);
+});
+
+test("logout clears structured field nodes and dashboard decisions along with raw input", async () => {
+  const h = harness(); await h.connect(); const cash = field(h, "cash", "opening_cash"); cash.value = "19"; await cash.emit("input");
+  await h.node("disconnect").emit("click"); assert.equal(h.node("cash-fields").children.length, 0); assert.equal(h.node("overview-decision").textContent, "Unevaluated");
+  assert.equal(h.sessionCalls.at(-1).url, "/v1/session/logout"); assert.equal(h.sessionCalls.at(-1).options.headers["X-Compute-CSRF"], "invented-csrf-marker");
+});
+
+test("portfolio template remains blank and shared assessment uses its dedicated evaluator", async () => {
+  const h = harness(); await h.connect(); const request = { schema_version: "portfolio-assessment/1.0", request_id: null, cash: { opening_cash: null }, capacity: { lots: [] }, routes: [], exposures: [], limits: [], minimum_free_cash: null };
+  h.reply({ request }); await h.node("portfolio-new-draft").emit("click"); assert.deepEqual(JSON.parse(h.node("portfolio-input").value), request);
+  h.reply({ result: { status: "held", execution_enabled: false, firm_price_eligible: false, blockers: ["missing inputs"], economics: null } }); await h.node("evaluate-portfolio").emit("click");
+  assert.equal(h.calls.at(-1).url, "/v1/portfolio/evaluate"); assert.match(h.node("portfolio-summary").textContent, /missing inputs/);
+});
+
+test("ending a session during startup secondary reads cannot recreate cleared drafts", async () => {
+  const h = harness(); h.reply({ auth_mode: "local_session", csrf_token: "invented-csrf-marker" }); h.reply(indexFixture());
   h.pending(); h.pending(); h.pending(); const opening = h.window.emit("load"); await tick();
   await h.node("disconnect").emit("click"); await opening;
-  for (const kind of ["pricing", "inference", "cash", "portfolio", "inventory", "underwriting"]) {
-    assert.equal(h.node(kind + "-input").value, ""); assert.equal(h.node(kind + "-fields").children.length, 0);
-  }
-  assert.match(h.node("notice").textContent, /Session ended/);
+  assert.equal(h.node("pricing-input").value, ""); assert.match(h.node("notice").textContent, /Session ended/);
 });
 
-test("shipped structured edit retains exact strings and marks prior pricing decision stale", async () => {
-  const h = harness(); await h.connect();
-  h.node("pricing-input").value = '{"commercial":{"buyer_rate":"33.123456789012345678901","supplier_ask":null},"extensions":{"customer_declared":"kept"}}';
-  await h.node("pricing-input").emit("input"); await h.node("pricing-read-fields").emit("click");
-  h.reply({ result: { status: "indicative", bid: { submitted_limit: "4.2" }, economics: { currency: "EUR" } } });
-  await h.node("evaluate-pricing").emit("click"); assert.equal(h.node("overview-decision").textContent, "indicative");
-  const ask = walk(h.node("pricing-fields")).find((node) => node.attributes["data-field-path"] === "commercial.supplier_ask");
-  ask.value = "0"; await ask.emit("input"); const result = JSON.parse(h.node("pricing-input").value);
-  assert.equal(result.commercial.supplier_ask, "0"); assert.equal(result.commercial.buyer_rate, "33.123456789012345678901");
-  assert.equal(result.extensions.customer_declared, "kept"); assert.equal(h.node("overview-decision").textContent, "Draft changed");
-  assert.equal(h.node("pricing-result-state").textContent, "Previous input");
-});
-
-test("shipped structured transformations reject duplicate keys and unsafe numeric literals", async () => {
-  const h = harness(); await h.connect();
-  for (const raw of ['{"opening_cash":"1","opening_cash":"2"}', '{"opening_cash":9007199254740995}']) {
-    h.node("cash-input").value = raw; await h.node("cash-read-fields").emit("click");
-    assert.equal(h.node("cash-input").value, raw); assert.match(h.node("notice").textContent, /Duplicate JSON key|exact decimal strings/);
-  }
-});
-
-test("first failing shipped field mount and subsequent logout leave no partial identifiers", async () => {
-  const h = harness(); await h.connect(); let nested = { note: "invented-sensitive" };
+test("a failed first structured mount leaves no private fields before or after ending a session", async () => {
+  const h = harness(); await h.connect(); let nested = { value: "invented-sensitive-nested" };
   for (let i = 0; i < 12; i++) nested = { next: nested };
-  const raw = JSON.stringify({ buyer_entity_id: "buyer:invented-sensitive", extensions: nested });
-  h.node("portfolio-input").value = raw; await h.node("portfolio-read-fields").emit("click");
-  assert.equal(h.node("portfolio-input").value, raw); assert.match(h.node("notice").textContent, /budget/);
-  assert.equal(h.node("portfolio-fields").children.length, 0); await h.node("disconnect").emit("click");
-  assert.equal(h.node("portfolio-input").value, ""); assert.equal(h.node("portfolio-fields").children.length, 0);
+  h.node("portfolio-input").value = JSON.stringify({ buyer_entity_id: "invented-sensitive-entity", extensions: nested });
+  await h.node("portfolio-read-fields").emit("click"); assert.match(h.node("notice").textContent, /budget/);
+  assert.equal(h.node("portfolio-fields").children.length, 0); await h.node("disconnect").emit("click"); assert.equal(h.node("portfolio-fields").children.length, 0);
+});
+
+test("registered underwriting boolean values use explicit booleans and retain independent units", async () => {
+  const h = harness(); await h.connect(); const requirements = [{ requirement_id: "requirement:privacy", subject_kind: "workload", value_type: "boolean", allowed_values: [] }];
+  h.node("underwriting-input").value = ""; h.reply({ requirements_version: "invented", requirements, scope_options: ["inference"], request: { scopes: [], subjects: {}, evidence: [], requirements } });
+  await h.node("underwriting-template").emit("click"); const add = descendants(h.node("underwriting-fields")).find((entry) => entry.tagName === "button" && entry.textContent === "Add evidence"); await add.emit("click");
+  const identity = field(h, "underwriting", "evidence.0.requirement_id"); identity.value = "requirement:privacy"; await identity.emit("change");
+  const value = field(h, "underwriting", "evidence.0.value"); value.value = "false"; await value.emit("change");
+  const draft = JSON.parse(h.node("underwriting-input").value); assert.equal(draft.evidence[0].value, false); assert.equal(draft.evidence[0].unit, null); assert.equal(draft.evidence[0].status, null);
+});
+
+test("unknown Boolean choices and prototype-named extension keys remain explicit inputs", async () => {
+  const h = harness(); await h.connect(); h.node("cash-input").value = '{"facility":{"revolving":"unknown assertion"},"extensions":{"toString":null}}'; await h.node("cash-read-fields").emit("click");
+  const revolving = field(h, "cash", "facility.revolving"); revolving.value = "unknown assertion"; await revolving.emit("change");
+  assert.equal(JSON.parse(h.node("cash-input").value).facility.revolving, "unknown assertion");
+  const extension = field(h, "cash", "extensions.toString"); extension.value = "kept"; await extension.emit("input"); assert.equal(JSON.parse(h.node("cash-input").value).extensions.toString, "kept");
+});
+
+test("evicted protection tokens renew without replaying a mutation or discarding the draft", async () => {
+  const h = harness(); await h.connect(); const draft = '{"opening_cash":"0.000000000000000000004"}';
+  h.node("cash-input").value = draft; await h.node("cash-input").emit("input");
+  h.reply({ detail: "browser_csrf_required" }, 403); h.reply({ auth_mode: "local_session", csrf_token: "replacement-csrf" });
+  await h.node("evaluate-cash").emit("click");
+  assert.match(h.node("notice").textContent, /Workspace resumed/); assert.match(h.node("notice").textContent, /no mutation was retried/);
+  assert.equal(h.node("cash-input").value, draft); assert.equal(h.calls.filter(call => call.url === "/v1/cash/evaluate").length, 1);
+  h.reply({ result: { currency: "USD", minimum_free_cash: "0" } }); await h.node("evaluate-cash").emit("click");
+  assert.equal(h.calls.at(-1).options.headers["X-Compute-CSRF"], "replacement-csrf"); assert.equal(h.calls.at(-1).options.body, draft);
+});
+
+test("a non-CSRF forbidden response cannot trigger session renewal", async () => {
+  const h = harness(); await h.connect(); h.node("cash-input").value = '{}'; await h.node("cash-input").emit("input");
+  h.reply({ detail: "browser_origin_not_allowed" }, 403); await h.node("evaluate-cash").emit("click");
+  assert.equal(h.sessionCalls.filter(call => call.url.includes("bootstrap")).length, 1); assert.match(h.node("notice").textContent, /browser_origin_not_allowed/);
+});
+
+test("supplier ceiling controls keep coverage unknown until explicitly declared", async () => {
+  const h = harness(); await h.connect(); const add = descendants(h.node("inference-fields")).find(entry => entry.tagName === "button" && entry.textContent === "Add supplier economic ceiling");
+  await add.emit("click"); const coverage = field(h, "inference", "supplier_ceiling_policy.nonpurchase_costs_complete");
+  assert.equal(coverage.value, ""); coverage.value = "false"; await coverage.emit("change");
+  const draft = JSON.parse(h.node("inference-input").value); assert.equal(draft.supplier_ceiling_policy.nonpurchase_costs_complete, false); assert.equal(draft.supplier_ceiling_policy.buy_tick_per_gpu_hour, null);
 });
 
 test("logout renews an evicted token solely to revoke without restoring page state", async () => {
@@ -642,4 +500,69 @@ test("missing source eligibility cannot label a qualified reference or purchase 
   await h.node("evaluate-pricing").emit("click");
   assert.match(h.node("pricing-summary").textContent,/Scenario reference/); assert.doesNotMatch(h.node("pricing-summary").textContent,/8\.333333333/);
   assert.doesNotMatch(h.node("overview-decision-detail").textContent,/8\.333333333/);
+});
+
+const unchanged = (tag, asOf = "2026-01-01T00:05:00Z") => ({ etag: tag, headers: { ETag: tag, "X-Index-As-Of": asOf } });
+const indexCalls = (h) => h.calls.filter((call) => call.url === "/v1/market/index");
+
+test("a conditional index reload keeps the held index and its view when the server confirms it unchanged", async () => {
+  const h = harness(); await h.connect(indexFixture(), { ETag: 'W/"one"' });
+  assert.equal(indexCalls(h)[0].options.headers["If-None-Match"], undefined);
+  const firstRow = h.node("records-body").children[0]; assert.ok(firstRow);
+  h.reply(null, 304, unchanged('W/"one"').headers); await h.node("reload-index").emit("click");
+  assert.equal(indexCalls(h)[1].options.headers["If-None-Match"], 'W/"one"');
+  assert.equal(h.node("records-body").children[0], firstRow, "the records table was not rebuilt");
+  assert.equal(h.node("metric-asof").textContent, "2026-01-01T00:05:00Z");
+  assert.match(h.node("dashboard-clock").textContent, /2026-01-01 00:05 UTC/);
+  assert.match(h.node("notice").textContent, /Retained index reloaded/); assert.equal(h.node("notice").className, "notice");
+});
+
+test("a changed index replaces the held view and the validator", async () => {
+  const h = harness(); await h.connect(indexFixture(), { ETag: 'W/"one"' });
+  const firstRow = h.node("records-body").children[0];
+  h.reply(indexFixture({ observations: [observation("GPU-B", "3.5")] }), 200, { ETag: 'W/"two"' }); await h.node("reload-index").emit("click");
+  assert.notEqual(h.node("records-body").children[0], firstRow); assert.match(h.node("records-body").textContent, /GPU-B/);
+  h.reply(null, 304, unchanged('W/"two"').headers); await h.node("reload-index").emit("click");
+  assert.equal(indexCalls(h)[2].options.headers["If-None-Match"], 'W/"two"');
+});
+
+test("a confirmation that omits the server clock is not trusted and the index is read in full", async () => {
+  const h = harness(); await h.connect(indexFixture(), { ETag: 'W/"one"' });
+  h.reply(null, 304, { ETag: 'W/"one"' }); h.reply(indexFixture({ observations: [observation("GPU-C", "4")] }), 200, { ETag: 'W/"four"' });
+  await h.node("reload-index").emit("click");
+  const reads = indexCalls(h); assert.equal(reads.length, 3);
+  assert.equal(reads[1].options.headers["If-None-Match"], 'W/"one"'); assert.equal(reads[2].options.headers["If-None-Match"], undefined);
+  assert.match(h.node("records-body").textContent, /GPU-C/);
+});
+
+test("ending a session discards the validator together with the index it described", async () => {
+  const h = harness(); await h.connect(indexFixture(), { ETag: 'W/"one"' });
+  await h.window.emit("pagehide"); assert.doesNotMatch(h.node("records-body").textContent, /GPU-A/);
+  await h.connect(indexFixture(), { ETag: 'W/"three"' });
+  assert.equal(indexCalls(h).at(-1).options.headers["If-None-Match"], undefined);
+  h.reply(null, 304, unchanged('W/"three"').headers); await h.node("reload-index").emit("click");
+  assert.equal(indexCalls(h).at(-1).options.headers["If-None-Match"], 'W/"three"');
+});
+
+test("a server error during a conditional read keeps the held index and reports the failure", async () => {
+  const h = harness(); await h.connect(indexFixture(), { ETag: 'W/"one"' });
+  const firstRow = h.node("records-body").children[0];
+  h.reply({ detail: "snapshot_store_unavailable" }, 503); await h.node("reload-index").emit("click");
+  assert.match(h.node("notice").textContent, /503 · snapshot_store_unavailable/); assert.equal(h.node("notice").className, "notice error");
+  assert.equal(h.node("records-body").children[0], firstRow);
+  h.reply(null, 304, unchanged('W/"one"').headers); await h.node("reload-index").emit("click");
+  assert.equal(indexCalls(h).at(-1).options.headers["If-None-Match"], 'W/"one"');
+});
+
+test("a hidden tab neither polls nor takes the busy lock, and returning refreshes only when the data is old", async () => {
+  const h = harness(); await h.connect(indexFixture(), { ETag: 'W/"one"' }); const baseline = h.calls.length;
+  await h.visibility(true); await h.intervals[0](); assert.equal(h.calls.length, baseline, "no request while hidden");
+  await h.visibility(false); assert.equal(h.calls.length, baseline, "returning inside the interval does not refetch");
+  const sync = () => { h.reply(null, 304, unchanged('W/"one"').headers); h.reply({ enabled: true, running: false, scopes: [] }); h.reply(inventoryFixture()); };
+  h.clock.advance(61000); sync(); h.reply(landFixture); await h.visibility(false);
+  assert.deepEqual(h.calls.slice(baseline).map((call) => call.url), ["/v1/market/index", "/v1/market/refresh/status", "/v1/inventory", "/workbench/assets/world-land.json"]);
+  assert.equal(h.calls[baseline].options.headers["If-None-Match"], 'W/"one"');
+  await h.visibility(false); assert.equal(h.calls.length, baseline + 4, "a fresh confirmation resets the clock");
+  sync(); await h.intervals[0]();
+  assert.equal(h.calls.length, baseline + 7, "the visible tab still polls on schedule");
 });

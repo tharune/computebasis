@@ -1,24 +1,24 @@
 (() => {
   "use strict";
   const byId = (id) => document.getElementById(id);
-  const state = { session: false, csrf: "", refreshStatus: null, results: {}, forms: new Map(), epoch: 0, index: null, rows: [], sources: [], snapshots: [], page: 0, synthetic: false, busy: false, action: null, controllers: new Map(), detailOrigin: null, inventory: null, inventoryDemo: false, inventorySite: "", selectedLot: "", land: null, policyEntries: [], policyCatalog: [], policyRows: [], policySaved: null, policyDirty: true, policyControlsDirty: false, underwritingRows: [], underwritingCatalog: null };
-  state.demoContract = null; state.demoFields = new Map(); state.demoSynthetic = false; state.demoResult = null;
-  state.commitmentCurves = null; state.selectedCurveNode = null;
-  const DISPLAY_SOURCES = new Set(["getdeploying", "ecb", "energinet_day_ahead"]);
-  const SOURCE_LABELS = { getdeploying: "GetDeploying", ecb: "ECB", energinet_day_ahead: "Energinet" };
+  const state = { session: false, csrf: "", refreshStatus: null, results: {}, forms: new Map(), epoch: 0, index: null, indexTag: "", syncedAt: 0, rows: [], sources: [], snapshots: [], page: 0, synthetic: false, busy: false, action: null, controllers: new Map(), detailOrigin: null, inventory: null, inventoryDemo: false, inventorySite: "", selectedLot: "", land: null, policyEntries: [], policyCatalog: [], policyRows: [], policySaved: null, policyDirty: true, policyControlsDirty: false, underwritingRows: [], underwritingCatalog: null };
   const PAGE_SIZE = 100;
   const EMPTY = "—";
   let underwritingScopeFields = [];
-  let sessionHandshake = null;
-  let cookieRevocation = Promise.resolve();
+  let bootstrap = null;
+  let logoutBarrier = null;
   let darkMode = window.matchMedia?.("(prefers-color-scheme: dark)").matches === true;
   function applyTheme() {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
-    byId("theme-toggle").setAttribute("aria-pressed", String(darkMode));
-    text("theme-toggle", darkMode ? "Light mode" : "Dark mode");
+    const toggle = byId("theme-toggle");
+    // The accessible name stays "Dark mode"; aria-pressed carries the state. Only the tooltip names the action.
+    toggle.setAttribute("aria-pressed", String(darkMode));
+    toggle.setAttribute("title", darkMode ? "Switch to light theme" : "Switch to dark theme");
   }
   applyTheme();
   byId("theme-toggle").addEventListener("click", () => { darkMode = !darkMode; applyTheme(); });
+  document.addEventListener("click", (event) => { const menu = byId("more-menu"); if (menu.open && !menu.contains(event.target)) menu.open = false; });
+  document.addEventListener("keydown", (event) => { const menu = byId("more-menu"); if (event.key === "Escape" && menu.open) { menu.open = false; byId("more-summary").focus(); } });
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -52,35 +52,38 @@
     byId("underwriting-template").disabled = busy || !state.session;
     byId("underwriting-assess").disabled = busy || !state.session || !byId("underwriting-input").value.trim();
     if (byId("evaluate-live-reference")) byId("evaluate-live-reference").disabled = busy || !state.session || !byId("live-model").value || !byId("live-terms").value;
-    byId("demo-load-sample").disabled = busy || !state.session || !state.demoContract?.sample;
-    byId("demo-evaluate").disabled = busy || !state.session || !state.demoFields.size;
-    byId("demo-clear").disabled = busy || !state.demoFields.size;
-    byId("market-compare-deal").disabled = busy || !state.session;
-    ["curve-model", "curve-group"].forEach(id => { byId(id).disabled = busy || !state.session; });
   }
+  const viewListeners = [];
+  const sessionListeners = [];
+  const MORE_VIEWS = ["dashboard", "market", "inventory", "underwriting", "inference", "cash", "portfolio", "policy"];
   function showView(name, focus = true) {
-    ["dashboard", "market", "inventory", "underwriting", "pricing", "policy", "inference", "cash", "portfolio"].forEach((view) => { byId(view + "-view").hidden = view !== name; });
+    ["brief", "desk", "quotes", "dashboard", "market", "inventory", "underwriting", "pricing", "policy", "inference", "cash", "portfolio"].forEach((view) => { byId(view + "-view").hidden = view !== name; });
+    byId("more-summary").classList.toggle("active", MORE_VIEWS.includes(name)); byId("more-menu").open = false;
     document.querySelectorAll("[data-view]").forEach((button) => {
       const selected = button.dataset.view === name;
       button.classList.toggle("active", selected);
       if (selected) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     });
-    byId("workspace-tools").open = false;
     if (focus) byId(name + "-title").focus({ preventScroll: true });
+    viewListeners.forEach((listener) => listener(name));
   }
   function abortRequests(reason) {
     state.controllers.forEach((request, controller) => { request.reason = reason; controller.abort(); });
   }
   function clearSession(message = "Session ended. Received data and drafts were cleared.") {
-    state.epoch++; abortRequests("session"); state.action = null; state.session = false; state.csrf = ""; state.results = {}; state.forms.forEach((editor) => editor.clear()); state.forms.clear(); state.index = null; state.rows = []; state.sources = []; state.snapshots = []; state.synthetic = false; state.page = 0;
-    state.demoFields.clear(); state.demoContract = null; state.demoSynthetic = false; state.demoResult = null; state.commitmentCurves = null; state.selectedCurveNode = null;
-    byId("demo-primary-fields").replaceChildren(); byId("demo-additional-fields").replaceChildren(); resetDemoResults(); renderMarketMvp();
+    state.epoch++; abortRequests("session"); state.action = null; state.session = false; state.csrf = ""; state.refreshStatus = null; state.results = {}; state.forms.forEach((editor) => editor.clear()); state.forms.clear(); state.index = null; state.indexTag = ""; state.syncedAt = 0; state.rows = []; state.sources = []; state.snapshots = []; state.synthetic = false; state.page = 0;
+    // A deliberate end carries a message; a failed or interrupted connection clears with none.
+    const ended = Boolean(message);
+    text("session-title", ended ? "Workspace paused" : "Workspace unavailable");
+    text("session-help", ended ? "Resume to open a fresh workspace." : "The local service establishes your workspace automatically. Retry when it is available.");
     byId("session-card").hidden = false; byId("disconnect").hidden = true;
-    byId("session-dot").classList.remove("connected"); text("session-state", "Workspace paused");
-    ["pricing", "inference", "cash", "portfolio", "inventory", "underwriting"].forEach((kind) => byId(kind + "-fields").replaceChildren());
+    byId("session-dot").classList.remove("connected", "live", "paused"); text("session-state", "Offline"); sessionListeners.forEach((listener) => listener(false));
+    ["pricing", "inference", "cash", "portfolio", "inventory", "underwriting"].forEach((kind) => {
+      byId(kind + "-fields").replaceChildren(); text(kind + "-fields-state", "Resume the workspace to prepare or load a draft.");
+    });
     ["pricing", "inference", "cash", "portfolio"].forEach((kind) => {
       byId(kind + "-input").value = ""; byId(kind + "-output").textContent = ""; byId(kind + "-output").hidden = true;
-      byId(kind + "-summary").replaceChildren(element("p", "Connect and supply an explicit scenario to evaluate.", "empty-state"));
+      byId(kind + "-summary").replaceChildren(element("p", "Supply an explicit scenario to evaluate.", "empty-state"));
       text(kind + "-result-state", "Not evaluated"); byId(kind + "-result-state").className = "pill";
       text(kind + "-input-state", "No input supplied.");
       byId(kind + "-input-state").className = "field-help";
@@ -106,23 +109,26 @@
     text("inventory-time-help", "This evaluates the declared plan at a UTC instant; it does not reconstruct historically observed holdings.");
     renderIndex(); renderDashboard(); setBusy(false); notify(message);
   }
-  async function request(path, options = {}, { authenticated = true, timeout = 30000, format = "json" } = {}) {
-    if (authenticated && !state.session) throw new Error("Resume the local workspace before requesting data.");
+  async function request(path, options = {}, { authenticated = true, timeout = 30000, format = "json", meta = null } = {}) {
+    if (authenticated && !state.session) throw new Error("The local workspace session is unavailable. Resume the workspace before retrying.");
     const epoch = state.epoch;
     const controller = new AbortController();
     const pending = { epoch, reason: null }; state.controllers.set(controller, pending);
     const timer = setTimeout(() => { pending.reason = "timeout"; controller.abort(); }, timeout);
     try {
-      const writes = !["GET", "HEAD"].includes(options.method || "GET");
-      const headers = { ...(authenticated && writes ? { "X-Compute-CSRF": state.csrf } : {}), ...(options.body ? { "Content-Type": "application/json" } : {}) };
+      const mutation = !["GET", "HEAD"].includes(options.method || "GET");
+      const headers = { ...(authenticated && mutation ? { "X-Compute-CSRF": state.csrf } : {}), ...(options.body ? { "Content-Type": "application/json" } : {}), ...(meta?.ifNoneMatch ? { "If-None-Match": meta.ifNoneMatch } : {}) };
       const response = await fetch(path, { ...options, headers, credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal });
-      const data = format === "text" ? await response.text() : await response.json().catch(() => null);
+      const unchanged = response.status === 304 && Boolean(meta?.ifNoneMatch);
+      const data = unchanged ? null : format === "text" ? await response.text() : await response.json().catch(() => null);
       if (epoch !== state.epoch || authenticated && !state.session) throw new Error("The session ended while this request was running. Received data was discarded.");
       if (controller.signal.aborted) { const error = new Error("Request aborted"); error.name = "AbortError"; throw error; }
+      if (meta) { meta.status = response.status; meta.etag = response.headers.get("ETag") || ""; meta.asOf = response.headers.get("X-Index-As-Of") || ""; }
+      if (unchanged) return null;
       if (!response.ok) {
-        if (response.status === 401) { const failure = new Error("Session expired. Resume the workspace; no mutation was retried."); failure.status = 401; throw failure; }
+        if (response.status === 401) { const error = new Error("Workspace session expired. Resume the workspace; no mutation was retried."); error.status = 401; throw error; }
         const detail = typeof data?.detail === "string" ? data.detail : typeof data?.detail?.code === "string" ? data.detail.code : "Request rejected";
-        if (response.status === 403 && detail === "browser_csrf_required") { const failure = new Error("Workspace protection token requires renewal; no mutation was retried."); failure.code = detail; throw failure; }
+        if (response.status === 403 && detail === "browser_csrf_required") { const error = new Error("Workspace protection token needs renewal; no mutation was retried."); error.code = detail; throw error; }
         const action = detail === "feature_changes_require_successor_registry_version" ? ". Increase the feature registry version as well as the policy version, then validate again." : /revision_conflict/.test(detail) ? ". Reload current versions before retrying; your unsaved draft is preserved." : "";
         throw new Error("HTTP " + response.status + " · " + detail + action);
       }
@@ -134,54 +140,52 @@
       throw error;
     } finally { clearTimeout(timer); state.controllers.delete(controller); }
   }
-  async function renewSession() {
-    const generation = state.epoch;
-    await cookieRevocation;
-    if (generation !== state.epoch) throw new Error("Session setup was superseded.");
-    const pending = sessionHandshake;
-    if (pending) {
-      try { await pending.done; } catch (error) { if (pending.generation === generation) throw error; }
-      if (generation !== state.epoch) throw new Error("Session setup was superseded.");
-      if (pending.generation === generation) return;
+  async function establishSession() {
+    const epoch = state.epoch;
+    if (logoutBarrier) await logoutBarrier;
+    if (epoch !== state.epoch) throw new Error("Workspace changed during session setup.");
+    if (bootstrap) {
+      const prior = bootstrap;
+      try { await prior.promise; } catch (error) { if (prior.epoch === epoch) throw error; }
+      if (epoch !== state.epoch) throw new Error("Workspace changed during session setup.");
+      if (prior.epoch === epoch) return;
     }
-    const handshake = { generation, done: null };
-    handshake.done = (async () => {
-      const response = await request("/v1/session/bootstrap", { method: "POST", body: "{}" }, { authenticated: false });
-      if (generation !== state.epoch) throw new Error("Session setup was superseded.");
-      if (response.auth_mode !== "local_session" || typeof response.csrf_token !== "string" || !response.csrf_token) throw new Error("Invalid workspace session response.");
-      state.csrf = response.csrf_token; state.session = true;
+    const current = { epoch, promise: null };
+    current.promise = (async () => {
+      const session = await request("/v1/session/bootstrap", { method: "POST", body: "{}" }, { authenticated: false });
+      if (epoch !== state.epoch) throw new Error("Workspace changed during session setup.");
+      if (typeof session.csrf_token !== "string" || !session.csrf_token || session.auth_mode !== "local_session") throw new Error("The local service returned an invalid workspace session.");
+      state.session = true; state.csrf = session.csrf_token;
       byId("session-card").hidden = true; byId("disconnect").hidden = false;
-      text("session-state", "Workspace ready"); byId("session-dot").classList.add("connected");
+      text("session-state", "Connected"); byId("session-dot").classList.add("connected"); sessionListeners.forEach((listener) => listener(true));
     })();
-    sessionHandshake = handshake;
-    try { await handshake.done; } finally { if (sessionHandshake === handshake) sessionHandshake = null; }
+    bootstrap = current;
+    try { await current.promise; } finally { if (bootstrap === current) bootstrap = null; }
   }
-  async function api(path, options = {}) {
-    const limits = { timeout: path === "/v1/market/refresh" ? 120000 : 30000 };
-    try { return await request(path, options, limits); }
+  async function api(path, options = {}, meta = null) {
+    const settings = { timeout: path === "/v1/market/refresh" ? 120000 : 30000, meta };
+    try { return await request(path, options, settings); }
     catch (error) {
       if (error.status !== 401 && error.code !== "browser_csrf_required") throw error;
-      await renewSession();
-      if (!["GET", "HEAD"].includes(options.method || "GET")) throw new Error("Workspace resumed. Check the draft and retry; no mutation was retried. Unsaved inputs are preserved.");
-      return request(path, options, limits);
+      await establishSession();
+      if (!["GET", "HEAD"].includes(options.method || "GET")) throw new Error("Workspace resumed. Review and retry your action; no mutation was retried. Your draft is preserved.");
+      return request(path, options, settings);
     }
   }
-  async function openWorkspace() {
+  async function startWorkspace() {
     if (state.busy) return;
     await runAction("Opening local workspace…", async () => {
-      const generation = state.epoch;
+      const epoch = state.epoch;
       try {
-        await renewSession(); await loadIndex();
-        const results = await Promise.allSettled([loadRefreshStatus(), readInventory(true), loadUnderwritingCatalog(), loadDemoContract()]);
-        if (generation !== state.epoch || !state.session) return;
-        const errors = results.filter((row) => row.status === "rejected");
-        if (errors.length) notify(errors.map((row) => row.reason.message).join(" · "), true);
-        for (const kind of ["pricing", "inference", "cash"]) if (!byId(kind + "-input").value.trim()) newBlankDraft(kind);
+        await establishSession(); await loadIndex();
+        const outcomes = await Promise.allSettled([loadRefreshStatus(), readInventory(true), loadUnderwritingCatalog()]);
+        if (epoch !== state.epoch || !state.session) return;
+        const failures = outcomes.filter((outcome) => outcome.status === "rejected");
+        if (failures.length) notify("Workspace opened. " + failures.map((outcome) => outcome.reason.message).join(" · "), true);
+        ["pricing", "inference", "cash"].forEach((kind) => { if (!byId(kind + "-input").value.trim()) createBlankDraft(kind); });
         renderDashboard();
-      } catch (error) {
-        if (generation === state.epoch) { clearSession(""); text("session-help", error.message); }
-        throw error;
       }
+      catch (error) { if (epoch === state.epoch) { clearSession(""); text("session-help", error.message); } throw error; }
     });
   }
   async function runAction(label, action) {
@@ -371,7 +375,7 @@
       const term = { billing_type: record.extensions.billing_type, reservation_months: record.extensions.reservation_months, currency: record.price.currency };
       terms.set(JSON.stringify(term), term);
     });
-      terms.forEach((term, value) => { const option = element("option", term.currency + " / " + term.billing_type + (term.reservation_months === null ? " / unspecified term" : " / " + term.reservation_months + " reserved months")); option.value = value; select.append(option); });
+    terms.forEach((term, value) => { const option = element("option", term.currency + " / " + term.billing_type + (term.reservation_months === null ? " / no reserved tenor" : " / " + term.reservation_months + " reserved months")); option.value = value; select.append(option); });
     if (!terms.size) { const option = element("option", model ? "No current eligible terms" : "Choose a model first"); option.value = ""; select.append(option); }
     if (terms.has(previous)) select.value = previous;
     text("live-reference-state", !state.session ? "Connect to see eligible current aggregate cohorts." : !aggregateRows().length ? "No current aggregate cohort passes the source rights and expiry gates. Inspect admission and refresh coverage." : model ? terms.size + " currency / billing cohorts available. Exploration weights remain unvalidated." : "Select a model to choose exact currency and billing terms.");
@@ -402,233 +406,106 @@
     byId("refresh-state").className = "pill" + (output?.held?.length || output?.failed?.length ? " warn" : "");
   }
   async function loadIndex() {
-    const index = await api("/v1/demo/market");
+    // The tag describes only the index held in memory; the server answers 304 when the retained
+    // evidence is unchanged, which spares a 25 MB download, its parse, and a full re-render.
+    const meta = { ifNoneMatch: state.index ? state.indexTag : "" };
+    const index = await api("/v1/market/index", {}, meta);
+    if (index === null && meta.status === 304) {
+      // Without the server's clock the held index cannot be re-stamped honestly, so read it in full instead.
+      if (!state.index || !meta.asOf) { state.indexTag = ""; return loadIndex(); }
+      state.index.as_of = meta.asOf; state.syncedAt = Date.now();
+      text("metric-asof", meta.asOf); renderDashboard(); return state.index;
+    }
     if (!Array.isArray(index.sources) || !Array.isArray(index.observations) || !Array.isArray(index.snapshots) || index.catalog_records && !Array.isArray(index.catalog_records)) throw new Error("The retained index response has an unexpected shape. No new records were displayed.");
-    state.index = index; state.sources = index.sources || []; state.snapshots = index.snapshots || [];
-    state.commitmentCurves = index.commitment_curves || null;
-    if (index.refresh_operations) state.refreshStatus = index.refresh_operations;
+    state.index = index; state.indexTag = meta.etag; state.syncedAt = Date.now(); state.sources = index.sources || []; state.snapshots = index.snapshots || [];
     state.rows = (index.observations || []).filter((row) => !isFx(row) && !isModelMetadata(row) && hasPublishedPrice(row)).concat((index.catalog_records || []).filter((row) => !isFx(row) && !isModelMetadata(row) && hasPublishedPrice(row)).map((row) => ({ ...row, _catalog: true })));
-    state.page = 0; renderIndex(); renderDashboard(); renderMarketMvp(); return index;
-  }
-  function chartText(svg, x, y, value, anchor = "start") {
-    const label = svgNode("text", { x, y, "text-anchor": anchor, class: "chart-label" }); label.textContent = value; svg.append(label);
-  }
-  function curveGroups() { return (state.commitmentCurves?.groups || []).filter(group => DISPLAY_SOURCES.has(group.cohort?.source_id)); }
-  function selectedCurveGroup() { return curveGroups()[Number(byId("curve-group").value)] || null; }
-  function renderCurveGroups() {
-    const model = byId("curve-model").value; const select = byId("curve-group"); const previous = select.value; select.replaceChildren();
-    curveGroups().forEach((group, index) => {
-      const cohort = group.cohort;
-      if (cohort.hardware?.model !== model) return;
-      const option = element("option", cohort.currency + " · " + cohort.billing_type.replaceAll("_", " ").toLowerCase() + " · week " + cohort.week_start); option.value = String(index); select.append(option);
-    });
-    if (select.children.length === 0) { const option = element("option", "No current comparable cohort"); option.value = ""; select.append(option); }
-    else if ([...select.children].some(option => option.value === previous)) select.value = previous;
-    else {
-      const preferred = curveGroups().findIndex(group => group.cohort.hardware?.model === model && group.cohort.billing_type === "RESERVATION" && group.nodes.filter(node => node.status === "observed_reference").length > 1);
-      if (preferred >= 0) select.value = String(preferred);
-    }
-    state.selectedCurveNode = null; renderCommitmentChart();
-  }
-  function renderCommitmentChart() {
-    const svg = byId("commitment-chart"); svg.replaceChildren(); const chips = byId("curve-nodes"); chips.replaceChildren();
-    const group = selectedCurveGroup(); const cohort = group?.cohort; const nodes = group?.nodes || [];
-    const points = nodes.filter(node => node.status === "observed_reference" && node.rate_per_gpu_hour !== null && Number.isFinite(Number(node.rate_per_gpu_hour)));
-    byId("curve-empty").hidden = points.length > 0;
-    text("curve-unit", cohort ? cohort.currency + " / GPU-hour" : "Native currency / GPU-hour");
-    text("curve-caption", cohort ? SOURCE_LABELS[cohort.source_id] + " · global advertised provider median · week " + cohort.week_start + ". Configuration and regional fit require separate evidence." : "Each point preserves its source, billing term and observation week.");
-    if (points.length) {
-      // Floating point is used only for SVG pixel positions; exact server decimals remain the labels.
-      const maxTerm = Math.max(1, ...points.map(node => node.reservation_months || 0));
-      const minRate = Math.min(...points.map(node => Number(node.rate_per_gpu_hour))); const maxRate = Math.max(...points.map(node => Number(node.rate_per_gpu_hour)));
-      const spread = Math.max(maxRate - minRate, Math.abs(maxRate) * .12, .01); const bottom = Math.max(0, minRate - spread * .25); const top = maxRate + spread * .25;
-      const x = term => 68 + term / maxTerm * 620; const y = rate => 242 - (rate - bottom) / (top - bottom) * 210;
-      for (let i = 0; i < 4; i++) { const yy = 32 + i * 70; svg.append(svgNode("line", {x1:68, x2:688, y1:yy, y2:yy, class:"chart-grid"})); chartText(svg, 56, yy + 4, (top - i / 3 * (top - bottom)).toFixed(2), "end"); }
-      [...new Set(points.map(node => node.reservation_months || 0))].forEach(term => chartText(svg, x(term), 271, term ? term + " mo" : "Unspecified term", "middle"));
-      points.forEach(node => {
-        const circle = svgNode("circle", {cx:x(node.reservation_months || 0), cy:y(Number(node.rate_per_gpu_hour)), r:6, class:"chart-point", tabindex:"0", role:"button", "aria-label":(node.reservation_months === null ? "Unspecified term" : node.reservation_months + " months") + ": " + node.rate_per_gpu_hour + " " + cohort.currency + " per GPU-hour"});
-        const title = svgNode("title", {}); title.textContent = (node.reservation_months === null ? "Unspecified term" : node.reservation_months + " months") + " · " + node.rate_per_gpu_hour + " " + cohort.currency + " / GPU-hour"; circle.append(title);
-        circle.addEventListener("click", () => selectCurveNode(node)); circle.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); selectCurveNode(node); } }); svg.append(circle);
-      });
-    }
-    nodes.forEach(node => {
-      const tenor = node.reservation_months === null ? "Unspecified term" : node.reservation_months + " months";
-      const chip = element("button", undefined, "curve-node" + (node.status === "held" ? " held" : "")); chip.type = "button";
-      chip.append(element("span", tenor), element("strong", node.rate_per_gpu_hour === null ? "Conflicting marks" : node.rate_per_gpu_hour + " " + cohort.currency));
-      chip.disabled = node.status !== "observed_reference"; chip.addEventListener("click", () => selectCurveNode(node)); chips.append(chip);
-    });
-    state.selectedCurveNode = points.find(node => node.reservation_months === 12) || points.find(node => node.reservation_months === 6) || points.find(node => node.reservation_months !== null) || points[0] || null; renderSelectedReference();
-  }
-  function selectCurveNode(node) { state.selectedCurveNode = node; renderSelectedReference(); }
-  function renderSelectedReference() {
-    const container = byId("market-selected-reference"); container.replaceChildren(); const node = state.selectedCurveNode; const cohort = selectedCurveGroup()?.cohort;
-    if (!node || !cohort) { container.append(element("p", "No current mark selected. You can still evaluate a fully declared scenario.")); return; }
-    container.append(element("strong", node.rate_per_gpu_hour + " " + cohort.currency + " / GPU-hour"), element("p", cohort.hardware.model + " · " + (node.reservation_months === null ? "unspecified term" : node.reservation_months + " month average")), element("small", SOURCE_LABELS[cohort.source_id] + " · captured " + (node.references?.[0]?.captured_at || "unknown") + " · observed week " + cohort.week_start));
-  }
-  function renderMarketMvp() {
-    const groups = curveGroups(); const select = byId("curve-model"); const previous = select.value;
-    selection(select, groups.map(group => group.cohort.hardware.model), "Choose hardware");
-    if (!select.value && groups.length) {
-      const multi = groups.filter(group => group.cohort.billing_type === "RESERVATION" && group.nodes.filter(node => node.status === "observed_reference").length > 1);
-      select.value = (multi.find(group => /H100/i.test(group.cohort.hardware.model)) || multi[0] || groups[0]).cohort.hardware.model;
-    }
-    renderCurveGroups();
-    const sources = state.sources.filter(source => DISPLAY_SOURCES.has(source.source_id)); const health = byId("market-feed-health"); health.replaceChildren();
-    text("market-source-count", sources.length + " feeds");
-    sources.forEach(source => {
-      const latest = sourceLatest(source); const stale = latest.scopes.some(scope => scope.stale); const row = element("div", undefined, "feed-health-row"); const name = element("div");
-      name.append(element("strong", SOURCE_LABELS[source.source_id]), element("small", latest.captured ? "Captured " + latest.captured : "Awaiting first retained capture"));
-      row.append(name, element("span", !latest.captured ? "Awaiting" : stale ? "Stale" : "Current", "pill " + (!latest.captured || stale ? "warn" : "good"))); health.append(row);
-    });
-    if (!sources.length) health.append(element("p", state.session ? "No public display source is currently returned." : "Opening the local workspace…", "muted"));
-    const operations = state.index?.refresh_operations || state.refreshStatus; const scopes = operations?.scopes || operations?.automatic?.scopes || [];
-    const reading = scopes.some(scope => DISPLAY_SOURCES.has(scope.source_id) && scope.in_progress === true);
-    text("market-read-status", reading ? "Source read in progress" : "Backend refreshes approved feeds automatically");
-    text("market-data-state", state.index ? "Retained public references" : "Opening workspace");
-    text("market-asof", state.index?.as_of ? "View updated " + state.index.as_of : "Awaiting current evidence");
-    const context = byId("market-context-data"); context.replaceChildren();
-    const records = (state.index?.catalog_records || []).concat(state.index?.fx_records || []);
-    const fx = records.find(record => record.source_id === "ecb" && isFx(record) && (record.quote_currency === "USD" || record.currency === "USD")) || records.find(record => record.source_id === "ecb" && isFx(record));
-    if (fx) context.append(element("p", "1 " + (fx.base_currency || "EUR") + " = " + (fx.quote_per_base ?? fx.rate ?? EMPTY) + " " + (fx.quote_currency || fx.currency) + " · " + (fx.observed_date || fx.observed_at || "date unknown")));
-    const energy = records.filter(record => record.source_id === "energinet_day_ahead");
-    if (energy.length) context.append(element("p", energy.length + " retained wholesale electricity intervals. Native currencies / MWh, delivery area and timestamps remain in the reference records; these are not an all-in compute cost."));
-    if (!fx && !energy.length) context.append(element("p", "No retained FX or electricity context is available in this view.", "muted"));
-  }
-  async function loadDemoContract() {
-    const contract = await api("/v1/demo/contract");
-    if (!Array.isArray(contract.fields) || !contract.fields.length) throw new Error("Scenario intake metadata is unavailable. No assumptions were inserted.");
-    state.demoContract = contract; state.demoFields.clear(); byId("demo-primary-fields").replaceChildren(); byId("demo-additional-fields").replaceChildren();
-    contract.fields.forEach(field => {
-      if (!/^[a-z_]+(?:\.[a-z_]+)?$/.test(field.name) || !["decimal", "utc", "date"].includes(field.type) || state.demoFields.has(field.name)) throw new Error("Invalid scenario field metadata.");
-      const label = element("label", field.label, "demo-field" + (field.type === "utc" ? " wide" : "")); const input = element("input"); input.id = "demo-field-" + field.name.replaceAll(".", "-"); input.type = field.type === "date" ? "date" : "text"; input.required = true; input.autocomplete = "off"; input.value = "";
-      if (field.type === "decimal") input.inputMode = "decimal";
-      if (field.type === "utc") input.placeholder = "YYYY-MM-DDTHH:MM:SSZ";
-      input.setAttribute("aria-label", field.label); label.append(input);
-      if (field.type === "decimal" && ["billed_utilization", "collection_share", "required_margin", "fee_on_collected", "fee_on_gross"].includes(field.name)) label.append(element("small", "Fraction from 0 to 1; enter 0.20 for 20%."));
-      input.addEventListener("input", demoEdited); state.demoFields.set(field.name, input);
-      byId(field.group === "primary" ? "demo-primary-fields" : "demo-additional-fields").append(label);
-    });
-    text("demo-form-help", "USD scenario · actual UTC delivery hours · margin on gross billings. Start with your terms or load the labeled invented deal."); setBusy(state.busy);
-  }
-  function demoPacket() {
-    const packet = { payment_dates: {} };
-    state.demoFields.forEach((input, name) => { const value = input.value.trim(); if (!value) { byId("demo-assumptions").open = true; input.focus(); throw new Error("Supply " + (state.demoContract.fields.find(field => field.name === name)?.label || name) + ". Unknown inputs remain empty."); } const parts = name.split("."); if (parts.length === 2) packet.payment_dates[parts[1]] = value; else packet[name] = value; });
-    return packet;
-  }
-  function demoEdited() {
-    text("demo-scenario-mode", state.demoSynthetic ? "Edited invented scenario" : "Declared scenario");
-    if (state.demoResult) { text("demo-result-state", "Previous input"); byId("demo-result-state").className = "pill warn"; }
-    setBusy(state.busy);
-  }
-  function resetDemoResults() {
-    byId("demo-results").replaceChildren(element("p", "Supply your terms to see the purchase ceiling, selling floor and dated cash.", "empty-state"));
-    byId("demo-cash-chart").replaceChildren(); byId("demo-cash-empty").hidden = false; byId("demo-cash-blocker").hidden = true; byId("demo-cash-blocker").textContent = "";
-    byId("demo-cost-breakdown").replaceChildren(); byId("demo-provenance").replaceChildren(); text("demo-cash-caption", "Unrestricted cash · actual supplier price"); text("demo-result-state", "Not evaluated"); byId("demo-result-state").className = "pill";
-    byId("demo-output").textContent = ""; byId("demo-output").hidden = true; text("demo-scenario-mode", "Declared scenario");
-  }
-  function presentExactDecimal(value, { places = 2, shift = 0, roundUp = false } = {}) {
-    if (value === null || value === undefined) return EMPTY;
-    const parsed = /^(-?)(\d+)(?:\.(\d+))?$/.exec(String(value));
-    if (!parsed) return String(value);
-    const negative = parsed[1] === "-"; const fraction = parsed[3] || "";
-    let units = BigInt(parsed[2] + fraction); const discardedPlaces = fraction.length - places - shift;
-    if (discardedPlaces > 0) {
-      const divisor = 10n ** BigInt(discardedPlaces); const remainder = units % divisor; units /= divisor;
-      if (roundUp ? !negative && remainder > 0n : remainder * 2n >= divisor) units += 1n;
-    } else units *= 10n ** BigInt(-discardedPlaces);
-    const digits = units.toString().padStart(places + 1, "0");
-    const whole = (places ? digits.slice(0, -places) : digits).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    return (negative && units !== 0n ? "-" : "") + whole + (places ? "." + digits.slice(-places) : "");
-  }
-  function demoMoneyMetric(container, label, value, currency, roundUp = false) {
-    const card = element("div", undefined, "result-metric"); const formatted = presentExactDecimal(value, {roundUp}); const amount = element("strong", formatted === EMPTY ? EMPTY : formatted + " " + currency);
-    if (value !== null && value !== undefined) amount.setAttribute("title", "Exact: " + value + " " + currency);
-    card.append(element("span", label), amount); container.append(card);
-  }
-  function renderDemoCash(schedule) {
-    const svg = byId("demo-cash-chart"); svg.replaceChildren(); const days = schedule?.days || [];
-    const valid = days.filter(day => Number.isFinite(Number(day.free_cash)) && Number.isFinite(Number(day.minimum_ordered_free_cash)));
-    byId("demo-cash-empty").hidden = valid.length > 0;
-    if (!valid.length) return;
-    const values = valid.flatMap(day => [Number(day.free_cash), Number(day.minimum_ordered_free_cash)]); const floor = schedule.minimum_cash_floor === null || schedule.minimum_cash_floor === undefined ? null : Number(schedule.minimum_cash_floor);
-    if (floor !== null && Number.isFinite(floor)) values.push(floor);
-    const low = Math.min(0, ...values); const high = Math.max(0, ...values); const spread = high - low || 1;
-    const x = i => 65 + i / Math.max(1, valid.length - 1) * 624; const y = value => 196 - (value - low) / spread * 160;
-    for (let i = 0; i < 3; i++) { const value = low + spread * i / 2; svg.append(svgNode("line", {x1:65,x2:689,y1:y(value),y2:y(value),class:"chart-grid"})); chartText(svg, 54, y(value) + 4, value.toFixed(0), "end"); }
-    [["free_cash", "chart-cash"], ["minimum_ordered_free_cash", "chart-trough"]].forEach(([field, css]) => {
-      svg.append(svgNode("polyline", { points:valid.map((day, i) => x(i) + "," + y(Number(day[field]))).join(" "), class:css, fill:"none" }));
-    });
-    if (floor !== null && Number.isFinite(floor)) { const rule = svgNode("line", {x1:65,x2:689,y1:y(floor),y2:y(floor),class:"chart-floor"}); const title = svgNode("title", {}); title.textContent = "Minimum cash floor: " + schedule.minimum_cash_floor + " " + schedule.currency; rule.append(title); svg.append(rule); }
-    valid.forEach((day, i) => { const point = svgNode("circle", {cx:x(i),cy:y(Number(day.free_cash)),r:3,class:"chart-point"}); const title = svgNode("title", {}); title.textContent = day.on + " · end-of-day " + day.free_cash + " " + schedule.currency + " · ordered minimum " + day.minimum_ordered_free_cash; point.append(title); svg.append(point); });
-    [0, Math.floor((valid.length - 1) / 2), valid.length - 1].filter((index, i, all) => all.indexOf(index) === i).forEach(index => chartText(svg, x(index), 224, valid[index].on, index === 0 ? "start" : index === valid.length - 1 ? "end" : "middle"));
-  }
-  function renderDemoResult(envelope) {
-    const result = envelope.result || envelope; state.demoResult = result; const currency = result.economics?.currency || "USD"; const grid = byId("demo-results"); grid.replaceChildren();
-    moneyMetric(grid, "Scenario purchase ceiling / GPU-hour", result.cash_constraint?.tested_purchase_tick, currency);
-    moneyMetric(grid, "Scenario selling floor / GPU-hour", result.ask?.sell_floor_tick, currency);
-    demoMoneyMetric(grid, "Profit at your supplier price", result.economics?.economic_profit, currency);
-    demoMoneyMetric(grid, "Additional opening cash required", result.cash_constraint?.supplied_ask_required_extra_cash, currency, true);
-    text("demo-result-state", "Scenario calculated"); byId("demo-result-state").className = "pill";
-    const blocker = byId("demo-cash-blocker"); blocker.hidden = result.cash_constraint?.supplied_ask_cash_feasible !== false;
-    blocker.textContent = "Positive profit can still require funding before buyer receipts arrive. This supplier price needs the additional opening cash shown above.";
-    const schedule = result.scenario_supplier_cash_schedule || result.cash_constraint?.selected_schedule;
-    text("demo-cash-caption", (result.scenario_supplier_cash_schedule ? "At your supplier price" : "At scenario purchase ceiling") + " · " + currency + " · solid: end-of-day / dashed: ordered minimum" + (schedule?.minimum_cash_floor !== null && schedule?.minimum_cash_floor !== undefined ? " / dotted: cash floor" : "")); renderDemoCash(schedule);
-    const breakdown = byId("demo-cost-breakdown"); breakdown.replaceChildren();
-    for (const [label, value] of [["Gross billings", result.economics?.gross_billings], ["Expected collections", result.economics?.expected_collections], ["Economic costs", result.economics?.economic_cost], ["Fees", result.economics?.fees], ["Capital charge", result.economics?.capital_charge]]) { const row = element("div", undefined, "demo-cost-row"); const formatted = presentExactDecimal(value); const amount = element("strong", formatted === EMPTY ? EMPTY : formatted + " " + currency); if (value !== null && value !== undefined) amount.setAttribute("title", "Exact: " + value + " " + currency); row.append(element("span", label), amount); breakdown.append(row); }
-    const margin = result.economics?.economic_margin; const percent = presentExactDecimal(margin, {shift:2}); const marginRow = element("div", undefined, "demo-cost-row"); const marginValue = element("strong", percent === EMPTY ? EMPTY : percent + "%");
-    if (margin !== null && margin !== undefined) marginValue.setAttribute("title", "Exact margin fraction: " + margin);
-    marginRow.append(element("span", "Economic margin / " + (result.economics?.margin_basis === "gross_billings" ? "gross billings" : result.economics?.margin_basis || "basis unknown")), marginValue); breakdown.append(marginRow);
-    const provenance = byId("demo-provenance"); provenance.replaceChildren(element("p", "Declared scenario with a hypothetical reference. The purchase ceiling is a model diagnostic; the actual submitted bid remains held and unavailable. No trade or inventory change is made.", "field-help"));
-    if (result.hold_reasons?.length) provenance.append(element("p", "Evidence holds: " + result.hold_reasons.join(" · "), "field-help"));
-    byId("demo-output").textContent = JSON.stringify(envelope, null, 2); byId("demo-output").hidden = false;
+    state.page = 0; renderIndex(); renderDashboard(); return index;
   }
   function metric(container, label, value) { const card = element("div", undefined, "result-metric"); card.append(element("span", label), element("strong", value ?? EMPTY)); container.append(card); }
+  // Display helpers. They change presentation only: retained values stay exact in tooltips and evidence packets.
+  const SOURCE_NAMES = { aws_public_pricing: "AWS public pricing", azure: "Azure", ecb: "ECB", getdeploying: "GetDeploying", huggingface: "Hugging Face", huggingface_catalog: "Hugging Face catalog", openrouter: "OpenRouter" };
+  function sourceKey(id) { return String(id ?? "").replace(/^source:/, ""); }
+  function sourceName(id) { const key = sourceKey(id); return SOURCE_NAMES[key] || key.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase()); }
+  function utcStamp(value) {
+    if (typeof value !== "string" || !value) return EMPTY;
+    const zoned = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : value + "Z";
+    const time = Date.parse(zoned.replace(/(\.\d{3})\d+/, "$1"));
+    return Number.isFinite(time) ? new Date(time).toISOString().slice(0, 16).replace("T", " ") + " UTC" : value;
+  }
+  // Split a plain decimal at its point so a column of rates aligns on the point. The digits are never rounded or reformatted.
+  function amountNode(amount) {
+    const parts = /^(-?\d+)(\.\d+)?$/.exec(amount); const node = element("span", undefined, "num");
+    if (parts) node.append(element("span", parts[1], "num-int"), element("span", parts[2] || "", "num-frac"));
+    else node.append(element("span", amount, "num-raw"));
+    return node;
+  }
+  function setMetric(id, value, empty) { text(id, value); byId(id).classList.toggle("is-empty", empty); }
+  function emptyBlock(title, detail) { const block = element("div", undefined, "empty-block"); block.append(element("strong", title), element("p", detail)); return block; }
+  function skeletonFeed() { const row = element("div", undefined, "feed-health-row is-skeleton"); row.append(element("span", undefined, "skeleton mid"), element("span", undefined, "skeleton short")); return row; }
+  function skeletonRow() { const row = element("tr"); ["mid", "short", "mid", "short"].forEach((width) => { const cell = element("td"); cell.append(element("span", undefined, "skeleton " + width)); row.append(cell); }); return row; }
+  function renderRefreshState() {
+    const report = state.refreshStatus; const paused = !byId("session-card").hidden;
+    // "running" only says the scheduler loop is alive. A feed is being read only while a scope is in progress.
+    const reading = report?.enabled && report.running && (report.scopes || []).some((scope) => scope.status === "in_progress");
+    const mode = !report ? "idle" : !report.enabled ? "manual" : !report.running ? "stopped" : reading ? "running" : "automatic";
+    text("overview-refresh-state", { idle: paused ? "Paused" : "Starting", manual: "Manual runtime", stopped: "Scheduler stopped", running: "Reading feeds", automatic: "Automatic reads" }[mode]);
+    byId("overview-refresh-state").dataset.state = mode;
+    if (!report) { text("auto-refresh-detail", "Automatic reads follow source permissions, freshness and cooldowns."); return; }
+    const scopes = report.scopes || []; const failed = scopes.filter((scope) => scope.consecutive_failures > 0).length;
+    text("auto-refresh-detail", report.enabled ? scopes.length + (scopes.length === 1 ? " configured scope" : " configured scopes") + " · " + failed + " with retry backoff. Reads are bounded and coalesced; vendor data stays on the backend." : "Automatic reads are disabled for this runtime. The retained index remains available.");
+  }
   function renderDashboard() {
-    const index = state.index;
-    text("dashboard-clock", index ? "Index as of " + index.as_of : "Local analysis");
-    let retained = 0;
+    const clock = byId("dashboard-clock");
+    if (state.index?.as_of) { const stamp = element("time", utcStamp(state.index.as_of)); stamp.setAttribute("datetime", state.index.as_of); stamp.setAttribute("title", state.index.as_of); clock.replaceChildren(element("span", "Index as of"), stamp); }
+    else clock.replaceChildren(element("span", "Local / indicative analysis"));
+    // Without an index the workspace is either still opening (placeholders) or paused (an explicit prompt).
+    const opening = !state.index && byId("session-card").hidden;
+    const retained = state.sources.reduce((total, source) => { const latest = sourceLatest(source); return total + latest.count + latest.catalog; }, 0);
+    setMetric("overview-records", state.index ? retained.toLocaleString("en-US") : EMPTY, !state.index);
+    text("overview-record-detail", state.index ? state.rows.length.toLocaleString("en-US") + " native price records loaded · overlapping scopes retained" : "Waiting for the retained index");
     const admitted = state.sources.filter((source) => source.can_attempt_read);
+    setMetric("overview-feeds", state.index ? admitted.length : EMPTY, !state.index);
+    const stale = state.sources.filter((source) => sourceLatest(source).scopes.some((scope) => scope.stale));
+    text("overview-feed-detail", state.index ? stale.length + (stale.length === 1 ? " feed" : " feeds") + " with stale scopes · " + state.sources.filter((source) => !source.can_attempt_read).length + " held" : "Permissions and freshness checked per scope");
     const health = byId("overview-feed-health"); health.replaceChildren();
-    let staleFeeds = 0;
-    for (const source of state.sources) {
-      const latest = sourceLatest(source); retained += latest.count + latest.catalog;
-      const stale = latest.scopes.some((scope) => scope.stale);
-      if (stale) staleFeeds++;
-      if (!source.can_attempt_read) continue;
-      const row = element("div", undefined, "feed-health-row"); const description = element("div");
-      description.append(element("strong", source.source_id.replace(/^source:/, "").replaceAll("_", " ")), element("small", latest.captured ? "Captured " + latest.captured : "No successful capture"));
-      row.append(description, element("span", !latest.captured ? "Awaiting" : stale ? "Stale scope" : "Current", "pill " + (stale || !latest.captured ? "warn" : "good"))); health.append(row);
+    admitted.forEach((source) => {
+      const latest = sourceLatest(source); const isStale = latest.scopes.some((scope) => scope.stale); const row = element("div", undefined, "feed-health-row");
+      const name = element("strong", sourceName(source.source_id), "feed-name"); name.setAttribute("title", source.source_id);
+      const meta = element("small", latest.captured ? "Captured " + utcStamp(latest.captured) : "Awaiting first successful capture", "feed-meta"); if (latest.captured) meta.setAttribute("title", latest.captured);
+      const description = element("div"); description.append(name, meta);
+      row.append(description, element("span", !latest.captured ? "Awaiting" : isStale ? "Stale scope" : "Current", "feed-status " + (!latest.captured || isStale ? "warn" : "good"))); health.append(row);
+    });
+    if (!admitted.length) {
+      if (opening) { for (let count = 0; count < 4; count++) health.append(skeletonFeed()); health.append(element("p", "Opening the local workspace…", "sr-only")); }
+      else health.append(element("p", state.index ? "No feeds are admitted under the current source policy" : "Resume the workspace to read feed status", "empty-state"));
     }
-    if (!admitted.length) health.append(element("p", index ? "No source is admitted under the current policy." : "Opening workspace…", "empty-state"));
-    text("overview-records", index ? retained.toLocaleString("en-US") : EMPTY);
-    text("overview-record-detail", index ? state.rows.length.toLocaleString("en-US") + " native price records loaded · overlapping scopes retained" : "Awaiting retained evidence");
-    text("overview-feeds", index ? admitted.length : EMPTY);
-    text("overview-feed-detail", index ? staleFeeds + (staleFeeds === 1 ? " feed" : " feeds") + " with stale scopes · " + (state.sources.length - admitted.length) + " held" : "Source permissions checked per scope");
-    const pulse = byId("overview-market"); pulse.replaceChildren(); const displayed = new Set(); let rows = 0;
-    for (const record of aggregateRows()) {
-      const identity = record.hardware.model + ":" + record.price.currency;
-      if (displayed.has(identity)) continue;
-      displayed.add(identity); const native = currencyPrice(record); const months = record.extensions.reservation_months;
-      const tenor = months === null ? "unspecified term" : months + (months === 1 ? " month" : " months");
-      const row = element("tr"); row.append(element("td", modelOf(record)), element("td", native.amount + " " + native.currency + " / GPU-hour", "price-cell"), element("td", record.extensions.billing_type.replaceAll("_", " ").toLowerCase() + " · " + tenor), element("td", record.source_id.replace(/^source:/, ""), "muted")); pulse.append(row);
-      if (++rows === 7) break;
+    renderRefreshState();
+    const pulse = byId("overview-market"); pulse.replaceChildren();
+    const hardware = new Set(); const cohorts = aggregateRows().filter((record) => { const key = record.hardware.model + ":" + record.price.currency; if (hardware.has(key)) return false; hardware.add(key); return true; }).slice(0, 7);
+    cohorts.forEach((record) => {
+      const row = element("tr"); const price = currencyPrice(record); const months = record.extensions.reservation_months;
+      const rate = element("td", undefined, "price-cell"); rate.append(amountNode(price.amount), element("span", " " + price.currency + " / GPU-hour", "num-unit"));
+      const billing = record.extensions.billing_type.replaceAll("_", " ").toLowerCase(); const terms = element("td");
+      terms.append(element("span", billing.charAt(0).toUpperCase() + billing.slice(1), "term-type"), element("span", " · " + (months === null ? "no reserved tenor" : months + (months === 1 ? " month" : " months")), "term-tenor"));
+      const source = element("td", sourceName(record.source_id), "source-cell"); source.setAttribute("title", record.source_id);
+      row.append(element("td", modelOf(record), "hardware-cell"), rate, terms, source); pulse.append(row);
+    });
+    if (!cohorts.length) {
+      if (opening) { for (let count = 0; count < 5; count++) pulse.append(skeletonRow()); }
+      else { const row = element("tr"); const cell = element("td", state.index ? "No current aggregate cohort passes the source and expiry gates. Inspect Markets for native prices and coverage." : "Resume the workspace to load current cohorts", "empty-state"); cell.setAttribute("colspan", "4"); row.append(cell); pulse.append(row); }
     }
-    if (!rows) { const row = element("tr"); const cell = element("td", "No current aggregate cohort passes the admission and freshness gates. Explore native records in Markets.", "empty-state"); cell.setAttribute("colspan", "4"); row.append(cell); pulse.append(row); }
     const groups = state.inventory?.summary?.by_unit_kind || {}; const kinds = Object.keys(groups);
-    text("overview-capacity", !state.inventory ? EMPTY : !kinds.length ? "None declared" : kinds.length === 1 ? groups[kinds[0]].total + " " + kinds[0] + " units" : kinds.length + " capacity units");
-    text("overview-capacity-detail", state.inventory ? (state.inventoryDemo ? "Synthetic demo · " : "Declared paper ledger · ") + state.inventory.lots.length + " lots / " + state.inventory.sites.length + " sites" : "Physical inventory remains explicit");
-    const holdings = byId("overview-inventory"); holdings.replaceChildren();
-    for (const [unit, counts] of Object.entries(groups)) { metric(holdings, "Available · " + unit, counts.available); metric(holdings, "Sold · " + unit, counts.sold); metric(holdings, "Unsold · " + unit, counts.unsold); metric(holdings, "Reserved / maintenance · " + unit, counts.reserved + " / " + counts.maintenance); }
-    if (!kinds.length) holdings.append(element("p", "Declare physical units and intervals in Inventory. Published listings are separate evidence.", "empty-state"));
-    const decision = state.results.pricing;
-    text("overview-decision", !decision ? "Unevaluated" : decision.stale ? "Draft changed" : decision.result.status || "Evaluated");
-    text("overview-decision-detail", !decision ? "Evaluate supplied terms and evidence" : decision.stale ? "The displayed result belongs to previous input" : decision.result.pricing_provenance?.source_evidence_eligible === true && decision.result.status !== "held" && decision.result.bid?.submitted_limit != null ? "Indicative bid ceiling " + decision.result.bid.submitted_limit + " " + (decision.result.economics?.currency || "") + " / GPU-hour" : "Reference or held input · inspect the breakdown");
+    setMetric("overview-capacity", kinds.length === 1 ? groups[kinds[0]].total + " " + kinds[0] + " units" : kinds.length ? kinds.length + " capacity units" : state.inventory ? "None declared" : EMPTY, !kinds.length);
+    text("overview-capacity-detail", state.inventory ? (state.inventoryDemo ? "Synthetic demo · " : "Declared paper ledger · ") + state.inventory.lots.length + " lots / " + state.inventory.sites.length + " sites" : "Load your physical inventory");
+    const inventory = byId("overview-inventory"); inventory.replaceChildren();
+    kinds.forEach((kind) => { const group = groups[kind]; metric(inventory, "Available · " + kind, group.available); metric(inventory, "Sold · " + kind, group.sold); metric(inventory, "Unsold · " + kind, group.unsold); metric(inventory, "Reserved / maintenance · " + kind, group.reserved + " / " + group.maintenance); });
+    if (!kinds.length) inventory.append(emptyBlock("No capacity declared", "Declare physical sites, lots and commitments in Inventory. Published offers do not become holdings."));
+    const pricing = state.results.pricing;
+    setMetric("overview-decision", pricing ? pricing.stale ? "Draft changed" : pricing.result.status || "Evaluated" : "Unevaluated", !pricing || pricing.stale);
+    text("overview-decision-detail", pricing ? pricing.stale ? "Evaluate again before using the previous result" : pricing.result.pricing_provenance?.source_evidence_eligible === true && pricing.result.status !== "held" && pricing.result.bid?.submitted_limit !== null && pricing.result.bid?.submitted_limit !== undefined ? "Bid ceiling " + pricing.result.bid.submitted_limit + " " + (pricing.result.economics?.currency || "") + " / GPU-hour · indicative" : "Reference or held input · inspect decision breakdown" : "Commercial terms and evidence required");
   }
   async function loadRefreshStatus() {
-    const status = await api("/v1/market/refresh/status"); state.refreshStatus = status;
-    const scopes = status.scopes || [];
-    text("overview-refresh-state", status.running ? "Reading feeds" : status.enabled ? "Automatic" : "Manual runtime");
-    text("auto-refresh-detail", status.enabled ? scopes.length + " configured scopes · " + scopes.filter((scope) => scope.consecutive_failures > 0).length + " with retry backoff. Vendor reads are bounded and coalesced." : "Automatic vendor reads are disabled. Retained evidence remains available.");
+    state.refreshStatus = await api("/v1/market/refresh/status"); renderRefreshState();
   }
   function coverageReason(code) {
     const reasons = { missing_subject_identity: "Declare the subject identity", missing_requirement_evidence: "Add supporting evidence", missing_value: "Supply the declared value", registered_unit_mismatch: "Supplied and registered units differ", whole_decimal_string_required: "Supply a whole number as an exact string", below_registered_bound: "Value is below the declared bound", above_registered_bound: "Value is above the declared bound", registered_boolean_required: "Supply an explicit true or false", registered_nonempty_string_required: "Supply a nonempty declaration", outside_registered_categories: "Value is outside the declared categories", exact_decimal_string_required: "Supply an exact decimal string", evidence_subject_mismatch: "Evidence describes a different or missing subject", not_applicable_requires_allowed_reviewed_reason_and_null_value: "N/A needs permission, a reviewed reason and no asserted value", missing_review_owner: "Identify the reviewer", missing_evidence_validity_interval: "Declare the evidence validity interval", evidence_not_yet_valid: "Evidence is not yet valid", expired_evidence_interval: "Evidence validity has expired", no_current_scope_matching_qualified_evidence: "Add current evidence matching the required subject, scope and use rights" };
@@ -714,33 +591,32 @@
     const blockers = result.hold_reasons || result.blockers || [];
     if (kind === "pricing") {
       const currency = result.economics?.currency || result.benchmark?.currency || result.benchmark?.cohort?.currency;
-      const scenarioOnly = result.pricing_provenance?.source_evidence_eligible !== true;
-      const benchmarkDisplay = scenarioOnly ? result.scenario_diagnostics?.benchmark || result.benchmark : result.benchmark;
-      moneyMetric(summary, scenarioOnly ? "Scenario reference · evidence not bound" : result.benchmark?.cohort?.scope === "aggregate_reference" ? "Advertised global reference · per GPU-hour" : "Comparable reference · per GPU-hour", benchmarkDisplay?.price, benchmarkDisplay?.currency || benchmarkDisplay?.cohort?.currency);
+      const hypothetical = result.pricing_provenance?.source_evidence_eligible !== true;
+      const displayedBenchmark = hypothetical ? result.scenario_diagnostics?.benchmark || result.benchmark : result.benchmark;
+      moneyMetric(summary, hypothetical ? "Scenario reference · source evidence unbound" : result.benchmark?.cohort?.scope === "aggregate_reference" ? "Advertised global reference · per GPU-hour" : "Comparable reference · per GPU-hour", displayedBenchmark?.price, displayedBenchmark?.currency || displayedBenchmark?.cohort?.currency);
       moneyMetric(summary, "Submitted purchase limit · per GPU-hour", result.pricing_provenance?.source_evidence_eligible === true && result.status !== "held" ? result.bid?.submitted_limit : null, currency);
-      moneyMetric(summary, scenarioOnly ? "Scenario sell floor · per GPU-hour" : "Required-margin sell floor · per GPU-hour", result.ask?.sell_floor_tick, currency);
-      moneyMetric(summary, scenarioOnly ? "Scenario profit at supplied supplier ask" : "Economic profit at supplied supplier ask", result.economics?.economic_profit, currency);
-      moneyMetric(summary, scenarioOnly || result.status === "held" ? "Scenario free cash · candidate calculation" : "Minimum free cash at selected bid", result.cash_constraint?.minimum_free_cash, currency);
+      moneyMetric(summary, hypothetical ? "Scenario sell floor · per GPU-hour" : "Required-margin sell floor · per GPU-hour", result.ask?.sell_floor_tick, currency);
+      moneyMetric(summary, hypothetical ? "Scenario profit at supplied supplier ask" : "Economic profit at supplied supplier ask", result.economics?.economic_profit, currency);
+      moneyMetric(summary, hypothetical || result.status === "held" ? "Scenario free cash · candidate calculation" : "Minimum free cash at selected bid", result.cash_constraint?.minimum_free_cash, currency);
       moneyMetric(summary, "Extra cash required at supplier ask", result.cash_constraint?.supplied_ask_required_extra_cash, currency);
       if (result.cash_constraint?.supplied_ask_cash_feasible === false) summary.append(element("div", "The supplied supplier ask has a funding shortfall. A positive modeled profit does not make that purchase cash-feasible.", "result-blockers"));
-      if (scenarioOnly) summary.append(element("p", "These are scenario diagnostics. Bind exact retained observations to a current saved policy; source rights and freshness are checked again by the service. No purchase recommendation is available.", "result-provenance"));
+      if (hypothetical) summary.append(element("p", "Scenario arithmetic only. Apply a current saved policy to exact retained source observations to bind evidence; the server rechecks rights and freshness. No purchase bid is recommended.", "result-provenance"));
     } else if (kind === "inference") {
       metric(summary, "Allocated GPUs · full calendar cost", result.local?.allocated_gpu_count); moneyMetric(summary, "GPU cost including idle", result.local?.gpu_cost_including_idle, result.local?.currency);
       metric(summary, "Qualified whole-deployment request capacity", result.local?.request_capacity); moneyMetric(summary, "Local expected contribution", result.local?.expected_contribution, result.local?.currency);
-      moneyMetric(summary, "Upstream token rates plus routing fee", result.routed_comparison?.cost, result.local?.currency);
-      moneyMetric(summary, "Declared all-in routed cost", result.routed_comparison?.all_in_cost, result.local?.currency);
-      moneyMetric(summary, "Required-margin task price tick", result.pricing_diagnostics?.task_floors?.required_margin_sell_tick, result.local?.currency);
-      metric(summary, "Whole-request crossover", result.pricing_diagnostics?.break_even?.whole_request_threshold);
-      metric(summary, "Crossover / qualified capacity", result.pricing_diagnostics?.break_even?.threshold_utilization);
-      metric(summary, "Price diagnostics", result.pricing_diagnostics?.status);
-      moneyMetric(summary, "Base GPU purchase ceiling · economic budget only", result.pricing_diagnostics?.supplier_buy_ceiling?.required_margin_buy_tick_ceiling, result.local?.currency);
-      for (const [label, codes] of [["Price diagnostics", result.pricing_diagnostics?.blockers], ["Crossover", result.pricing_diagnostics?.break_even?.blockers]]) if (codes?.length) summary.append(element("p", label + ": " + codes.join(" · "), "result-provenance"));
+      moneyMetric(summary, "Routed upstream token & route-fee cost", result.routed_comparison?.cost, result.local?.currency); moneyMetric(summary, "Routed all-in cost · explicit operating items", result.routed_comparison?.all_in_cost, result.local?.currency);
+      moneyMetric(summary, "Required-margin floor · per declared task", result.pricing_diagnostics?.task_floors?.required_margin_sell_tick, result.local?.currency);
+      metric(summary, "Local/routed whole-request crossover", result.pricing_diagnostics?.break_even?.whole_request_threshold);
+      metric(summary, "Crossover / qualified capacity", result.pricing_diagnostics?.break_even?.threshold_utilization); metric(summary, "Price diagnostics", result.pricing_diagnostics?.status);
+      moneyMetric(summary, "Supplier GPU ceiling · expected economics only", result.pricing_diagnostics?.supplier_buy_ceiling?.required_margin_buy_tick_ceiling, result.local?.currency);
+      if (result.pricing_diagnostics?.blockers?.length) summary.append(element("p", "Price diagnostics: " + result.pricing_diagnostics.blockers.join(" · "), "result-provenance"));
+      if (result.pricing_diagnostics?.break_even?.blockers?.length) summary.append(element("p", "Crossover: " + result.pricing_diagnostics.break_even.blockers.join(" · "), "result-provenance"));
     } else if (kind === "portfolio") {
       moneyMetric(summary, "Operating contribution · before financing", result.economics?.expected_contribution, result.economics?.currency);
       moneyMetric(summary, "Economic profit · before financing", result.economics?.economic_profit, result.economics?.currency);
-      moneyMetric(summary, "Supply cost without route allocation", result.economics?.unallocated_supply_cost, result.economics?.currency);
-      moneyMetric(summary, "One shared minimum free cash", result.cash?.minimum_free_cash, result.economics?.currency);
-      metric(summary, "Offtake routes", result.routes?.length); metric(summary, "Execution", "Disabled");
+      moneyMetric(summary, "Unallocated supply cost", result.economics?.unallocated_supply_cost, result.economics?.currency);
+      moneyMetric(summary, "Shared minimum free cash", result.cash?.minimum_free_cash, result.economics?.currency);
+      metric(summary, "Routes reconciled", result.routes?.length); metric(summary, "Firm eligibility", result.firm_price_eligible ? "Review response" : "Indicative / held");
     } else {
       moneyMetric(summary, "Minimum unrestricted free cash", result.minimum_free_cash, result.currency); metric(summary, "Minimum free cash date", result.minimum_free_cash_date);
       moneyMetric(summary, "Minimum funding headroom", result.minimum_headroom, result.currency); metric(summary, "Final unresolved balances", result.unresolved_balances && !hasUnresolved(result.unresolved_balances) ? "Settled in declared scenario" : "Review required");
@@ -786,14 +662,14 @@
       const asOf = index.as_of;
       if (!asOf) throw new Error("The market index did not provide a current as-of timestamp.");
       const packet = { market: { request_id: "workbench-reference-" + crypto.randomUUID(), as_of: asOf, observations: rows, policy: { policy_id: "workbench-exploration", version: "0.1.0", model_version: "inverse-linear/1.0.0", registry_version: "1.0.0", effective_at: asOf, parameters: { benchmark: { estimator: "weighted_median", max_source_share: "1", max_provider_share: "1", min_observations: 1, min_sources: 1, min_provider_groups: 1, source_rules: rules } } } }, target: { scope: "aggregate_reference", currency: cohort.currency, hardware_model: selectedModel, country_code: null, configuration: {}, gpu_count: "1", duration_hours: "1", aggregate_terms: term }, commercial: null, extensions: { workbench_mode: "live_source_global_reference", policy_basis: "uncalibrated_exploration_weights_one_gpu_hour_reference_no_physical_capacity" } };
-      const policyEntry = state.policySaved && !state.policyDirty ? state.policySaved : null;
-      if (policyEntry) packet.market.policy = structuredClone(policyEntry.document.policy);
-      packet.pricing_provenance = { mode: policyEntry && rows.every(item => typeof item.snapshot_id === "string" && /^[0-9a-f]{64}$/.test(item.snapshot_id)) ? "retained_market" : "declared_scenario", policy_revision: policyEntry && rows.every(item => typeof item.snapshot_id === "string" && /^[0-9a-f]{64}$/.test(item.snapshot_id)) ? policyEntry.revision : null };
-      state.synthetic = false; byId("pricing-input").value = JSON.stringify(packet, null, 2); text("pricing-mode", policyEntry ? "Retained evidence · saved policy / server qualification" : "Retained observations · scenario needs saved policy"); readFields("pricing"); showView("pricing");
+      const saved = state.policySaved && !state.policyDirty ? state.policySaved : null;
+      if (saved) packet.market.policy = structuredClone(saved.document.policy);
+      packet.pricing_provenance = { mode: saved && rows.every(row => typeof row.snapshot_id === "string" && /^[0-9a-f]{64}$/.test(row.snapshot_id)) ? "retained_market" : "declared_scenario", policy_revision: saved && rows.every(row => typeof row.snapshot_id === "string" && /^[0-9a-f]{64}$/.test(row.snapshot_id)) ? saved.revision : null };
+      state.synthetic = false; byId("pricing-input").value = JSON.stringify(packet, null, 2); text("pricing-mode", saved ? "Retained evidence · saved policy / server gates apply" : "Retained source · scenario awaiting saved policy"); readFields("pricing"); showView("pricing");
       const raw = byId("pricing-input").value;
       renderEvaluation("pricing", await api("/v1/pricing/evaluate", { method: "POST", body: raw }));
       if (byId("pricing-input").value !== raw) inputChanged("pricing");
-      notify(policyEntry ? "Retained reference assessed with the selected saved policy. Source qualification is in the response; physical capacity is unverified." : "Retained observations assessed as a scenario. Apply a current saved policy to bind source evidence; no commercial bid or capacity is implied.");
+      notify(saved ? "Retained global evidence evaluated under the selected saved policy. Review server source gates; no physical capacity is asserted." : "Retained source observations explored as a scenario. Save and apply a current policy to bind evidence; no commercial bid or physical capacity is asserted.");
     });
   }
   const POLICY_FIELDS = [["policy_id", "policy-id"], ["version", "policy-version"], ["model_version", "policy-model-version"], ["registry_version", "policy-registry-version"], ["effective_at", "policy-effective"], ["expires_at", "policy-expiry"]];
@@ -820,40 +696,39 @@
     value(); return result;
   }
   function readFields(kind) {
-    const input = byId(kind + "-input"); const raw = input.value; const value = safeEditableJson(raw);
-    const fields = byId(kind + "-fields"); state.forms.get(kind)?.clear();
-    try {
-      const editor = window.ComputeDrafts.mount(fields, value, {
-        raw, parse: safeEditableJson, readRaw: () => input.value,
-        requirements: state.underwritingCatalog?.requirements || [], message: notify,
-        changed: (encoded) => {
-          input.value = encoded;
-          if (kind === "underwriting") { underwritingEdited(); syncUnderwritingScopes(); }
-          else if (kind === "inventory") { setBusy(state.busy); text("inventory-time-help", "Unsaved draft. Validate and save to update the declared positions."); }
-          else inputChanged(kind);
-          text(kind + "-fields-state", "Unsaved draft. Blank values remain unknown; exact strings are retained.");
-        },
-      });
-      state.forms.set(kind, editor); text(kind + "-fields-state", "Editing the current request; rates and amounts remain exact strings.");
-    } catch (error) { fields.replaceChildren(); state.forms.delete(kind); throw error; }
+    const raw = byId(kind + "-input").value;
+    const draft = safeEditableJson(raw);
+    state.forms.get(kind)?.clear();
+    let editor;
+    try { editor = window.ComputeDrafts.mount(byId(kind + "-fields"), draft, {
+      parse: safeEditableJson, raw, readRaw: () => byId(kind + "-input").value, message: notify,
+      requirements: state.underwritingCatalog?.requirements || [],
+      changed: (updated) => {
+        byId(kind + "-input").value = updated;
+        if (kind === "underwriting") { underwritingEdited(); syncUnderwritingScopes(); }
+        else if (kind === "inventory") { setBusy(state.busy); text("inventory-time-help", "Unsaved inventory draft. Validate and save to update the map and positions."); }
+        else inputChanged(kind);
+        text(kind + "-fields-state", "Unsaved draft. Empty values remain unknown; additional fields remain explicit.");
+      },
+    }); } catch (error) { byId(kind + "-fields").replaceChildren(); state.forms.delete(kind); throw error; }
+    state.forms.set(kind, editor); text(kind + "-fields-state", "Editing the current request. Rates and amounts remain exact strings.");
   }
-  function newBlankDraft(kind, supplied) {
-    const request = supplied || window.ComputeDrafts.template(kind);
-    if (!request) throw new Error("Load the backend's current blank request contract.");
-    byId(kind + "-input").value = JSON.stringify(request, null, 2); readFields(kind);
-    if (kind === "inventory" || kind === "underwriting") setBusy(state.busy); else inputChanged(kind);
+  function createBlankDraft(kind, supplied = null) {
+    if (byId(kind + "-input").value.trim()) throw new Error("A draft already exists. Clear it in Advanced request JSON before starting a blank draft, or read it into fields.");
+    const draft = supplied || window.ComputeDrafts.template(kind);
+    if (!draft) throw new Error("Load the versioned backend template for this request.");
+    byId(kind + "-input").value = JSON.stringify(draft, null, 2);
+    readFields(kind); if (!["inventory", "underwriting"].includes(kind)) inputChanged(kind); else setBusy(state.busy);
   }
   async function loadUnderwritingCatalog() {
-    const catalog = await api("/v1/underwriting/template");
-    if (!Array.isArray(catalog.requirements) || !Array.isArray(catalog.scope_options) || !catalog.request) throw new Error("Invalid requirement catalog; the draft was preserved.");
-    state.underwritingCatalog = catalog; text("underwriting-catalog-version", "Requirements " + catalog.requirements_version);
-    if (!byId("underwriting-input").value.trim()) {
-      const request = structuredClone(catalog.request); request.as_of = new Date().toISOString().replace(/\.\d{3}Z$/, "Z"); request.request_id = "request:" + crypto.randomUUID();
-      request.subjects = Object.fromEntries([...new Set(catalog.requirements.map((item) => item.subject_kind))].map((kind) => [kind, null]));
-      byId("underwriting-input").value = JSON.stringify(request, null, 2); state.underwritingRows = catalog.requirements;
-      renderUnderwritingRows(); underwritingEdited(); readFields("underwriting");
-    }
-    renderUnderwritingScopes(catalog.scope_options);
+    const template = await api("/v1/underwriting/template");
+    if (!Array.isArray(template.requirements) || !template.request || !Array.isArray(template.scope_options)) throw new Error("Unexpected requirement catalog. Your draft was preserved.");
+    state.underwritingCatalog = template; text("underwriting-catalog-version", "Requirements " + template.requirements_version);
+    if (byId("underwriting-input").value.trim()) { renderUnderwritingScopes(template.scope_options); return; }
+    const draft = structuredClone(template.request); draft.as_of = new Date().toISOString().replace(/\.\d{3}Z$/, "Z"); draft.request_id = "request:" + crypto.randomUUID();
+    draft.subjects = Object.fromEntries([...new Set(template.requirements.map((requirement) => requirement.subject_kind))].map((kind) => [kind, null]));
+    byId("underwriting-input").value = JSON.stringify(draft, null, 2); state.underwritingRows = template.requirements;
+    renderUnderwritingRows(); renderUnderwritingScopes(template.scope_options); underwritingEdited(); readFields("underwriting");
   }
   function svgNode(tag, attributes = {}) { const node = document.createElementNS("http://www.w3.org/2000/svg", tag); Object.entries(attributes).forEach(([name, value]) => node.setAttribute(name, String(value))); return node; }
   function project(longitude, latitude) { return [(longitude + 180) * 960 / 360, (90 - latitude) * 460 / 180 + 20]; }
@@ -1025,7 +900,7 @@
     const draft = parsed.request; if (!draft?.market || typeof draft.market !== "object" || Array.isArray(draft.market)) throw new Error("Supply a pricing request with a market packet first."); const document = saved.document; draft.market.policy = structuredClone(document.policy); draft.pricing_provenance = { mode: Array.isArray(draft.market.observations) && draft.market.observations.length > 0 && draft.market.observations.every(row => typeof row.snapshot_id === "string" && /^[0-9a-f]{64}$/.test(row.snapshot_id)) ? "retained_market" : "declared_scenario", policy_revision: Array.isArray(draft.market.observations) && draft.market.observations.length > 0 && draft.market.observations.every(row => typeof row.snapshot_id === "string" && /^[0-9a-f]{64}$/.test(row.snapshot_id)) ? saved.revision : null }; draft.extensions = { ...(draft.extensions || {}), policy_registry_document: { revision: saved.revision, feature_definitions: document.feature_definitions, notes: document.notes } }; byId("pricing-input").value = JSON.stringify(draft, null, 2); inputChanged("pricing"); text("pricing-mode", "Saved policy applied / evaluate this draft"); showView("pricing"); notify("Applied saved policy " + document.policy.policy_id + " / " + document.policy.version + " to the draft. Evaluate explicitly; registered features remain subject to model activation gates.");
   }));
   [...POLICY_FIELDS, ...BENCHMARK_FIELDS].forEach(([, id]) => byId(id).addEventListener("input", () => policyEdited(true))); byId("policy-input").addEventListener("input", () => policyEdited());
-  byId("underwriting-template").addEventListener("click", () => runAction("Reading requirement definitions…", loadUnderwritingCatalog));
+  byId("underwriting-template").addEventListener("click", () => runAction("Loading the versioned requirement catalog…", loadUnderwritingCatalog));
   byId("underwriting-assess").addEventListener("click", async () => {
     const raw = byId("underwriting-input").value; if (!raw.trim()) return;
     try {
@@ -1041,45 +916,25 @@
   byId("underwriting-input").addEventListener("input", underwritingEdited);
   byId("underwriting-query").addEventListener("input", renderUnderwritingRows);
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
-  byId("curve-model").addEventListener("change", renderCurveGroups);
-  byId("curve-group").addEventListener("change", () => { state.selectedCurveNode = null; renderCommitmentChart(); });
-  byId("market-compare-deal").addEventListener("click", () => { showView("pricing"); byId("demo-form-help").focus(); });
-  byId("demo-load-sample").addEventListener("click", () => {
-    const sample = state.demoContract?.sample;
-    if (sample?.classification !== "synthetic" || !sample.inputs) { notify("No labeled invented scenario is available.", true); return; }
-    state.demoFields.forEach((input, name) => { const parts = name.split("."); const value = parts.length === 2 ? sample.inputs[parts[0]]?.[parts[1]] : sample.inputs[name]; input.value = value === null || value === undefined ? "" : String(value); });
-    state.demoSynthetic = true; demoEdited(); text("demo-scenario-mode", "Invented scenario · editable");
-    notify("Invented deal loaded into this form only. Retained market references and inventory are unchanged.");
-  });
-  byId("demo-clear").addEventListener("click", () => { state.demoFields.forEach(input => { input.value = ""; }); state.demoSynthetic = false; state.demoResult = null; resetDemoResults(); setBusy(state.busy); });
-  byId("demo-scenario-form").addEventListener("submit", event => {
-    event.preventDefault();
-    return runAction("Calculating the declared deal and dated cash…", async () => {
-      const packet = demoPacket(); const raw = JSON.stringify(packet);
-      const envelope = await api("/v1/demo/scenario", {method:"POST", body:raw}); renderDemoResult(envelope);
-      try { if (JSON.stringify(demoPacket()) !== raw) demoEdited(); } catch (_) { demoEdited(); }
-      notify("Scenario calculated from your explicit terms. Source admission and execution remain held.");
-    });
-  });
-  byId("connect-session").addEventListener("click", openWorkspace);
+  byId("connect-session").addEventListener("click", startWorkspace);
   byId("disconnect").addEventListener("click", () => {
-    const csrf = state.csrf; const handshake = sessionHandshake?.done; clearSession();
-    cookieRevocation = (async () => {
-      if (handshake) await handshake.catch(() => {});
+    const csrf = state.csrf; const inflight = bootstrap?.promise; clearSession();
+    // Serialize cookie changes. Resume waits for the old handshake and revocation.
+    logoutBarrier = (async () => {
+      if (inflight) await inflight.catch(() => {});
       if (!csrf) return;
-      const abort = new AbortController(); const timer = setTimeout(() => abort.abort(), 30000);
+      const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 30000);
       try {
-        const revoke = token => fetch("/v1/session/logout", { method: "POST", body: "{}", headers: { "Content-Type": "application/json", "X-Compute-CSRF": token }, credentials: "same-origin", cache: "no-store", redirect: "error", signal: abort.signal });
-        const attempted = await revoke(csrf);
-        const rejected = attempted.status === 403 ? await attempted.json().catch(() => null) : null;
-        if (rejected?.detail === "browser_csrf_required") {
-          const opened = await fetch("/v1/session/bootstrap", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" }, credentials: "same-origin", cache: "no-store", redirect: "error", signal: abort.signal });
-          const token = await opened.json();
-          if (!opened.ok || token.auth_mode !== "local_session" || typeof token.csrf_token !== "string" || !token.csrf_token) throw new Error("Session close could not renew its token");
-          await revoke(token.csrf_token); // Revocation only; all local state stays empty.
+        const close = token => fetch("/v1/session/logout", { method: "POST", body: "{}", headers: { "Content-Type": "application/json", "X-Compute-CSRF": token }, credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal });
+        const response = await close(csrf);
+        if (response.status === 403 && (await response.json().catch(() => null))?.detail === "browser_csrf_required") {
+          const renewal = await fetch("/v1/session/bootstrap", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" }, credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal });
+          const data = await renewal.json();
+          if (!renewal.ok || data.auth_mode !== "local_session" || typeof data.csrf_token !== "string" || !data.csrf_token) throw new Error("Revocation renewal failed");
+          await close(data.csrf_token); // This does not reconnect or restore page data.
         }
       }
-      catch (_) { /* Page data stays cleared; the session expires on the server. */ }
+      catch (_) { /* The page is cleared; expiry bounds a failed revocation. */ }
       finally { clearTimeout(timer); }
     })();
   });
@@ -1100,35 +955,55 @@
   byId("previous-page").addEventListener("click", () => { state.page--; renderRows(); }); byId("next-page").addEventListener("click", () => { state.page++; renderRows(); });
   byId("close-detail").addEventListener("click", () => { byId("record-detail").hidden = true; byId("record-detail-json").textContent = ""; if (state.detailOrigin?.isConnected) state.detailOrigin.focus(); else byId("market-title").focus(); state.detailOrigin = null; });
   byId("pricing-open-market").addEventListener("click", () => { showView("market"); byId("reference-title").scrollIntoView({ block: "center" }); });
-  byId("load-sample").addEventListener("click", () => runAction("Loading the labelled synthetic example…", async () => {
+  // The example is always the labelled invented scenario. A simulated quote may replace only the supplier ask; the editor is filled, never evaluated or saved.
+  async function loadPricingExample(quote) {
     const raw = await request("/workbench/assets/synthetic-pricing-request.json", {}, { authenticated: false, format: "text" });
-    byId("pricing-input").value = raw; readFields("pricing"); state.synthetic = true; inputChanged("pricing"); text("pricing-mode", "SYNTHETIC EXAMPLE · invented scenario"); notify("Loaded an invented pricing scenario in the editor only. Market evidence and retained source snapshots are unchanged.");
-  }));
+    let body = raw, mode = "SYNTHETIC EXAMPLE · invented scenario", message = "Loaded an invented pricing scenario in the editor only. Market evidence and retained source snapshots are unchanged.";
+    if (quote) {
+      const packet = JSON.parse(raw);
+      packet.commercial.supplier_ask = String(quote.price);
+      packet.extensions.workbench_sample = { kind: "synthetic", description: "Independently invented scenario; never live inventory. Only the supplier ask comes from simulated quote " + quote.id + "." };
+      body = JSON.stringify(packet, null, 2);
+      mode = "SYNTHETIC EXAMPLE · supplier ask from simulated " + quote.id;
+      message = "Loaded the invented scenario with " + quote.id + "'s ask of $" + quote.price + " per GPU-hour as the supplier ask. Every other term is the labelled example. Evaluate to see the bid ceiling and sell floor.";
+    }
+    byId("pricing-input").value = body; readFields("pricing"); state.synthetic = true; inputChanged("pricing"); text("pricing-mode", mode); notify(message);
+  }
+  byId("load-sample").addEventListener("click", () => runAction("Loading the labelled synthetic example…", () => loadPricingExample(null)));
+  function priceQuote(quote) { showView("pricing"); return runAction("Loading the labelled synthetic example…", () => loadPricingExample(quote)); }
   byId("pricing-input").addEventListener("input", () => text("pricing-mode", state.synthetic ? "Edited synthetic scenario · declared inputs" : "Edited declared input · review evidence scope"));
   byId("clear-pricing").addEventListener("click", () => { byId("pricing-input").value = ""; state.forms.get("pricing")?.clear(); state.synthetic = false; inputChanged("pricing"); text("pricing-mode", "Declared input · no example loaded"); });
   ["pricing", "inference", "cash", "portfolio"].forEach((kind) => { byId("evaluate-" + kind).addEventListener("click", () => evaluate(kind)); byId(kind + "-input").addEventListener("input", () => inputChanged(kind)); });
   byId("live-model").addEventListener("change", renderLiveTerms); byId("live-terms").addEventListener("change", () => setBusy(state.busy)); byId("evaluate-live-reference").addEventListener("click", liveReference);
-  window.addEventListener("pagehide", () => clearSession(""));
-  for (const view of ["market", "inventory", "underwriting", "pricing", "portfolio"]) byId("overview-open-" + view).addEventListener("click", () => showView(view));
-  for (const kind of ["pricing", "inference", "cash", "inventory", "underwriting", "portfolio"]) {
+  ["market", "inventory", "underwriting", "pricing", "portfolio"].forEach((kind) => byId("overview-open-" + kind).addEventListener("click", () => showView(kind)));
+  ["pricing", "inference", "cash", "inventory", "underwriting", "portfolio"].forEach((kind) => {
     byId(kind + "-read-fields").addEventListener("click", () => { try { readFields(kind); } catch (error) { notify(error.message, true); } });
-    byId(kind + "-new-draft").addEventListener("click", () => runAction("Preparing blank inputs…", async () => {
-      const reset = () => { state.forms.get(kind)?.clear(); byId(kind + "-input").value = ""; };
-      if (kind === "portfolio") { const template = await api("/v1/portfolio/template"); reset(); newBlankDraft(kind, template.request); }
-      else if (kind === "underwriting") { reset(); await loadUnderwritingCatalog(); }
-      else { reset(); newBlankDraft(kind); }
+    byId(kind + "-new-draft").addEventListener("click", () => runAction("Preparing a blank input contract…", async () => {
+      // This explicit reset action changes the draft, never stored inventory or evidence.
+      const reset = () => { byId(kind + "-input").value = ""; state.forms.get(kind)?.clear(); };
+      if (kind === "underwriting") { reset(); await loadUnderwritingCatalog(); }
+      else if (kind === "portfolio") { const template = await api("/v1/portfolio/template"); reset(); createBlankDraft(kind, template.request); }
+      else { reset(); createBlankDraft(kind); }
     }));
-  }
-  setInterval(() => {
-    if (!state.session || state.busy) return;
+  });
+  window.addEventListener("pagehide", () => clearSession(""));
+  const SYNC_INTERVAL = 60000;
+  function synchronize() {
+    // A hidden tab has nobody to show the result to, so it neither polls nor holds the busy lock.
+    if (!state.session || state.busy || document.hidden) return;
     return runAction("Synchronizing retained evidence…", async () => {
-      await loadIndex(); await loadRefreshStatus(); renderMarketMvp();
-      const untouched = state.inventory && byId("inventory-input").value === JSON.stringify(state.inventory.state, null, 2);
-      if (untouched && !state.inventoryDemo && byId("inventory-live").checked) await readInventory(true);
+      await loadIndex(); await loadRefreshStatus();
+      if (state.inventory && !state.inventoryDemo && byId("inventory-live").checked && byId("inventory-input").value === JSON.stringify(state.inventory.state, null, 2)) await readInventory(true);
       renderDashboard();
     });
-  }, 60000);
+  }
+  setInterval(synchronize, SYNC_INTERVAL);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - state.syncedAt >= SYNC_INTERVAL) return synchronize(); });
   setBusy(false);
-  renderInventory(); renderDashboard(); renderMarketMvp(); resetDemoResults(); showView("market", false);
-  window.addEventListener("load", openWorkspace);
+  renderInventory(); renderDashboard();
+  window.addEventListener("load", startWorkspace);
+  window.ComputeHost = Object.freeze({
+    api, element, byId, notify, showView, priceQuote, isSession: () => state.session,
+    onView: (listener) => { viewListeners.push(listener); }, onSession: (listener) => { sessionListeners.push(listener); },
+  });
 })();
