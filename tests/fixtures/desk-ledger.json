@@ -1,0 +1,2213 @@
+{
+ "schema_version": "synthetic-desk-ledger/1.0",
+ "simulated": true,
+ "synthetic": true,
+ "source_evidence_eligible": false,
+ "inventory_verified": false,
+ "firm_price_eligible": false,
+ "execution_enabled": false,
+ "meta": {
+  "as_of": "2032-06-01",
+  "time": "2032-06-01T00:00:00Z",
+  "tick": 0,
+  "epoch": 0,
+  "seed": 4271,
+  "book_schema_version": "synthetic-quote-book/1.0",
+  "ledger_basis": "deterministic_invented_desk_positions_and_bids_not_trades",
+  "placement_basis": "illustrative_metro_assignment_not_vendor_location"
+ },
+ "summary": {
+  "positions": 6,
+  "position_gpus": 416,
+  "position_notional_usd": "14970048.81",
+  "unrealized_usd": "309313.23",
+  "unrealized_basis": "mark_is_current_best_eligible_all_in_cost_per_model",
+  "bids": 14,
+  "bids_open": 4,
+  "bids_filled": 6,
+  "bids_declined": 3,
+  "bids_expired": 1,
+  "bid_gpus": 736,
+  "filled_gpus": 384,
+  "open_gpus": 128,
+  "fill_rate": "0.6000",
+  "sites": 72,
+  "us_sites": 10,
+  "us_supply_gpus": 11141,
+  "supply_gpus": 48890,
+  "us_supply_share": "0.2279"
+ },
+ "sites": [
+  {
+   "id": "site-demo-site-01-a",
+   "name": "Demo Site 01-A (US)",
+   "provider_id": "provider-demo-001",
+   "provider": "Demo Supplier 01",
+   "provider_grade": "A",
+   "country": "US",
+   "placement": {
+    "label": "Columbus, OH",
+    "state": "OH",
+    "lat": 39.9612,
+    "lon": -82.9988
+   },
+   "capacity": {
+    "gpus": 2024,
+    "quotes": 6,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 112,
+     "B300": 32,
+     "GB300": 1224,
+     "H100": 304,
+     "H200": 200,
+     "Pro 6000": 152
+    }
+   },
+   "position_gpus": 64,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-02-a",
+   "name": "Demo Site 02-A (DE)",
+   "provider_id": "provider-demo-002",
+   "provider": "Demo Supplier 02",
+   "provider_grade": "A",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-02-b",
+   "name": "Demo Site 02-B (NL)",
+   "provider_id": "provider-demo-002",
+   "provider": "Demo Supplier 02",
+   "provider_grade": "A",
+   "country": "NL",
+   "placement": {
+    "label": "Amsterdam",
+    "state": null,
+    "lat": 52.3676,
+    "lon": 4.9041
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-03-a",
+   "name": "Demo Site 03-A (JP)",
+   "provider_id": "provider-demo-003",
+   "provider": "Sample Reseller 03",
+   "provider_grade": "A",
+   "country": "JP",
+   "placement": {
+    "label": "Tokyo",
+    "state": null,
+    "lat": 35.6762,
+    "lon": 139.6503
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-04-a",
+   "name": "Demo Site 04-A (BR)",
+   "provider_id": "provider-demo-004",
+   "provider": "Demo Supplier 04",
+   "provider_grade": "A",
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 3452,
+    "quotes": 6,
+    "eligible_quotes": 6,
+    "eligible_gpus": 3452,
+    "models": {
+     "B200": 136,
+     "B300": 64,
+     "GB300": 2880,
+     "H100": 288,
+     "H200": 56,
+     "Pro 6000": 28
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 64
+  },
+  {
+   "id": "site-demo-site-05-a",
+   "name": "Demo Site 05-A (US)",
+   "provider_id": "provider-demo-005",
+   "provider": "Demo Supplier 05",
+   "provider_grade": "A",
+   "country": "US",
+   "placement": {
+    "label": "Quincy, WA",
+    "state": "WA",
+    "lat": 47.2343,
+    "lon": -119.8526
+   },
+   "capacity": {
+    "gpus": 624,
+    "quotes": 3,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 240,
+     "B300": 248,
+     "H100": 136
+    }
+   },
+   "position_gpus": 96,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-05-b",
+   "name": "Demo Site 05-B (CA)",
+   "provider_id": "provider-demo-005",
+   "provider": "Demo Supplier 05",
+   "provider_grade": "A",
+   "country": "CA",
+   "placement": {
+    "label": "Toronto",
+    "state": null,
+    "lat": 43.6532,
+    "lon": -79.3832
+   },
+   "capacity": {
+    "gpus": 1740,
+    "quotes": 3,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 1584,
+     "H200": 148,
+     "Pro 6000": 8
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-06-a",
+   "name": "Demo Site 06-A (DE)",
+   "provider_id": "provider-demo-006",
+   "provider": "Sample Reseller 06",
+   "provider_grade": "A",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 2456,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 2160,
+     "H100": 296
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-06-b",
+   "name": "Demo Site 06-B (NL)",
+   "provider_id": "provider-demo-006",
+   "provider": "Sample Reseller 06",
+   "provider_grade": "A",
+   "country": "NL",
+   "placement": {
+    "label": "Amsterdam",
+    "state": null,
+    "lat": 52.3676,
+    "lon": 4.9041
+   },
+   "capacity": {
+    "gpus": 128,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 64,
+     "Pro 6000": 64
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-06-c",
+   "name": "Demo Site 06-C (DE)",
+   "provider_id": "provider-demo-006",
+   "provider": "Sample Reseller 06",
+   "provider_grade": "A",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 76,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B300": 28,
+     "H200": 48
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-07-a",
+   "name": "Demo Site 07-A (JP)",
+   "provider_id": "provider-demo-007",
+   "provider": "Demo Supplier 07",
+   "provider_grade": "A",
+   "country": "JP",
+   "placement": {
+    "label": "Tokyo",
+    "state": null,
+    "lat": 35.6762,
+    "lon": 139.6503
+   },
+   "capacity": {
+    "gpus": 1088,
+    "quotes": 6,
+    "eligible_quotes": 6,
+    "eligible_gpus": 1088,
+    "models": {
+     "B200": 256,
+     "B300": 72,
+     "GB300": 576,
+     "H100": 104,
+     "H200": 16,
+     "Pro 6000": 64
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-08-a",
+   "name": "Demo Site 08-A (BR)",
+   "provider_id": "provider-demo-008",
+   "provider": "Demo Supplier 08",
+   "provider_grade": "A",
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 126,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 56,
+     "Pro 6000": 70
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-08-b",
+   "name": "Demo Site 08-B (CL)",
+   "provider_id": "provider-demo-008",
+   "provider": "Demo Supplier 08",
+   "provider_grade": "A",
+   "country": "CL",
+   "placement": {
+    "label": "Santiago",
+    "state": null,
+    "lat": -33.4489,
+    "lon": -70.6693
+   },
+   "capacity": {
+    "gpus": 252,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B300": 144,
+     "H200": 108
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-08-c",
+   "name": "Demo Site 08-C (BR)",
+   "provider_id": "provider-demo-008",
+   "provider": "Demo Supplier 08",
+   "provider_grade": "A",
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 1704,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 1512,
+     "H100": 192
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-09-a",
+   "name": "Demo Site 09-A (US)",
+   "provider_id": "provider-demo-009",
+   "provider": "Sample Reseller 09",
+   "provider_grade": "B",
+   "country": "US",
+   "placement": {
+    "label": "San Jose, CA",
+    "state": "CA",
+    "lat": 37.3382,
+    "lon": -121.8863
+   },
+   "capacity": {
+    "gpus": 364,
+    "quotes": 3,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 140,
+     "B300": 160,
+     "H100": 64
+    }
+   },
+   "position_gpus": 64,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-09-b",
+   "name": "Demo Site 09-B (CA)",
+   "provider_id": "provider-demo-009",
+   "provider": "Sample Reseller 09",
+   "provider_grade": "B",
+   "country": "CA",
+   "placement": {
+    "label": "Toronto",
+    "state": null,
+    "lat": 43.6532,
+    "lon": -79.3832
+   },
+   "capacity": {
+    "gpus": 2456,
+    "quotes": 3,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 2088,
+     "H200": 264,
+     "Pro 6000": 104
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-10-a",
+   "name": "Demo Site 10-A (DE)",
+   "provider_id": "provider-demo-010",
+   "provider": "Demo Supplier 10",
+   "provider_grade": "B",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-10-b",
+   "name": "Demo Site 10-B (NL)",
+   "provider_id": "provider-demo-010",
+   "provider": "Demo Supplier 10",
+   "provider_grade": "B",
+   "country": "NL",
+   "placement": {
+    "label": "Amsterdam",
+    "state": null,
+    "lat": 52.3676,
+    "lon": 4.9041
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-11-a",
+   "name": "Demo Site 11-A (JP)",
+   "provider_id": "provider-demo-011",
+   "provider": "Demo Supplier 11",
+   "provider_grade": "B",
+   "country": "JP",
+   "placement": {
+    "label": "Tokyo",
+    "state": null,
+    "lat": 35.6762,
+    "lon": 139.6503
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-12-a",
+   "name": "Demo Site 12-A (BR)",
+   "provider_id": "provider-demo-012",
+   "provider": "Sample Reseller 12",
+   "provider_grade": "B",
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 1352,
+    "quotes": 2,
+    "eligible_quotes": 2,
+    "eligible_gpus": 1352,
+    "models": {
+     "GB300": 1152,
+     "H100": 200
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-12-b",
+   "name": "Demo Site 12-B (CL)",
+   "provider_id": "provider-demo-012",
+   "provider": "Sample Reseller 12",
+   "provider_grade": "B",
+   "country": "CL",
+   "placement": {
+    "label": "Santiago",
+    "state": null,
+    "lat": -33.4489,
+    "lon": -70.6693
+   },
+   "capacity": {
+    "gpus": 79,
+    "quotes": 2,
+    "eligible_quotes": 2,
+    "eligible_gpus": 79,
+    "models": {
+     "B200": 68,
+     "Pro 6000": 11
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-12-c",
+   "name": "Demo Site 12-C (BR)",
+   "provider_id": "provider-demo-012",
+   "provider": "Sample Reseller 12",
+   "provider_grade": "B",
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 324,
+    "quotes": 2,
+    "eligible_quotes": 2,
+    "eligible_gpus": 324,
+    "models": {
+     "B300": 280,
+     "H200": 44
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-13-a",
+   "name": "Demo Site 13-A (US)",
+   "provider_id": "provider-demo-013",
+   "provider": "Demo Supplier 13",
+   "provider_grade": "B",
+   "country": "US",
+   "placement": {
+    "label": "Hillsboro, OR",
+    "state": "OR",
+    "lat": 45.5229,
+    "lon": -122.9898
+   },
+   "capacity": {
+    "gpus": 2784,
+    "quotes": 6,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 156,
+     "B300": 44,
+     "GB300": 2232,
+     "H100": 224,
+     "H200": 72,
+     "Pro 6000": 56
+    }
+   },
+   "position_gpus": 64,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-14-a",
+   "name": "Demo Site 14-A (DE)",
+   "provider_id": "provider-demo-014",
+   "provider": "Demo Supplier 14",
+   "provider_grade": "B",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 208,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 140,
+     "Pro 6000": 68
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-14-b",
+   "name": "Demo Site 14-B (NL)",
+   "provider_id": "provider-demo-014",
+   "provider": "Demo Supplier 14",
+   "provider_grade": "B",
+   "country": "NL",
+   "placement": {
+    "label": "Amsterdam",
+    "state": null,
+    "lat": 52.3676,
+    "lon": 4.9041
+   },
+   "capacity": {
+    "gpus": 416,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B300": 280,
+     "H200": 136
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-14-c",
+   "name": "Demo Site 14-C (DE)",
+   "provider_id": "provider-demo-014",
+   "provider": "Demo Supplier 14",
+   "provider_grade": "B",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 1432,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 1368,
+     "H100": 64
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-15-a",
+   "name": "Demo Site 15-A (JP)",
+   "provider_id": "provider-demo-015",
+   "provider": "Sample Reseller 15",
+   "provider_grade": "B",
+   "country": "JP",
+   "placement": {
+    "label": "Tokyo",
+    "state": null,
+    "lat": 35.6762,
+    "lon": 139.6503
+   },
+   "capacity": {
+    "gpus": 296,
+    "quotes": 3,
+    "eligible_quotes": 3,
+    "eligible_gpus": 296,
+    "models": {
+     "B200": 132,
+     "B300": 92,
+     "H100": 72
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-15-b",
+   "name": "Demo Site 15-B (SG)",
+   "provider_id": "provider-demo-015",
+   "provider": "Sample Reseller 15",
+   "provider_grade": "B",
+   "country": "SG",
+   "placement": {
+    "label": "Singapore",
+    "state": null,
+    "lat": 1.3521,
+    "lon": 103.8198
+   },
+   "capacity": {
+    "gpus": 1807,
+    "quotes": 3,
+    "eligible_quotes": 3,
+    "eligible_gpus": 1807,
+    "models": {
+     "GB300": 1728,
+     "H200": 40,
+     "Pro 6000": 39
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 32
+  },
+  {
+   "id": "site-demo-site-16-a",
+   "name": "Demo Site 16-A (BR)",
+   "provider_id": "provider-demo-016",
+   "provider": "Demo Supplier 16",
+   "provider_grade": "B",
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 268,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B300": 124,
+     "H200": 144
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-16-b",
+   "name": "Demo Site 16-B (CL)",
+   "provider_id": "provider-demo-016",
+   "provider": "Demo Supplier 16",
+   "provider_grade": "B",
+   "country": "CL",
+   "placement": {
+    "label": "Santiago",
+    "state": null,
+    "lat": -33.4489,
+    "lon": -70.6693
+   },
+   "capacity": {
+    "gpus": 688,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 576,
+     "H100": 112
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-16-c",
+   "name": "Demo Site 16-C (BR)",
+   "provider_id": "provider-demo-016",
+   "provider": "Demo Supplier 16",
+   "provider_grade": "B",
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 184,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 104,
+     "Pro 6000": 80
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-17-a",
+   "name": "Demo Site 17-A (US)",
+   "provider_id": "provider-demo-017",
+   "provider": "Demo Supplier 17",
+   "provider_grade": "D",
+   "country": "US",
+   "placement": {
+    "label": "Atlanta, GA",
+    "state": "GA",
+    "lat": 33.749,
+    "lon": -84.388
+   },
+   "capacity": {
+    "gpus": 368,
+    "quotes": 3,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 160,
+     "B300": 24,
+     "H100": 184
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-17-b",
+   "name": "Demo Site 17-B (CA)",
+   "provider_id": "provider-demo-017",
+   "provider": "Demo Supplier 17",
+   "provider_grade": "D",
+   "country": "CA",
+   "placement": {
+    "label": "Toronto",
+    "state": null,
+    "lat": 43.6532,
+    "lon": -79.3832
+   },
+   "capacity": {
+    "gpus": 1079,
+    "quotes": 3,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 792,
+     "H200": 256,
+     "Pro 6000": 31
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-18-a",
+   "name": "Demo Site 18-A (DE)",
+   "provider_id": "provider-demo-018",
+   "provider": "Sample Reseller 18",
+   "provider_grade": "C",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-18-b",
+   "name": "Demo Site 18-B (NL)",
+   "provider_id": "provider-demo-018",
+   "provider": "Sample Reseller 18",
+   "provider_grade": "C",
+   "country": "NL",
+   "placement": {
+    "label": "Amsterdam",
+    "state": null,
+    "lat": 52.3676,
+    "lon": 4.9041
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-18-c",
+   "name": "Demo Site 18-C (DE)",
+   "provider_id": "provider-demo-018",
+   "provider": "Sample Reseller 18",
+   "provider_grade": "C",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-19-a",
+   "name": "Demo Site 19-A (JP)",
+   "provider_id": "provider-demo-019",
+   "provider": "Demo Supplier 19",
+   "provider_grade": "D",
+   "country": "JP",
+   "placement": {
+    "label": "Tokyo",
+    "state": null,
+    "lat": 35.6762,
+    "lon": 139.6503
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-19-b",
+   "name": "Demo Site 19-B (SG)",
+   "provider_id": "provider-demo-019",
+   "provider": "Demo Supplier 19",
+   "provider_grade": "D",
+   "country": "SG",
+   "placement": {
+    "label": "Singapore",
+    "state": null,
+    "lat": 1.3521,
+    "lon": 103.8198
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-19-c",
+   "name": "Demo Site 19-C (JP)",
+   "provider_id": "provider-demo-019",
+   "provider": "Demo Supplier 19",
+   "provider_grade": "D",
+   "country": "JP",
+   "placement": {
+    "label": "Tokyo",
+    "state": null,
+    "lat": 35.6762,
+    "lon": 139.6503
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-20-a",
+   "name": "Demo Site 20-A (BR)",
+   "provider_id": "provider-demo-020",
+   "provider": "Demo Supplier 20",
+   "provider_grade": "C",
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 1498,
+    "quotes": 3,
+    "eligible_quotes": 3,
+    "eligible_gpus": 1498,
+    "models": {
+     "GB300": 1152,
+     "H200": 304,
+     "Pro 6000": 42
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-20-b",
+   "name": "Demo Site 20-B (CL)",
+   "provider_id": "provider-demo-020",
+   "provider": "Demo Supplier 20",
+   "provider_grade": "C",
+   "country": "CL",
+   "placement": {
+    "label": "Santiago",
+    "state": null,
+    "lat": -33.4489,
+    "lon": -70.6693
+   },
+   "capacity": {
+    "gpus": 480,
+    "quotes": 3,
+    "eligible_quotes": 3,
+    "eligible_gpus": 480,
+    "models": {
+     "B200": 232,
+     "B300": 120,
+     "H100": 128
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 32
+  },
+  {
+   "id": "site-demo-site-21-a",
+   "name": "Demo Site 21-A (US)",
+   "provider_id": "provider-demo-021",
+   "provider": "Sample Reseller 21",
+   "provider_grade": "D",
+   "country": "US",
+   "placement": {
+    "label": "Salt Lake City, UT",
+    "state": "UT",
+    "lat": 40.7608,
+    "lon": -111.891
+   },
+   "capacity": {
+    "gpus": 1456,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 1296,
+     "H100": 160
+    }
+   },
+   "position_gpus": 64,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-21-b",
+   "name": "Demo Site 21-B (CA)",
+   "provider_id": "provider-demo-021",
+   "provider": "Sample Reseller 21",
+   "provider_grade": "D",
+   "country": "CA",
+   "placement": {
+    "label": "Toronto",
+    "state": null,
+    "lat": 43.6532,
+    "lon": -79.3832
+   },
+   "capacity": {
+    "gpus": 128,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 64,
+     "Pro 6000": 64
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-21-c",
+   "name": "Demo Site 21-C (US)",
+   "provider_id": "provider-demo-021",
+   "provider": "Sample Reseller 21",
+   "provider_grade": "D",
+   "country": "US",
+   "placement": {
+    "label": "Dallas, TX",
+    "state": "TX",
+    "lat": 32.7767,
+    "lon": -96.797
+   },
+   "capacity": {
+    "gpus": 228,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B300": 132,
+     "H200": 96
+    }
+   },
+   "position_gpus": 64,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-22-a",
+   "name": "Demo Site 22-A (DE)",
+   "provider_id": "provider-demo-022",
+   "provider": "Demo Supplier 22",
+   "provider_grade": "C",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 256,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B300": 148,
+     "H200": 108
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-22-b",
+   "name": "Demo Site 22-B (NL)",
+   "provider_id": "provider-demo-022",
+   "provider": "Demo Supplier 22",
+   "provider_grade": "C",
+   "country": "NL",
+   "placement": {
+    "label": "Amsterdam",
+    "state": null,
+    "lat": 52.3676,
+    "lon": 4.9041
+   },
+   "capacity": {
+    "gpus": 2888,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 2808,
+     "H100": 80
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-22-c",
+   "name": "Demo Site 22-C (DE)",
+   "provider_id": "provider-demo-022",
+   "provider": "Demo Supplier 22",
+   "provider_grade": "C",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 172,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 140,
+     "Pro 6000": 32
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-23-a",
+   "name": "Demo Site 23-A (JP)",
+   "provider_id": "provider-demo-023",
+   "provider": "Demo Supplier 23",
+   "provider_grade": "D",
+   "country": "JP",
+   "placement": {
+    "label": "Tokyo",
+    "state": null,
+    "lat": 35.6762,
+    "lon": 139.6503
+   },
+   "capacity": {
+    "gpus": 326,
+    "quotes": 2,
+    "eligible_quotes": 2,
+    "eligible_gpus": 326,
+    "models": {
+     "B200": 248,
+     "Pro 6000": 78
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-23-b",
+   "name": "Demo Site 23-B (SG)",
+   "provider_id": "provider-demo-023",
+   "provider": "Demo Supplier 23",
+   "provider_grade": "D",
+   "country": "SG",
+   "placement": {
+    "label": "Singapore",
+    "state": null,
+    "lat": 1.3521,
+    "lon": 103.8198
+   },
+   "capacity": {
+    "gpus": 360,
+    "quotes": 2,
+    "eligible_quotes": 2,
+    "eligible_gpus": 360,
+    "models": {
+     "B300": 56,
+     "H200": 304
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-23-c",
+   "name": "Demo Site 23-C (JP)",
+   "provider_id": "provider-demo-023",
+   "provider": "Demo Supplier 23",
+   "provider_grade": "D",
+   "country": "JP",
+   "placement": {
+    "label": "Tokyo",
+    "state": null,
+    "lat": 35.6762,
+    "lon": 139.6503
+   },
+   "capacity": {
+    "gpus": 1132,
+    "quotes": 2,
+    "eligible_quotes": 2,
+    "eligible_gpus": 1132,
+    "models": {
+     "GB300": 1008,
+     "H100": 124
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-24-a",
+   "name": "Demo Site 24-A (BR)",
+   "provider_id": "provider-demo-024",
+   "provider": "Sample Reseller 24",
+   "provider_grade": "C",
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 908,
+    "quotes": 3,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 720,
+     "H200": 120,
+     "Pro 6000": 68
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-24-b",
+   "name": "Demo Site 24-B (CL)",
+   "provider_id": "provider-demo-024",
+   "provider": "Sample Reseller 24",
+   "provider_grade": "C",
+   "country": "CL",
+   "placement": {
+    "label": "Santiago",
+    "state": null,
+    "lat": -33.4489,
+    "lon": -70.6693
+   },
+   "capacity": {
+    "gpus": 212,
+    "quotes": 3,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 32,
+     "B300": 36,
+     "H100": 144
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-25-a",
+   "name": "Demo Site 25-A (US)",
+   "provider_id": "provider-demo-025",
+   "provider": "Demo Supplier 25",
+   "provider_grade": "D",
+   "country": "US",
+   "placement": {
+    "label": "Phoenix, AZ",
+    "state": "AZ",
+    "lat": 33.4484,
+    "lon": -112.074
+   },
+   "capacity": {
+    "gpus": 1581,
+    "quotes": 6,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 152,
+     "B300": 56,
+     "GB300": 936,
+     "H100": 320,
+     "H200": 80,
+     "Pro 6000": 37
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-26-a",
+   "name": "Demo Site 26-A (DE)",
+   "provider_id": "provider-demo-026",
+   "provider": "Demo Supplier 26",
+   "provider_grade": "D",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-26-b",
+   "name": "Demo Site 26-B (NL)",
+   "provider_id": "provider-demo-026",
+   "provider": "Demo Supplier 26",
+   "provider_grade": "D",
+   "country": "NL",
+   "placement": {
+    "label": "Amsterdam",
+    "state": null,
+    "lat": 52.3676,
+    "lon": 4.9041
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-26-c",
+   "name": "Demo Site 26-C (DE)",
+   "provider_id": "provider-demo-026",
+   "provider": "Demo Supplier 26",
+   "provider_grade": "D",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-27-a",
+   "name": "Demo Site 27-A (JP)",
+   "provider_id": "provider-demo-027",
+   "provider": "Sample Reseller 27",
+   "provider_grade": "D",
+   "country": "JP",
+   "placement": {
+    "label": "Tokyo",
+    "state": null,
+    "lat": 35.6762,
+    "lon": 139.6503
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-27-b",
+   "name": "Demo Site 27-B (SG)",
+   "provider_id": "provider-demo-027",
+   "provider": "Sample Reseller 27",
+   "provider_grade": "D",
+   "country": "SG",
+   "placement": {
+    "label": "Singapore",
+    "state": null,
+    "lat": 1.3521,
+    "lon": 103.8198
+   },
+   "capacity": {
+    "gpus": 0,
+    "quotes": 0,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {}
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-28-a",
+   "name": "Demo Site 28-A (BR)",
+   "provider_id": "provider-demo-028",
+   "provider": "Demo Supplier 28",
+   "provider_grade": "D",
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 288,
+    "quotes": 2,
+    "eligible_quotes": 2,
+    "eligible_gpus": 288,
+    "models": {
+     "B300": 144,
+     "H200": 144
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-28-b",
+   "name": "Demo Site 28-B (CL)",
+   "provider_id": "provider-demo-028",
+   "provider": "Demo Supplier 28",
+   "provider_grade": "D",
+   "country": "CL",
+   "placement": {
+    "label": "Santiago",
+    "state": null,
+    "lat": -33.4489,
+    "lon": -70.6693
+   },
+   "capacity": {
+    "gpus": 2712,
+    "quotes": 2,
+    "eligible_quotes": 2,
+    "eligible_gpus": 2712,
+    "models": {
+     "GB300": 2664,
+     "H100": 48
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-28-c",
+   "name": "Demo Site 28-C (BR)",
+   "provider_id": "provider-demo-028",
+   "provider": "Demo Supplier 28",
+   "provider_grade": "D",
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 148,
+    "quotes": 2,
+    "eligible_quotes": 2,
+    "eligible_gpus": 148,
+    "models": {
+     "B200": 72,
+     "Pro 6000": 76
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-29-a",
+   "name": "Demo Site 29-A (US)",
+   "provider_id": "provider-demo-029",
+   "provider": "Demo Supplier 29",
+   "provider_grade": "D",
+   "country": "US",
+   "placement": {
+    "label": "Ashburn, VA",
+    "state": "VA",
+    "lat": 39.0438,
+    "lon": -77.4875
+   },
+   "capacity": {
+    "gpus": 248,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 160,
+     "Pro 6000": 88
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-29-b",
+   "name": "Demo Site 29-B (CA)",
+   "provider_id": "provider-demo-029",
+   "provider": "Demo Supplier 29",
+   "provider_grade": "D",
+   "country": "CA",
+   "placement": {
+    "label": "Toronto",
+    "state": null,
+    "lat": 43.6532,
+    "lon": -79.3832
+   },
+   "capacity": {
+    "gpus": 220,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B300": 116,
+     "H200": 104
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-29-c",
+   "name": "Demo Site 29-C (US)",
+   "provider_id": "provider-demo-029",
+   "provider": "Demo Supplier 29",
+   "provider_grade": "D",
+   "country": "US",
+   "placement": {
+    "label": "Chicago, IL",
+    "state": "IL",
+    "lat": 41.8781,
+    "lon": -87.6298
+   },
+   "capacity": {
+    "gpus": 1464,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 1152,
+     "H100": 312
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-30-a",
+   "name": "Demo Site 30-A (DE)",
+   "provider_id": "provider-demo-030",
+   "provider": "Sample Reseller 30",
+   "provider_grade": "D",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 1308,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 1224,
+     "H100": 84
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-30-b",
+   "name": "Demo Site 30-B (NL)",
+   "provider_id": "provider-demo-030",
+   "provider": "Sample Reseller 30",
+   "provider_grade": "D",
+   "country": "NL",
+   "placement": {
+    "label": "Amsterdam",
+    "state": null,
+    "lat": 52.3676,
+    "lon": 4.9041
+   },
+   "capacity": {
+    "gpus": 92,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 84,
+     "Pro 6000": 8
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-30-c",
+   "name": "Demo Site 30-C (DE)",
+   "provider_id": "provider-demo-030",
+   "provider": "Sample Reseller 30",
+   "provider_grade": "D",
+   "country": "DE",
+   "placement": {
+    "label": "Frankfurt",
+    "state": null,
+    "lat": 50.1109,
+    "lon": 8.6821
+   },
+   "capacity": {
+    "gpus": 232,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B300": 112,
+     "H200": 120
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-31-a",
+   "name": "Demo Site 31-A (JP)",
+   "provider_id": "provider-demo-031",
+   "provider": "Demo Supplier 31",
+   "provider_grade": null,
+   "country": "JP",
+   "placement": {
+    "label": "Tokyo",
+    "state": null,
+    "lat": 35.6762,
+    "lon": 139.6503
+   },
+   "capacity": {
+    "gpus": 304,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B300": 80,
+     "H200": 224
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-31-b",
+   "name": "Demo Site 31-B (SG)",
+   "provider_id": "provider-demo-031",
+   "provider": "Demo Supplier 31",
+   "provider_grade": null,
+   "country": "SG",
+   "placement": {
+    "label": "Singapore",
+    "state": null,
+    "lat": 1.3521,
+    "lon": 103.8198
+   },
+   "capacity": {
+    "gpus": 436,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 360,
+     "H100": 76
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-31-c",
+   "name": "Demo Site 31-C (JP)",
+   "provider_id": "provider-demo-031",
+   "provider": "Demo Supplier 31",
+   "provider_grade": null,
+   "country": "JP",
+   "placement": {
+    "label": "Tokyo",
+    "state": null,
+    "lat": 35.6762,
+    "lon": 139.6503
+   },
+   "capacity": {
+    "gpus": 284,
+    "quotes": 2,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 208,
+     "Pro 6000": 76
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-32-a",
+   "name": "Demo Site 32-A (BR)",
+   "provider_id": "provider-demo-032",
+   "provider": "Demo Supplier 32",
+   "provider_grade": null,
+   "country": "BR",
+   "placement": {
+    "label": "São Paulo",
+    "state": null,
+    "lat": -23.5505,
+    "lon": -46.6333
+   },
+   "capacity": {
+    "gpus": 1294,
+    "quotes": 3,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "GB300": 1008,
+     "H200": 232,
+     "Pro 6000": 54
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  },
+  {
+   "id": "site-demo-site-32-b",
+   "name": "Demo Site 32-B (CL)",
+   "provider_id": "provider-demo-032",
+   "provider": "Demo Supplier 32",
+   "provider_grade": null,
+   "country": "CL",
+   "placement": {
+    "label": "Santiago",
+    "state": null,
+    "lat": -33.4489,
+    "lon": -70.6693
+   },
+   "capacity": {
+    "gpus": 460,
+    "quotes": 3,
+    "eligible_quotes": 0,
+    "eligible_gpus": 0,
+    "models": {
+     "B200": 208,
+     "B300": 132,
+     "H100": 120
+    }
+   },
+   "position_gpus": 0,
+   "open_bid_gpus": 0
+  }
+ ],
+ "positions": [
+  {
+   "id": "pos-0001",
+   "site_id": "site-demo-site-01-a",
+   "provider_id": "provider-demo-001",
+   "model": "B300",
+   "gpus": 64,
+   "months": 6,
+   "start": "2032-04-24",
+   "end": "2032-10-21",
+   "status": "active",
+   "price": "7.0801",
+   "mark": "7.1008",
+   "mark_basis": "model_best_eligible_all_in",
+   "unrealized_usd": "4517.94",
+   "remaining_hours": 3408,
+   "notional_usd": "1957497.40"
+  },
+  {
+   "id": "pos-0002",
+   "site_id": "site-demo-site-05-a",
+   "provider_id": "provider-demo-005",
+   "model": "B300",
+   "gpus": 96,
+   "months": 9,
+   "start": "2032-02-17",
+   "end": "2032-11-13",
+   "status": "active",
+   "price": "6.7463",
+   "mark": "7.1008",
+   "mark_basis": "model_best_eligible_all_in",
+   "unrealized_usd": "134748.57",
+   "remaining_hours": 3960,
+   "notional_usd": "4196757.17"
+  },
+  {
+   "id": "pos-0003",
+   "site_id": "site-demo-site-13-a",
+   "provider_id": "provider-demo-013",
+   "model": "B300",
+   "gpus": 64,
+   "months": 12,
+   "start": "2032-05-03",
+   "end": "2033-04-28",
+   "status": "active",
+   "price": "6.8617",
+   "mark": "7.1008",
+   "mark_basis": "model_best_eligible_all_in",
+   "unrealized_usd": "121533.66",
+   "remaining_hours": 7944,
+   "notional_usd": "3794267.11"
+  },
+  {
+   "id": "pos-0004",
+   "site_id": "site-demo-site-21-a",
+   "provider_id": "provider-demo-021",
+   "model": "H100",
+   "gpus": 64,
+   "months": 4,
+   "start": "2032-02-24",
+   "end": "2032-06-23",
+   "status": "active",
+   "price": "2.7822",
+   "mark": "2.7267",
+   "mark_basis": "model_best_eligible_all_in",
+   "unrealized_usd": "-1877.14",
+   "remaining_hours": 528,
+   "notional_usd": "512817.90"
+  },
+  {
+   "id": "pos-0005",
+   "site_id": "site-demo-site-21-c",
+   "provider_id": "provider-demo-021",
+   "model": "B300",
+   "gpus": 64,
+   "months": 8,
+   "start": "2032-02-09",
+   "end": "2032-10-06",
+   "status": "active",
+   "price": "7.0673",
+   "mark": "7.1008",
+   "mark_basis": "model_best_eligible_all_in",
+   "unrealized_usd": "6526.38",
+   "remaining_hours": 3048,
+   "notional_usd": "2605299.17"
+  },
+  {
+   "id": "pos-0006",
+   "site_id": "site-demo-site-09-a",
+   "provider_id": "provider-demo-009",
+   "model": "B300",
+   "gpus": 64,
+   "months": 6,
+   "start": "2032-04-14",
+   "end": "2032-10-11",
+   "status": "active",
+   "price": "6.8844",
+   "mark": "7.1008",
+   "mark_basis": "model_best_eligible_all_in",
+   "unrealized_usd": "43863.82",
+   "remaining_hours": 3168,
+   "notional_usd": "1903410.06"
+  }
+ ],
+ "bids": [
+  {
+   "id": "bid-0001",
+   "quote_id": "quote-demo-0038",
+   "site_id": "site-demo-site-07-a",
+   "provider_id": "provider-demo-007",
+   "model": "GB300",
+   "gpus": 128,
+   "months": 12,
+   "ask": "10.3567",
+   "bid": "10.1405",
+   "status": "filled",
+   "placed": "2032-05-21T10:13:00Z",
+   "decided": "2032-05-22T11:07:00Z",
+   "position_id": "pos-0001"
+  },
+  {
+   "id": "bid-0002",
+   "quote_id": "quote-demo-0069",
+   "site_id": "site-demo-site-12-b",
+   "provider_id": "provider-demo-012",
+   "model": "B200",
+   "gpus": 32,
+   "months": 5,
+   "ask": "5.9025",
+   "bid": "5.7721",
+   "status": "filled",
+   "placed": "2032-05-22T11:26:00Z",
+   "decided": "2032-05-23T12:14:00Z",
+   "position_id": "pos-0002"
+  },
+  {
+   "id": "bid-0003",
+   "quote_id": "quote-demo-0088",
+   "site_id": "site-demo-site-15-b",
+   "provider_id": "provider-demo-015",
+   "model": "H200",
+   "gpus": 32,
+   "months": 5,
+   "ask": "5.9206",
+   "bid": "5.8759",
+   "status": "open",
+   "placed": "2032-05-23T12:39:00Z",
+   "decided": null,
+   "position_id": null
+  },
+  {
+   "id": "bid-0004",
+   "quote_id": "quote-demo-0119",
+   "site_id": "site-demo-site-20-b",
+   "provider_id": "provider-demo-020",
+   "model": "H100",
+   "gpus": 32,
+   "months": 7,
+   "ask": "2.7100",
+   "bid": "2.5839",
+   "status": "declined",
+   "placed": "2032-05-24T13:52:00Z",
+   "decided": "2032-05-25T14:28:00Z",
+   "position_id": null
+  },
+  {
+   "id": "bid-0005",
+   "quote_id": "quote-demo-0138",
+   "site_id": "site-demo-site-23-a",
+   "provider_id": "provider-demo-023",
+   "model": "Pro 6000",
+   "gpus": 32,
+   "months": 7,
+   "ask": "2.0712",
+   "bid": "2.0185",
+   "status": "filled",
+   "placed": "2032-05-25T14:05:00Z",
+   "decided": "2032-05-26T15:35:00Z",
+   "position_id": "pos-0003"
+  },
+  {
+   "id": "bid-0006",
+   "quote_id": "quote-demo-0019",
+   "site_id": "site-demo-site-04-a",
+   "provider_id": "provider-demo-004",
+   "model": "B300",
+   "gpus": 32,
+   "months": 3,
+   "ask": "7.8726",
+   "bid": "7.5148",
+   "status": "open",
+   "placed": "2032-05-26T15:18:00Z",
+   "decided": null,
+   "position_id": null
+  },
+  {
+   "id": "bid-0007",
+   "quote_id": "quote-demo-0038",
+   "site_id": "site-demo-site-07-a",
+   "provider_id": "provider-demo-007",
+   "model": "GB300",
+   "gpus": 128,
+   "months": 12,
+   "ask": "10.3567",
+   "bid": "9.9957",
+   "status": "expired",
+   "placed": "2032-05-27T16:31:00Z",
+   "decided": "2032-05-28T17:49:00Z",
+   "position_id": null
+  },
+  {
+   "id": "bid-0008",
+   "quote_id": "quote-demo-0069",
+   "site_id": "site-demo-site-12-b",
+   "provider_id": "provider-demo-012",
+   "model": "B200",
+   "gpus": 32,
+   "months": 5,
+   "ask": "5.9025",
+   "bid": "5.6161",
+   "status": "filled",
+   "placed": "2032-05-28T09:44:00Z",
+   "decided": "2032-05-29T10:56:00Z",
+   "position_id": null
+  },
+  {
+   "id": "bid-0009",
+   "quote_id": "quote-demo-0088",
+   "site_id": "site-demo-site-15-b",
+   "provider_id": "provider-demo-015",
+   "model": "H200",
+   "gpus": 32,
+   "months": 5,
+   "ask": "5.9206",
+   "bid": "5.6838",
+   "status": "declined",
+   "placed": "2032-05-29T10:57:00Z",
+   "decided": "2032-05-30T11:03:00Z",
+   "position_id": null
+  },
+  {
+   "id": "bid-0010",
+   "quote_id": "quote-demo-0119",
+   "site_id": "site-demo-site-20-b",
+   "provider_id": "provider-demo-020",
+   "model": "H100",
+   "gpus": 32,
+   "months": 7,
+   "ask": "2.7100",
+   "bid": "2.5967",
+   "status": "open",
+   "placed": "2032-05-20T11:10:00Z",
+   "decided": null,
+   "position_id": null
+  },
+  {
+   "id": "bid-0011",
+   "quote_id": "quote-demo-0138",
+   "site_id": "site-demo-site-23-a",
+   "provider_id": "provider-demo-023",
+   "model": "Pro 6000",
+   "gpus": 32,
+   "months": 7,
+   "ask": "2.0712",
+   "bid": "2.0523",
+   "status": "filled",
+   "placed": "2032-05-21T12:23:00Z",
+   "decided": "2032-05-22T13:17:00Z",
+   "position_id": null
+  },
+  {
+   "id": "bid-0012",
+   "quote_id": "quote-demo-0019",
+   "site_id": "site-demo-site-04-a",
+   "provider_id": "provider-demo-004",
+   "model": "B300",
+   "gpus": 32,
+   "months": 3,
+   "ask": "7.8726",
+   "bid": "7.7587",
+   "status": "open",
+   "placed": "2032-05-22T13:36:00Z",
+   "decided": null,
+   "position_id": null
+  },
+  {
+   "id": "bid-0013",
+   "quote_id": "quote-demo-0038",
+   "site_id": "site-demo-site-07-a",
+   "provider_id": "provider-demo-007",
+   "model": "GB300",
+   "gpus": 128,
+   "months": 12,
+   "ask": "10.3567",
+   "bid": "9.9256",
+   "status": "filled",
+   "placed": "2032-05-23T14:49:00Z",
+   "decided": "2032-05-24T15:31:00Z",
+   "position_id": null
+  },
+  {
+   "id": "bid-0014",
+   "quote_id": "quote-demo-0069",
+   "site_id": "site-demo-site-12-b",
+   "provider_id": "provider-demo-012",
+   "model": "B200",
+   "gpus": 32,
+   "months": 5,
+   "ask": "5.9025",
+   "bid": "5.7639",
+   "status": "declined",
+   "placed": "2032-05-24T15:02:00Z",
+   "decided": "2032-05-25T16:38:00Z",
+   "position_id": null
+  }
+ ]
+}

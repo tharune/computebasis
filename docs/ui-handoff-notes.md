@@ -42,11 +42,11 @@ Frontend, `src/compute_pricing/control/workbench/assets/`:
 - `workbench.js`: API client and session handling (cookie session, CSRF, `If-None-Match` support), the advanced
   pages, and `window.ComputeHost` (`api`, `element`, `byId`, `notify`, `showView`, `priceQuote`, `isSession`,
   `onView`, `onSession`). `loadIndex` keeps using `/v1/market/index`.
-- `workbench-demo.js`: Brief, Overview and Quotes. Polls `GET /v1/book` every 2 s (conditional request, pauses
+- `demo-core.js`, `page-brief.js`, `page-overview.js`, `page-quotes.js`: Brief, Overview and Quotes (see `frontend-architecture.md`). The core polls `GET /v1/book` every 2 s (conditional request, pauses
   when the tab is hidden), sends scenario controls, paints the status pill, keeps flags for recent scenario alerts
   in an in-memory client store.
 - `workbench-charts.js`: SVG primitives built with `createElementNS` (sparkline, line chart, stacked bars, columns,
-  bars, legend, ticks). The Brief draws its own `briefBars` inside `workbench-demo.js`. Colour only arrives through
+  bars, legend, ticks). The Brief draws its own `briefBars` inside `page-brief.js`. Colour only arrives through
   CSS classes (`--gc`).
 - `workbench-drafts.js`: the structural request editors used by the advanced pages (unchanged behaviour).
 - `workbench.css`, `favicon.svg`.
@@ -66,7 +66,7 @@ Done:
 - Frontend ported onto the public lineage; endpoints renamed to `/v1/book` and `/v1/book/control` (JS and JS tests).
 - Pricing handoff ported (`priceQuote`, `loadPricingExample`).
 - Expected-loss colour now uses the existing warm `--warn` token (defined in light, dark and system-mirror).
-- Dead code removed: `dumbbellFor`, `dumbbellLegend`, `costBars`, `costLegend` in `workbench-demo.js`;
+- Dead code removed: `dumbbellFor`, `dumbbellLegend`, `costBars`, `costLegend` in the demo scripts;
   CSS `.swatch.dot-best-swatch`, `.swatch.ref-swatch`.
 - Brief step 3: added space under the stat value (`.bf-steps .bf-stat-text`). **Not verified in a browser.**
 - Docs: this file, plus a link from [quote-book.md](quote-book.md).
@@ -122,7 +122,7 @@ Run it locally per the runbook in [demo-sprint.md](demo-sprint.md) (`scripts/loc
 
 - Replaced (our flow wins): `workbench/assets/index.html`, `workbench.css`, `workbench.js`, `workbench-drafts.js`
   (Market, Deal economics, Inventory views, commitment-curve UI, `loadDemoContract`, the demo scenario form).
-- Added: `workbench-demo.js`, `workbench-charts.js`, `favicon.svg`.
+- Added: the demo scripts, `workbench-charts.js`, `favicon.svg`.
 - Preserved untouched: `workbench/routes.py`, `synthetic-pricing-request.json`, `synthetic-policy-document.json`,
   `world-land.json`, all backend routes (`/v1/demo/market`, `/v1/demo/contract`, `POST /v1/demo/scenario`,
   `api/demo.py`), all other tests and docs. Those `/v1/demo/*` routes remain but the frontend no longer calls them.

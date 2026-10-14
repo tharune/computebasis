@@ -56,7 +56,7 @@ flickers while the book ticks.
 Entrances animate opacity and transform only, with the shared ease token. All of it
 sits inside `prefers-reduced-motion: no-preference`; with reduced motion, or without
 `IntersectionObserver`, nothing is hidden, moved or timed. A block marked `rv` in
-`index.html` must also be listed in `REVEAL` in `workbench-demo.js`, or it would stay
+`index.html` must also be listed in `REVEAL` in `page-brief.js`, or it would stay
 invisible; a test holds the two together.
 
 ## Honesty about the data

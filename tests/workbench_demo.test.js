@@ -1,110 +1,7 @@
 "use strict";
-// Draw the shipped chart and Brief/Overview/Quotes modules against snapshots produced by the real
-// simulator, in a browserless DOM. The fake DOM throws on innerHTML and inline styles, as the CSP would.
+// Draw the shipped chart and Brief/Overview/Quotes modules against snapshots produced by the real simulator, in a browserless DOM.
 const { test } = require("node:test");
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
-const assets = process.env.COMPUTEBASIS_WORKBENCH_ASSETS;
-const snapshotFile = process.env.COMPUTEBASIS_BOOK_SNAPSHOTS;
-assert.ok(assets, "COMPUTEBASIS_WORKBENCH_ASSETS must point to the checked-out workbench assets");
-assert.ok(snapshotFile, "COMPUTEBASIS_BOOK_SNAPSHOTS must point to simulator snapshots (see tests/test_workbench_demo_js_v10.py)");
-const snapshots = JSON.parse(fs.readFileSync(snapshotFile, "utf8"));
-const html = fs.readFileSync(path.join(assets, "index.html"), "utf8");
-const chartsSource = fs.readFileSync(path.join(assets, "workbench-charts.js"), "utf8");
-const demoSource = fs.readFileSync(path.join(assets, "workbench-demo.js"), "utf8");
-const dataSource = fs.readFileSync(path.join(assets, "landing-data.js"), "utf8");
-const adapterSource = fs.readFileSync(path.join(assets, "book-adapter.js"), "utf8");
-
-class El {
-  constructor(tag) {
-    this.tagName = tag; this.children = []; this.attributes = {}; this.listeners = new Map(); this.className = "";
-    this.disabled = false; this.hidden = false; this.dataset = {}; this._text = "";
-    this.classList = { add: (name) => this.setClass(name, true), remove: (name) => this.setClass(name, false), contains: (name) => this.has(name), toggle: (name, flag) => this.setClass(name, flag === undefined ? !this.has(name) : flag) };
-  }
-  has(name) { return this.className.split(/\s+/).includes(name); }
-  setClass(name, on) { const set = new Set(this.className.split(/\s+/).filter(Boolean)); if (on) set.add(name); else set.delete(name); this.className = [...set].join(" "); }
-  get style() { throw new Error("Inline styles are blocked by the content security policy"); }
-  get innerHTML() { throw new Error("innerHTML is not allowed"); }
-  set innerHTML(_) { throw new Error("innerHTML is not allowed"); }
-  get textContent() { return this._text + this.children.map((child) => child.textContent).join(""); }
-  set textContent(value) { this._text = String(value); this.children = []; }
-  append(...nodes) { nodes.forEach((node) => { assert.ok(node instanceof El, "append expects DOM nodes"); this.children.push(node); }); }
-  replaceChildren(...nodes) { this.children = []; this._text = ""; this.append(...nodes); }
-  setAttribute(key, value) { this.attributes[key] = String(value); }
-  getAttribute(key) { return this.attributes[key] ?? null; }
-  removeAttribute(key) { delete this.attributes[key]; }
-  addEventListener(name, action) { this.listeners.set(name, [...(this.listeners.get(name) || []), action]); }
-  async click() { if (this.disabled) return; await Promise.all((this.listeners.get("click") || []).map((action) => action({ preventDefault() {}, target: this }))); }
-  focus() { this.focused = true; }
-  scrollIntoView(options) { this.scrolled = options; }
-}
-const walk = (node, visit) => { visit(node); node.children.forEach((child) => walk(child, visit)); };
-const findAll = (node, test) => { const out = []; walk(node, (item) => { if (test(item)) out.push(item); }); return out; };
-const classes = (node) => `${node.className} ${node.attributes.class || ""}`.split(/\s+/);
-const byClass = (node, name) => findAll(node, (item) => classes(item).includes(name));
-const byTag = (node, tag) => findAll(node, (item) => item.tagName === tag);
-const settle = async () => { for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve)); };
-const BROKEN = /\b(NaN|undefined|Infinity)\b|\[object/;
-function assertClean(node, label = "chart") {
-  walk(node, (item) => {
-    for (const [key, value] of Object.entries(item.attributes)) assert.doesNotMatch(value, BROKEN, `${label}: attribute ${key} on <${item.tagName}> is "${value}"`);
-    if (item._text) assert.doesNotMatch(item._text, BROKEN, `${label}: text "${item._text}"`);
-  });
-}
-
-function makePage(initial, { priceQuote, browser = {} } = {}) {
-  const ids = new Map();
-  for (const tag of html.matchAll(/<([a-z][a-z0-9]*)\b([^>]*)>/g)) {
-    const id = /\bid="([^"]+)"/.exec(tag[2]); if (id) ids.set(id[1], new El(tag[1]));
-  }
-  const server = { snapshot: initial, tag: 'W/"one"', session: true, failure: "", gate: null, posts: [] };
-  const calls = []; const notices = []; const shown = []; const priced = [];
-  const viewListeners = []; const sessionListeners = []; const intervals = []; const documentListeners = [];
-  const doc = {
-    hidden: false,
-    createElement: (tag) => new El(tag), createElementNS: (_, tag) => new El(tag),
-    createTextNode: (text) => { const node = new El("#text"); node._text = String(text); return node; },
-    addEventListener: (name, action) => documentListeners.push({ name, action }),
-  };
-  const host = {
-    api: async (url, options = {}, meta) => {
-      calls.push({ url, method: options.method || "GET", ifNoneMatch: meta?.ifNoneMatch || "" });
-      if (url === "/v1/book/control") { server.posts.push(JSON.parse(options.body)); if (server.gate) await server.gate; return { simulated: true }; }
-      assert.equal(url, "/v1/book", "unexpected request " + url);
-      if (server.failure) throw new Error(server.failure);
-      if (meta?.ifNoneMatch && meta.ifNoneMatch === server.tag) { meta.status = 304; return null; }
-      meta.status = 200; meta.etag = server.tag; return structuredClone(server.snapshot);
-    },
-    byId: (id) => { assert.ok(ids.has(id), "Missing DOM element " + id); return ids.get(id); },
-    notify: (message, error = false) => notices.push({ message, error }),
-    showView: (name) => { shown.push(name); viewListeners.forEach((listener) => listener(name)); },
-    isSession: () => server.session,
-    onView: (listener) => viewListeners.push(listener), onSession: (listener) => sessionListeners.push(listener),
-    ...(priceQuote ? { priceQuote: (quote) => { priced.push(quote); } } : {}),
-  };
-  const window = { ComputeHost: host, ...browser };  // browser: IntersectionObserver and matchMedia stand-ins
-  const context = vm.createContext({ window, document: doc, setInterval: (fn, ms) => intervals.push({ fn, ms }), console });
-  vm.runInContext(chartsSource, context, { filename: "workbench-charts.js" });
-  vm.runInContext(adapterSource, context, { filename: "book-adapter.js" });
-  vm.runInContext(dataSource, context, { filename: "landing-data.js" });
-  vm.runInContext(demoSource, context, { filename: "workbench-demo.js" });
-  const el = (id) => host.byId(id);
-  const button = (id, label) => findAll(el(id), (item) => item.tagName === "button" && item.textContent === label)[0];
-  return {
-    server, calls, notices, shown, priced, host, el, button, doc, charts: window.ComputeCharts,
-    connect: () => sessionListeners.forEach((listener) => listener(true)),
-    disconnect: () => sessionListeners.forEach((listener) => listener(false)),
-    poll: () => intervals.find((item) => item.ms === 2000).fn(),
-    visibility: () => documentListeners.filter((item) => item.name === "visibilitychange").forEach((item) => item.action({})),
-  };
-}
-const { base, war, reset } = snapshots;  // what the server sends: decimal strings, reason codes
-const adapterContext = vm.createContext({ window: {} }); vm.runInContext(adapterSource, adapterContext, { filename: "book-adapter.js" });
-const normalize = (raw) => adapterContext.window.BookAdapter.normalizeBook(raw);
-const book = { base: normalize(base), war: normalize(war), reset: normalize(reset) };  // what the pages draw
-const assertLive = (page) => { assert.equal(page.el("session-state").textContent, "Live"); assert.ok(page.el("session-dot").has("live")); };
+const { assert, fs, path, vm, assets, snapshots, html, El, walk, findAll, classes, byClass, byTag, settle, assertClean, makePage, base, war, reset, book, normalize, assertLive, DEMO_FILES, chartsSource, dataSource, adapterSource } = require("./demo_harness.js");
 
 test("snapshots come from the simulator and the scenario and reset change them", () => {
   assert.equal(base.simulated, true);
@@ -303,7 +200,7 @@ test("a scenario button sends one control request, locks the controls until it r
   await page.button("desk-controls", "Supply shock").click(); await settle();
   assert.equal(page.server.posts.length, 1, "a second scenario cannot start while one is pending");
   page.server.snapshot = war; page.server.tag = 'W/"two"'; release(); await pending; await settle();
-  assert.deepEqual(page.calls.at(-1), { url: "/v1/book", method: "GET", ifNoneMatch: "" }, "the new book is fetched unconditionally");
+  assert.deepEqual(page.bookCalls().at(-1), { url: "/v1/book", method: "GET", ifNoneMatch: "" }, "the new book is fetched unconditionally");
   assert.ok(findAll(page.el("desk-controls"), (node) => node.tagName === "button").every((node) => !node.disabled));
   assert.deepEqual(page.notices, []);
 });
@@ -472,7 +369,7 @@ test("the basis breakdown says nothing when no model has an eligible, priced quo
 });
 
 test("the sources keep to the content security policy", () => {
-  for (const [name, source] of [["workbench-charts.js", chartsSource], ["workbench-demo.js", demoSource], ["landing-data.js", dataSource]]) {
+  for (const [name, source] of [["workbench-charts.js", chartsSource], ...DEMO_FILES.map((name) => [name, fs.readFileSync(path.join(assets, name), "utf8")]), ["landing-data.js", dataSource], ["book-adapter.js", adapterSource]]) {
     for (const forbidden of ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function", "localStorage", "sessionStorage", ".style.", 'setAttribute("style"', "setAttribute('style'"]) {
       assert.equal(source.includes(forbidden), false, name + " must not use " + forbidden);
     }
@@ -537,4 +434,54 @@ test("the page says so when the server sends something that is not a book", asyn
   const page = makePage({ simulated: true, quotes: "none" }); page.connect(); await settle();
   assert.match(page.el("session-state").textContent, /Reconnecting|Connecting/);
   assert.equal(page.el("brief-live").children.length >= 0, true);
+});
+
+const { deskFixture } = require("./demo_harness.js");
+const normalizeDesk = (raw) => adapterContext_.window.BookAdapter.normalizeDesk(raw);
+const adapterContext_ = vm.createContext({ window: {} }); vm.runInContext(adapterSource, adapterContext_, { filename: "book-adapter.js" });
+
+test("the desk ledger is read only while the Overview is open, and its exact money survives", async () => {
+  const page = makePage(base); page.connect(); await settle();
+  assert.equal(page.deskCalls().length, 0, "the Brief does not read the ledger");
+  page.host.showView("desk"); await settle();
+  assert.equal(page.deskCalls().length, 1);
+  assert.deepEqual(page.deskCalls()[0], { url: "/v1/book/desk", method: "GET", ifNoneMatch: "" });
+  page.poll(); await settle();
+  assert.equal(page.deskCalls().at(-1).ifNoneMatch, 'W/"desk-one"', "a later read is conditional");
+  page.host.showView("quotes"); await settle(); const reads = page.deskCalls().length; page.poll(); await settle();
+  assert.equal(page.deskCalls().length, reads, "leaving the Overview stops the reads");
+});
+
+test("the Overview still draws the market when the desk ledger cannot be read or is not a ledger", async () => {
+  const failing = makePage(base); failing.server.deskFailure = "The desk ledger is unavailable."; failing.connect(); await settle(); failing.host.showView("desk"); await settle();
+  assertLive(failing); assertClean(failing.el("desk-kpis"), "desk-kpis"); assert.ok(failing.el("desk-basis").children.length > 0);
+  const wrong = makePage(base, { desk: { schema_version: "something-else/1.0" } }); wrong.connect(); await settle(); wrong.host.showView("desk"); await settle();
+  assertLive(wrong); assert.ok(wrong.el("desk-basis").children.length > 0);
+});
+
+test("the adapter reads the desk ledger: numbers to draw, exact money to print, places on the map", () => {
+  const desk = normalizeDesk(deskFixture);
+  assert.ok(desk, "the contract fixture is accepted");
+  assert.equal(desk.simulated, true); assert.equal(desk.execution_enabled, false); assert.equal(desk.inventory_verified, false);
+  assert.equal(desk.sites.length, deskFixture.sites.length);
+  desk.sites.filter((site) => site.country === "US").forEach((site) => { assert.match(site.state, /^[A-Z]{2}$/); assert.ok(Number.isFinite(site.lat) && Number.isFinite(site.lon)); });
+  desk.sites.filter((site) => site.country !== "US").forEach((site) => assert.equal(site.state, null));
+  const position = desk.positions[0]; const sent = deskFixture.positions[0];
+  assert.equal(typeof position.price, "number"); assert.equal(position.exact.price, sent.price); assert.equal(position.exact.unrealized_usd, sent.unrealized_usd);
+  assert.equal(desk.bids.find((bid) => bid.status === "open").decided, null);
+  assert.equal(typeof desk.summary.fill_rate, "number"); assert.equal(desk.summary.exact.unrealized_usd, deskFixture.summary.unrealized_usd);
+  const unmarked = structuredClone(deskFixture); unmarked.positions[0].mark = null; unmarked.positions[0].unrealized_usd = null; unmarked.summary.fill_rate = null;
+  const gap = normalizeDesk(unmarked); assert.equal(gap.positions[0].mark, null); assert.equal(gap.positions[0].unrealized_usd, null); assert.equal(gap.summary.fill_rate, null);
+  [null, {}, { schema_version: "synthetic-desk-ledger/1.0" }, { ...deskFixture, sites: "none" }, { ...deskFixture, schema_version: "other" }].forEach((bad) => assert.equal(normalizeDesk(bad), null));
+});
+
+test("the desk fixture keeps the contract's joins and honesty flags", () => {
+  const ids = (list) => new Set(list.map((row) => row.id));
+  const sites = ids(deskFixture.sites); const positions = ids(deskFixture.positions); const quotes = ids(base.quotes); const providers = ids(base.providers);
+  deskFixture.positions.forEach((position) => assert.ok(sites.has(position.site_id)));
+  deskFixture.bids.forEach((bid) => { assert.ok(sites.has(bid.site_id)); assert.ok(quotes.has(bid.quote_id)); if (bid.position_id) assert.ok(positions.has(bid.position_id)); });
+  deskFixture.sites.forEach((site) => assert.ok(providers.has(site.provider_id)));
+  assert.equal(deskFixture.summary.supply_gpus, base.kpis.gpus);
+  assert.equal(deskFixture.summary.supply_gpus, deskFixture.sites.reduce((sum, site) => sum + site.capacity.gpus, 0));
+  assert.deepEqual([deskFixture.simulated, deskFixture.synthetic, deskFixture.source_evidence_eligible, deskFixture.inventory_verified, deskFixture.firm_price_eligible, deskFixture.execution_enabled], [true, true, false, false, false, false]);
 });

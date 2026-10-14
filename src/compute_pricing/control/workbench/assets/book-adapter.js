@@ -102,5 +102,23 @@
     };
   }
 
-  window.BookAdapter = Object.freeze({ normalizeBook, reasonText, REASONS, SCENARIOS });
+  /* The desk ledger (docs/desk-ledger-contract.md): simulated positions, brokered bids and the sites that hold supply. Money stays
+     exact on `exact`; the numbers beside it are for drawing. null when the response is not a ledger. */
+  const DESK_MONEY = { positions: ["price", "mark", "unrealized_usd", "notional_usd"], bids: ["ask", "bid"] };
+  function withExact(raw, names) { const row = toNumbers(raw, ""); const exact = {}; names.forEach((name) => { if (typeof raw[name] === "string") exact[name] = raw[name]; }); return { ...row, exact }; }
+  function normalizeDesk(raw) {
+    if (!isObject(raw) || !/^synthetic-desk-ledger\//.test(String(raw.schema_version)) || !isObject(raw.meta) || !isObject(raw.summary)
+      || !Array.isArray(raw.sites) || !Array.isArray(raw.positions) || !Array.isArray(raw.bids)) return null;
+    const summary = withExact(raw.summary, ["position_notional_usd", "unrealized_usd"]);
+    const sites = raw.sites.map((site) => {
+      const row = toNumbers(site, ""); const place = isObject(row.placement) ? row.placement : {}; const capacity = isObject(row.capacity) ? row.capacity : {};
+      return { ...row, grade: grade(site.provider_grade), state: typeof place.state === "string" ? place.state : null, lat: finite(place.lat), lon: finite(place.lon), place: place.label || "",
+        capacity: { gpus: 0, quotes: 0, eligible_quotes: 0, eligible_gpus: 0, ...capacity, models: isObject(capacity.models) ? capacity.models : {} }, position_gpus: finite(row.position_gpus) ?? 0, open_bid_gpus: finite(row.open_bid_gpus) ?? 0 };
+    });
+    const positions = raw.positions.map((position) => { const row = withExact(position, DESK_MONEY.positions); return { ...row, price: finite(row.price), mark: finite(row.mark), unrealized_usd: finite(row.unrealized_usd), notional_usd: finite(row.notional_usd) }; });
+    const bids = raw.bids.map((bid) => { const row = withExact(bid, DESK_MONEY.bids); return { ...row, ask: finite(row.ask), bid: finite(row.bid), position_id: typeof bid.position_id === "string" ? bid.position_id : null, decided: typeof bid.decided === "string" ? bid.decided : null }; });
+    return { ...toNumbers(raw, ""), meta: toNumbers(raw.meta, "meta"), summary: { ...summary, unrealized_usd: finite(summary.unrealized_usd), fill_rate: finite(summary.fill_rate) }, sites, positions, bids, raw };
+  }
+
+  window.BookAdapter = Object.freeze({ normalizeBook, normalizeDesk, reasonText, REASONS, SCENARIOS });
 })();
