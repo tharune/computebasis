@@ -3,7 +3,7 @@
 (() => {
   "use strict";
   const D = window.ComputeDemo; const C = window.OverviewCharts; if (!D || !C) return;
-  const { h, int, pct, replace, empty, chip, MONTHS } = D;
+  const { h, int, pct, replace, chip, MONTHS } = D;
 
   /* ---- printing ---- */
   const DECIMAL = /^-?\d+(?:\.\d+)?$/;

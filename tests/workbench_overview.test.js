@@ -193,6 +193,8 @@ test("price history with readings draws two lines, flags each scenario, and the 
   assert.match(trend.textContent, /minutes? ago/);
   assert.doesNotMatch(trend.textContent, /a day ago|24h/);
   const hits = byClass(trend, "ov-hit"); assert.equal(hits.length, book.war.series.times.length);
+  const chartWidth = Number(byClass(trend, "ov-history")[0].attributes.viewBox.split(" ")[2]);
+  assert.ok(hits.every((hit) => Number(hit.attributes.x) >= 0 && Number(hit.attributes.x) + Number(hit.attributes.width) <= chartWidth), "no hover target reaches past the chart, even with few readings");
   const readout = byClass(trend, "ov-readout")[0]; const before = readout.textContent;
   assert.match(before, /Latest/);
   hits[1].fire("pointerenter"); const during = byClass(page.el("desk-trend"), "ov-readout")[0].textContent;
@@ -258,10 +260,10 @@ test("seller health counts eligible quotes per seller, drops the zero columns, a
 
 test("key figures leave out a change when the book has no history, and name its window when it has", async () => {
   const start = await open(base); const text = start.el("desk-kpis").textContent;
-  assert.equal(byClass(start.el("desk-kpis"), "ov-kpi-change").length, 0);
+  assert.equal(byClass(start.el("desk-kpis"), "ov-kpi-change").filter((node) => !node.hidden).length, 0);
   assert.doesNotMatch(text, /24h|\+0|NaN|undefined/);
   assert.match(text, new RegExp(String(book.base.kpis.live_quotes))); assert.match(text, new RegExp((book.base.kpis.basis * 100).toFixed(1) + "%"));
-  const moved = await open(war); const changes = byClass(moved.el("desk-kpis"), "ov-kpi-change").map((node) => node.textContent);
+  const moved = await open(war); const changes = byClass(moved.el("desk-kpis"), "ov-kpi-change").filter((node) => !node.hidden).map((node) => node.textContent);
   changes.forEach((change) => assert.match(change, /^[+−][\d,.]+( pt)? in \d+ min$/));
   assert.doesNotMatch(moved.el("desk-kpis").textContent, /24h|\+0\.0|−0\.0/);
   const labels = byClass(start.el("desk-kpis"), "ov-kpi-label").map((node) => node.textContent);
@@ -277,6 +279,17 @@ test("a changed book redraws the Overview and highlights only what moved", async
   assert.ok(byClass(page.el("desk-kpis"), "flash").length > 0, "changed figures are highlighted");
   assert.ok(byClass(page.el("desk-activity"), "flash").length > 0, "new events are highlighted");
   SLOTS.forEach((id) => assertClean(page.el(id), id));
+});
+
+test("when only the ledger changes, the market panels are left as they are and the desk sections redraw", async () => {
+  const page = await open(war); const basis = page.el("desk-basis").children[0]; const trend = page.el("desk-trend").children.slice(); const positions = page.el("desk-positions").children[0];
+  byClass(page.el("desk-trend"), "ov-hit")[1].fire("pointerenter");
+  const desk = clone(deskFixture); desk.positions[0].unrealized_usd = "1.00"; desk.summary.unrealized_usd = "1.00"; page.server.desk = desk; page.server.deskTag = 'W/"desk-two"';
+  page.poll(); await settle();
+  assert.strictEqual(page.el("desk-basis").children[0], basis, "the basis chart is not redrawn for a ledger change");
+  page.el("desk-trend").children.forEach((node, i) => assert.strictEqual(node, trend[i], "the price panel keeps its nodes, and with them the crosshair"));
+  assert.notStrictEqual(page.el("desk-positions").children[0], positions, "the positions are redrawn");
+  assert.match(page.el("desk-positions").textContent, /\+\$1\.00/);
 });
 
 test("the event feed says what it is waiting for, and a reset restarts its numbering", async () => {

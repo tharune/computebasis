@@ -43,7 +43,6 @@
     const data = state.data; scenarioReady();
     return [...scenarioSeen.values()].map((a) => ({ index: data.series.ticks.indexOf(a.tick), label: a.scenario_label || "Scenario", title: a.text })).filter((marker) => marker.index >= 0);
   }
-  let hover = null;  // { model, index }: survives a redraw, so a poll does not drop the crosshair under the pointer
   const node = (value) => (typeof value === "object" ? value : document.createTextNode(String(value)));
   function renderTrend(ctx) {
     const data = state.data; const m = data.models.find((entry) => entry.model === state.model) || data.models[0]; if (!m) { replace("desk-trend", empty("No GPU models in the book.")); return; }
@@ -66,14 +65,12 @@
       cells.basis.replaceChildren(node(basisValue === null || basisValue === undefined ? "—" : pct(basisValue, 1, true)));
       stamp.textContent = hovering ? clock(times[index], true) + " UTC" : history ? "Latest, " + clock(times[times.length - 1], true) + " UTC" : "";
     };
-    const held = history && hover && hover.model === m.model && hover.index < times.length ? hover.index : null;
-    fill(held);
+    fill(null);
     const chartDescription = m.model + " price history, dollars per GPU-hour. " + (m.best ? "The best eligible all-in cost is " + usd(m.best.risk_adjusted, 3) + " against a lowest quote of " + usd(low) + "." : "No eligible seller for this model.");
     let body; let caption;
     if (history) {
       const chart = C.historyChart({ times, series: lines, gap: hasBest ? ["best", "cheapest"] : null, markers: scenarioMarkers(), width, height: narrow ? 220 : 250, enter: ctx.enter("history"), xLabel: (i) => clock(times[i], true), yTicks: 4, xTicks: narrow ? 2 : 3, description: chartDescription,
-        hoverText: (i) => clock(times[i], true) + " UTC, " + lines.map((l) => l.name + " " + at(l.values, i)).join(", "), hoverIndex: held,
-        onHover: (index) => { hover = index === null ? null : { model: m.model, index }; fill(index); } });
+        hoverText: (i) => clock(times[i], true) + " UTC, " + lines.map((l) => l.name + " " + at(l.values, i)).join(", "), onHover: fill });
       body = [chart, C.legend([...lines.map((l) => ({ label: l.name, className: "ov-key " + l.className })), ...(hasBest ? [{ label: "Basis", className: "ov-band" }] : [])])];
       const back = Math.min(48, times.length - 1); const minutes = Math.round((data.series.ticks[times.length - 1] - data.series.ticks[times.length - 1 - back]) * (data.meta.step_minutes || 1)); const prior = s.basis[times.length - 1 - back];
       caption = m.best && Number.isFinite(prior) && minutes >= 1 ? "The shaded band is the basis: " + pct(m.basis, 1, true) + " now, " + pct(prior, 1, true) + " " + minutes + (minutes === 1 ? " minute" : " minutes") + " ago. Dashed flags mark scenarios." : m.best ? "The shaded band is the basis." : "No seller for this model clears the eligibility bar, so there is no all-in line.";

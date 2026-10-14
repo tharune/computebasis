@@ -184,7 +184,8 @@
     };
     const slot = (width - margin.left - margin.right) / (points - 1);
     for (let index = 0; index < points; index++) {
-      const hit = svg("rect", { x: r2(x(index) - slot / 2), y: margin.top, width: r2(slot), height: height - margin.bottom - margin.top, class: "ov-hit" });
+      const from = Math.max(margin.left, x(index) - slot / 2); const to = Math.min(width - margin.right, x(index) + slot / 2);  // never past the plot, even with two readings
+      const hit = svg("rect", { x: r2(from), y: margin.top, width: r2(Math.max(1, to - from)), height: height - margin.bottom - margin.top, class: "ov-hit" });
       hit.append(Object.assign(svg("title"), { textContent: hoverText(index) })); hit.addEventListener("pointerenter", () => show(index)); chart.append(hit);
     }
     chart.addEventListener("pointerleave", () => show(null));
