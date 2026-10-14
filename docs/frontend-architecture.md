@@ -1,4 +1,4 @@
-# Frontend architecture (Brief, Overview, Quotes)
+# Frontend architecture (Brief, Overview, Quotes, Pricing)
 
 The workbench is static HTML, CSS and vanilla JavaScript in `src/compute_pricing/control/workbench/assets/`, served by FastAPI under a strict
 CSP (`default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self'`). So: no inline script
@@ -9,7 +9,8 @@ motion, honesty); read it before drawing anything.
 ## One document, two pages
 
 `html[data-page="landing"|"app"]` is set by `route.js` before first paint and by `showView`. The landing page is the `brief` view; the
-app is `desk` (Overview), `quotes`, `pricing` and the advanced views. Hash routes (`/#desk`, `/#quotes`) drive it.
+app is `desk` (Overview), `quotes` and `pricing`. Hash routes (`/#desk`, `/#quotes`, `/#pricing`) drive it; any other hash opens the
+landing page. `VIEWS` in `workbench.js` and the `APP` pattern in `route.js` list the same app pages, and a test holds them together.
 
 ## Files and who owns what
 
@@ -23,7 +24,11 @@ app is `desk` (Overview), `quotes`, `pricing` and the advanced views. Hash route
 | `page-quotes.js`, `quotes.css` | Quotes. |
 | `workbench-charts.js` | Shared SVG chart primitives. Change it only with the owner of the charts. |
 | `landing-data.js`, `landing.css` | Landing-only derivations and styles. |
-| `workbench.js`, `workbench.css` | The host (session, routing, advanced views) and the shared tokens and shell. |
+| `workbench.js` | The host: session bootstrap and CSRF, `api`, theme, routing, and `window.ComputeHost` (`api`, `byId`, `notify`, `showView`, `priceQuote`, `isSession`, `onView`, `onSession`). It also still drives the hidden `.pricing-legacy` editor in `index.html`. |
+| `workbench.css` | The shared tokens, shell, controls and the grade and chart classes. |
+| `route.js` | Runs before first paint so a reload on an app address never flashes the landing page. |
+| `pricing-demo.js`, `pricing-demo.css` | Pricing: the example contracts, the editable terms, the assessment dialog (`/v1/pricing/demo/*`). Hands a quote over through `ComputePricingDemo.loadQuote`. |
+| `workbench-drafts.js`, `synthetic-pricing-request.json` | The structural request editor and the labelled invented scenario behind `priceQuote` and the hidden `.pricing-legacy` editor. |
 
 A page file is one IIFE: read helpers from `window.ComputeDemo`, draw into the elements `index.html` gives it, and end with
 `ComputeDemo.register("desk", { render, resize: true })`. `render` is called on every new book, every view switch and (if `resize`) on
@@ -56,8 +61,8 @@ cannot be). Never read the raw response.
   simulator snapshots in a fake DOM. `tests/demo_harness.js` is the shared harness: `makePage(snapshot, { desk })`, `findAll`, `byClass`,
   `assertClean` (fails on `NaN`/`undefined` in text or attributes), `book` (normalised snapshots) and `deskFixture`
   (`tests/fixtures/desk-ledger.json`). Add a `tests/workbench_<page>.test.js` for your page.
-- `node --test tests/workbench_behavior.test.js` (with `COMPUTEBASIS_WORKBENCH_ASSETS` set to the assets directory) covers routing, scroll,
-  theme and titles.
+- `node --test tests/workbench_behavior.test.js` (with `COMPUTEBASIS_WORKBENCH_ASSETS` set to the assets directory) covers the host script:
+  session and CSRF handling, routing, scroll, theme, titles and the Pricing editor.
 - `python scripts/validate.py` is the full offline gate. Run it before you hand work back.
 - Look at it. The tests do not see layout. Serve with `python scripts/serve.py --store <path outside the repo>/decisions.sqlite --port <p>
   --no-auto-refresh`, open it in Playwright (Chromium is installed; `require('/opt/node-tools/node_modules/playwright')`,

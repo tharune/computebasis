@@ -39,10 +39,9 @@ revenue, dated cash or market marks. Financial execution remains disabled.
 | `GET /v1/inventory/revisions/{revision}` | Explicit immutable plan replay |
 | `POST /v1/inventory/evaluate` | Exact `{state,as_of}`; pure draft/demo evaluation with no persistence |
 
-The browser keeps an explicitly loaded invented demo separate from saved
+An invented demo plan is evaluated with `POST /v1/inventory/evaluate` and kept separate from saved
 inventory. Saving a declared plan is a separate action. Local plan reloads
-do not read external feeds. The site map uses packaged Natural Earth land
-geometry, with no third-party tiles, location lookup or marker transmission.
+do not read external feeds. The browser app has no inventory page; use the API.
 
 An optional state `provenance` is `declared` or `synthetic`. Pure preview accepts
 the synthetic marker; persistent writes refuse it before a revision is created.
@@ -93,7 +92,6 @@ Current adapters and admission boundaries are recorded in the
 remain visible with concrete blockers; source-rule enablement cannot bypass
 those gates. No automatic collector or external execution job is installed.
 
-See [third-party notices](third-party-notices.md) for local map data.
 Offline tests use independently invented plans, exact decimal policies and
 source-shaped synthetic responses. Browser checks exercise the actual handlers
 and HTTP APIs using a separate invented-data service with external transport

@@ -1,6 +1,6 @@
-# Workbench quality and table intake
+# Table intake and verification
 
-This release improves the local analyst workspace, bounds concurrent collection
+This release bounds concurrent collection
 and makes workbook intake extensible without turning source cells into approved
 pricing facts. It retains the existing public-source admission, immutable
 snapshots, Decimal arithmetic and read-only/paper limits.

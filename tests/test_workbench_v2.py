@@ -1,11 +1,8 @@
 """Workbench shell security and dynamic API wiring, without external reads."""
 from html.parser import HTMLParser
 import json
-import os
 from pathlib import Path
 import re
-import shutil
-import subprocess
 import sys
 import unittest
 
@@ -100,29 +97,20 @@ class WorkbenchV2Tests(unittest.TestCase):
         parser.feed(self.client.get("/").text)
         explicit_ids = set(re.findall(r'byId\("([a-z-]+)"\)', self.script))
         self.assertFalse(explicit_ids - parser.ids, explicit_ids - parser.ids)
-        for kind in ("pricing", "cash", "inference"):
-            for suffix in ("input", "output", "summary", "result-state", "view"):
-                self.assertIn(kind + "-" + suffix, parser.ids)
+        for suffix in ("input", "output", "summary", "result-state", "view"):
+            self.assertIn("pricing-" + suffix, parser.ids)
 
-    def test_live_reference_uses_actual_index_rows_and_explicit_global_terms(self):
-        self.assertIn('api("/v1/market/current"', self.script)
-        self.assertIn('api("/v1/market/refresh"', self.script)
-        self.assertIn('scope: "aggregate_reference"', self.script)
-        self.assertIn("aggregate_terms: term", self.script)
-        self.assertIn("observations: rows", self.script)
-        self.assertIn("commercial: null", self.script)
-        self.assertIn("live_source_global_reference", self.script)
-        self.assertIn("uncalibrated_exploration_weights", self.script)
-        self.assertIn("prices exclude FX / model metadata", self.script)
-
-    def test_frontend_distinguishes_price_sources_and_fx_native_quote_units(self):
+    def test_every_routed_view_has_a_page_and_nothing_else_is_a_page(self):
+        """VIEWS in workbench.js is the list of pages; each has a section and a title, and the markup holds no other view."""
         html = self.client.get("/").text
-        self.assertIn("LOADED PRICE SOURCES", html)
-        self.assertIn('id="metric-source-total"', html)
-        self.assertIn('id="coverage-note"', html)
-        self.assertIn("record.quote_per_base", self.script)
-        self.assertIn("Price ascending within currency / unit", html)
-        self.assertIn('id="cancel-request"', html)
+        views = re.findall(r'"([a-z]+)"', re.search(r"const VIEWS = \[([^\]]*)\];", self.script).group(1))
+        self.assertEqual(views, ["brief", "desk", "quotes", "pricing"])
+        sections = re.findall(r'<section id="([a-z]+)-view"', html)
+        self.assertEqual(sorted(sections), sorted(views))
+        for view in views:
+            self.assertIn('id="' + view + '-title"', html)
+        navigation = set(re.findall(r'data-view="([a-z]+)"', html))
+        self.assertLessEqual(navigation, set(views))
 
     def test_original_editor_body_is_sent_without_json_round_trip(self):
         self.assertIn('body: raw', self.script)
@@ -144,28 +132,6 @@ class WorkbenchV2Tests(unittest.TestCase):
         self.assertEqual(result["status"], "indicative")
         self.assertFalse(result["firm_price_eligible"])
         self.assertFalse(result["executable"])
-
-    def test_shipped_inventory_demo_passes_the_real_capacity_validator(self):
-        from compute_pricing.control.inventory.model import evaluate_inventory
-        node = os.environ.get("COMPUTEBASIS_NODE") or shutil.which("node")
-        self.assertTrue(node, "Node 24 is required. Set COMPUTEBASIS_NODE to an installed Node executable.")
-        # Execute the actual shipped factory rather than reproducing its state in Python.
-        program = r'''const fs = require("node:fs"); const vm = require("node:vm");
-const script = fs.readFileSync(process.argv[1], "utf8");
-const begin = script.indexOf("  function syntheticInventory(asOf) {");
-const end = script.indexOf("\n  function policyEdited(", begin);
-if (begin < 0 || end < 0) throw new Error("Inventory demo factory missing");
-process.stdout.write(vm.runInNewContext(script.slice(begin, end) + '\nJSON.stringify(syntheticInventory("2026-10-14T00:00:00Z"))'));
-'''
-        generated = subprocess.run([node, "-e", program, str(ASSETS / "workbench.js")],
-                                   capture_output=True, text=True, check=True, timeout=10)
-        state = json.loads(generated.stdout)
-        report = evaluate_inventory(state, as_of="2026-10-14T00:00:00Z")
-        self.assertEqual(report["summary"]["by_unit_kind"]["gpu"]["sold"], 2)
-        self.assertEqual(report["summary"]["by_unit_kind"]["gpu"]["reserved"], 1)
-        self.assertEqual(report["summary"]["by_unit_kind"]["gpu"]["maintenance"], 1)
-        self.assertEqual(report["summary"]["by_unit_kind"]["node"]["available"], 2)
-        self.assertEqual(len(report["unlocated_sites"]), 1)
 
 
 if __name__ == "__main__":

@@ -10,10 +10,19 @@ dist/
 local-data/
 *.pem
 *.key
-
-*.egg-info/
-build/
-dist/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+
+# Tool caches, editor state and local agent worktrees
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+node_modules/
+.idea/
+.vscode/
+*.log
+.claude/worktrees/
+.claude/settings.local.json
