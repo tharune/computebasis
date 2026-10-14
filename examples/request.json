@@ -1,0 +1,58 @@
+{
+  "api_version": "1.0",
+  "as_of": "2026-11-03T12:00:00Z",
+  "target": {
+    "hardware_class": "accelerator-class-a",
+    "region": "region-north",
+    "currency": "USD",
+    "tenor_hours": "168"
+  },
+  "observations": [
+    {
+      "observation_id": "example-offer-a", "source_id": "example-source-a",
+      "provider_group": "example-provider-a", "lot_id": "example-lot-a",
+      "observed_at": "2026-11-03T11:30:00Z", "status": "available",
+      "hardware_class": "accelerator-class-a", "region": "region-north", "currency": "USD",
+      "tenor_min_hours": "1", "tenor_max_hours": "336", "unit": "gpu_hour", "price": "2.40",
+      "extensions": {"sample_kind": "independently_synthetic"}
+    },
+    {
+      "observation_id": "example-offer-b", "source_id": "example-source-b",
+      "provider_group": "example-provider-b", "lot_id": "example-lot-b",
+      "observed_at": "2026-11-03T11:30:00Z", "status": "available",
+      "hardware_class": "accelerator-class-a", "region": "region-north", "currency": "USD",
+      "tenor_min_hours": "1", "tenor_max_hours": "336", "unit": "node_hour", "price": "11.60", "gpus_per_node": "4"
+    },
+    {
+      "observation_id": "example-offer-c", "source_id": "example-source-c",
+      "provider_group": "example-provider-c", "lot_id": "example-lot-c",
+      "observed_at": "2026-11-03T11:30:00Z", "status": "available",
+      "hardware_class": "accelerator-class-a", "region": "region-north", "currency": "USD",
+      "tenor_min_hours": "1", "tenor_max_hours": "336", "unit": "gpu_hour", "price": "3.10"
+    }
+  ],
+  "policy": {
+    "estimator": "weighted_median", "max_provider_share": "0.45",
+    "min_observations": 3, "min_provider_groups": 3, "min_sources": 3,
+    "winsor_band_fraction": "0.05",
+    "source_rules": {
+      "example-source-a": {"enabled": true, "quality": "0.9", "max_age_hours": "4", "freshness_half_life_hours": "2"},
+      "example-source-b": {"enabled": true, "quality": "0.9", "max_age_hours": "4", "freshness_half_life_hours": "2"},
+      "example-source-c": {"enabled": true, "quality": "0.9", "max_age_hours": "4", "freshness_half_life_hours": "2"}
+    }
+  },
+  "deal": {
+    "start_at": "2026-11-04T00:00:00Z", "end_at": "2026-11-11T00:00:00Z", "gpu_count": "12",
+    "buyer_rate_per_gpu_hour": "4.60", "utilization": "0.78", "availability": "0.99",
+    "buyer_collection_fraction": "0.97", "required_margin_fraction": "0.12",
+    "supplier_advance_fraction": "0.18", "available_advance_funding": "1600",
+    "buyer_prepayment": "300", "buyer_prepayment_available_for_procurement": false,
+    "liquidity_reserve": "250", "capital_charge": "80", "market_discount_fraction": "0.04",
+    "costs": {
+      "per_committed_gpu_hour": {"operations": "0.09", "delivery_overhead": "0.07"},
+      "fixed_contract": {"qualification": "45"}, "upfront_fixed": {"setup": "25"}
+    },
+    "extensions": {"sample_kind": "independently_synthetic"}
+  },
+  "extensions": {"description": "Invented sample; no real parties, quotes or market observations."}
+}
