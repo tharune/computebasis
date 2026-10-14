@@ -37,7 +37,7 @@ class Node {
   scrollIntoView() { this.scrolled = true; }
 }
 
-function harness({ prefersDark = false } = {}) {
+function harness({ prefersDark = false, hash = "" } = {}) {
   const nodes = new Map();
   for (const tag of html.matchAll(/<([a-z][a-z0-9]*)\b([^>]*)>/g)) {
     const attributes = Object.fromEntries([...tag[2].matchAll(/([a-z-]+)="([^"]*)"/g)].map((match) => [match[1], match[2]]));
@@ -50,7 +50,10 @@ function harness({ prefersDark = false } = {}) {
     for (const option of match[2].matchAll(/<option\b[^>]*value="([^"]*)"[^>]*>([^<]*)<\/option>/g)) { const node = new Node("option"); node.value = option[1]; node.textContent = option[2]; select.append(node); }
   }
   const nav = [...html.matchAll(/data-view="([^"]+)"/g)].map((match) => { const node = new Node("button"); node.dataset.view = match[1]; node.root = true; return node; });
-  const window = new Node("window"); window.matchMedia = () => ({ matches: prefersDark }); window.scrolls = []; window.scrollTo = (options) => window.scrolls.push(options); const documentElement = new Node("html"); const calls = []; const responses = []; const timers = new Map(); const intervals = []; let timerId = 0;
+  const window = new Node("window"); window.matchMedia = () => ({ matches: prefersDark }); window.scrolls = []; window.scrollTo = (options) => window.scrolls.push(options);
+  window.location = { pathname: "/", search: "", hash }; window.pushed = [];
+  window.history = { pushState: (_state, _title, url) => { window.pushed.push(url); window.location.hash = url.startsWith("#") ? url : ""; } };
+  const documentElement = new Node("html"); const calls = []; const responses = []; const timers = new Map(); const intervals = []; let timerId = 0;
   const allCalls = []; const sessionCalls = []; const logoutResponses = []; let booting = false;
   let clockNow = Date.now(); class ClockDate extends Date { static now() { return clockNow; } }
   const documentListeners = new Map(); const pageDocument = { hidden: false, addEventListener: (name, action) => documentListeners.set(name, [...(documentListeners.get(name) || []), action]) };
@@ -126,6 +129,49 @@ test("arriving on another view starts at the top; choosing the current view leav
   assert.equal(h.window.scrolls[0].top, 0); assert.equal(h.window.scrolls[0].behavior, "instant");
   await nav("inventory").emit("click");
   assert.equal(h.window.scrolls.length, 1, "the page does not jump when it is already showing");
+});
+
+test("the landing page is a page of its own: choosing a view writes its address, and the landing address is plain", async () => {
+  const h = harness(); const nav = (view) => h.nav.find((button) => button.dataset.view === view);
+  assert.equal(h.documentElement.attributes["data-page"] ?? "landing", "landing");
+  await nav("inventory").emit("click");
+  assert.deepEqual([...h.window.pushed], ["#inventory"]);
+  assert.equal(h.documentElement.attributes["data-page"], "app");
+  await nav("inventory").emit("click");
+  assert.equal(h.window.pushed.length, 1, "choosing the page already showing adds no history entry");
+  await nav("brief").emit("click");
+  assert.deepEqual([...h.window.pushed], ["#inventory", "/"]);
+  assert.equal(h.documentElement.attributes["data-page"], "landing");
+});
+
+test("back and forward restore the page without writing history again", async () => {
+  const h = harness(); await h.nav.find((button) => button.dataset.view === "quotes").emit("click");
+  assert.deepEqual([...h.window.pushed], ["#quotes"]);
+  h.window.location.hash = ""; await h.window.emit("popstate");
+  assert.equal(h.node("brief-view").hidden, false); assert.equal(h.node("quotes-view").hidden, true);
+  assert.equal(h.documentElement.attributes["data-page"], "landing");
+  h.window.location.hash = "#quotes"; await h.window.emit("popstate");
+  assert.equal(h.node("quotes-view").hidden, false);
+  assert.equal(h.window.pushed.length, 1, "restoring a page from history never pushes");
+});
+
+test("opening on an app address shows that page, and an unknown address shows the landing page", async () => {
+  const deep = harness({ hash: "#inventory" }); await deep.window.emit("load");
+  assert.equal(deep.node("inventory-view").hidden, false); assert.equal(deep.node("brief-view").hidden, true);
+  assert.equal(deep.window.pushed.length, 0, "opening a link does not add a history entry");
+  const odd = harness({ hash: "#not-a-page" }); await odd.window.emit("load");
+  assert.equal(odd.node("brief-view").hidden, false);
+  const loose = harness({ hash: "#brief" }); await loose.window.emit("load");
+  assert.equal(loose.node("brief-view").hidden, false);
+});
+
+test("both header theme toggles stay in step", async () => {
+  const h = harness(); await h.node("lp-theme-toggle").emit("click");
+  assert.equal(h.documentElement.attributes["data-theme"], "dark");
+  assert.equal(h.node("theme-toggle").attributes["aria-pressed"], "true");
+  assert.equal(h.node("lp-theme-toggle").attributes["aria-pressed"], "true");
+  await h.node("theme-toggle").emit("click");
+  assert.equal(h.node("lp-theme-toggle").attributes["aria-pressed"], "false");
 });
 
 test("actual ECB quote_per_base is exact, separate from prices and model metadata", async () => {

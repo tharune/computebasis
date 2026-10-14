@@ -8,15 +8,18 @@
   let bootstrap = null;
   let logoutBarrier = null;
   let darkMode = window.matchMedia?.("(prefers-color-scheme: dark)").matches === true;
+  const THEME_TOGGLES = ["theme-toggle", "lp-theme-toggle"];  // the app header and the landing header
   function applyTheme() {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
-    const toggle = byId("theme-toggle");
-    // The accessible name stays "Dark mode"; aria-pressed carries the state. Only the tooltip names the action.
-    toggle.setAttribute("aria-pressed", String(darkMode));
-    toggle.setAttribute("title", darkMode ? "Switch to light theme" : "Switch to dark theme");
+    THEME_TOGGLES.forEach((id) => {
+      const toggle = byId(id);
+      // The accessible name stays "Dark mode"; aria-pressed carries the state. Only the tooltip names the action.
+      toggle.setAttribute("aria-pressed", String(darkMode));
+      toggle.setAttribute("title", darkMode ? "Switch to light theme" : "Switch to dark theme");
+    });
   }
   applyTheme();
-  byId("theme-toggle").addEventListener("click", () => { darkMode = !darkMode; applyTheme(); });
+  THEME_TOGGLES.forEach((id) => byId(id).addEventListener("click", () => { darkMode = !darkMode; applyTheme(); }));
   document.addEventListener("click", (event) => { const menu = byId("more-menu"); if (menu.open && !menu.contains(event.target)) menu.open = false; });
   document.addEventListener("keydown", (event) => { const menu = byId("more-menu"); if (event.key === "Escape" && menu.open) { menu.open = false; byId("more-summary").focus(); } });
 
@@ -56,9 +59,19 @@
   const viewListeners = [];
   const sessionListeners = [];
   const MORE_VIEWS = ["dashboard", "market", "inventory", "underwriting", "inference", "cash", "portfolio", "policy"];
+  /* The landing page lives at "/" and every app page at "/#name", so a refresh or the back button lands where the person was.
+     route.js, which runs before first paint, keeps its own list of the app names. */
+  const VIEWS = ["brief", "desk", "quotes", "dashboard", "market", "inventory", "underwriting", "pricing", "policy", "inference", "cash", "portfolio"];
+  let routing = false;
+  const routeOf = () => { const name = (window.location?.hash || "").slice(1); return name !== "brief" && VIEWS.includes(name) ? name : "brief"; };
+  function writeRoute(name) {
+    if (routing || !window.history?.pushState || routeOf() === name) return;
+    window.history.pushState({ view: name }, "", name === "brief" ? window.location.pathname + window.location.search : "#" + name);
+  }
   function showView(name, focus = true) {
     const arriving = byId(name + "-view").hidden;
-    ["brief", "desk", "quotes", "dashboard", "market", "inventory", "underwriting", "pricing", "policy", "inference", "cash", "portfolio"].forEach((view) => { byId(view + "-view").hidden = view !== name; });
+    VIEWS.forEach((view) => { byId(view + "-view").hidden = view !== name; });
+    document.documentElement.setAttribute("data-page", name === "brief" ? "landing" : "app"); writeRoute(name);
     byId("more-summary").classList.toggle("active", MORE_VIEWS.includes(name)); byId("more-menu").open = false;
     document.querySelectorAll("[data-view]").forEach((button) => {
       const selected = button.dataset.view === name;
@@ -917,7 +930,10 @@
   });
   byId("underwriting-input").addEventListener("input", underwritingEdited);
   byId("underwriting-query").addEventListener("input", renderUnderwritingRows);
-  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
+  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", (event) => { event?.preventDefault?.(); showView(button.dataset.view); }));
+  window.addEventListener("popstate", () => { routing = true; try { showView(routeOf()); } finally { routing = false; } });
+  // Runs on load, after every deferred script has registered its view listeners, so a reload on "/#quotes" draws Quotes.
+  function openRoutedView() { if (routeOf() === "brief") return; routing = true; try { showView(routeOf(), false); } finally { routing = false; } }
   byId("connect-session").addEventListener("click", startWorkspace);
   byId("disconnect").addEventListener("click", () => {
     const csrf = state.csrf; const inflight = bootstrap?.promise; clearSession();
@@ -1003,7 +1019,7 @@
   document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - state.syncedAt >= SYNC_INTERVAL) return synchronize(); });
   setBusy(false);
   renderInventory(); renderDashboard();
-  window.addEventListener("load", startWorkspace);
+  window.addEventListener("load", () => { openRoutedView(); return startWorkspace(); });
   window.ComputeHost = Object.freeze({
     api, element, byId, notify, showView, priceQuote, isSession: () => state.session,
     onView: (listener) => { viewListeners.push(listener); }, onSession: (listener) => { sessionListeners.push(listener); },

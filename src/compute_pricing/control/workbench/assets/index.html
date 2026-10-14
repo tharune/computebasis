@@ -1,29 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-page="landing">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark">
   <meta name="description" content="ComputeBasis scores GPU sellers and prices every quote all-in, so the cheapest headline price is not mistaken for the cheapest GPU.">
   <meta name="theme-color" content="#fafbfb" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0c0f12" media="(prefers-color-scheme: dark)">
   <title>ComputeBasis</title>
   <link rel="icon" type="image/svg+xml" href="/workbench/assets/favicon.svg">
+  <script src="/workbench/assets/route.js"></script>
   <link rel="stylesheet" href="/workbench/assets/workbench.css"><script src="/workbench/assets/workbench-drafts.js" defer></script><script src="/workbench/assets/workbench-charts.js" defer></script><script src="/workbench/assets/workbench.js" defer></script><script src="/workbench/assets/workbench-demo.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#workspace">Skip to workspace</a>
   <svg class="icon-sprite" aria-hidden="true" focusable="false" width="0" height="0">
+    <symbol id="logo-mark" viewBox="0 0 34 16"><line class="logo-ink-line" x1="7" y1="8" x2="24" y2="8"/><circle class="logo-ink" cx="4.5" cy="8" r="3.5"/><circle class="logo-ring" cx="28" cy="8" r="4.6"/></symbol>
     <symbol id="icon-chevron" viewBox="0 0 16 16"><path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="icon-sun" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="2.75"/><path d="M8 1.5v1.4M8 13.1v1.4M1.5 8h1.4M13.1 8h1.4M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></g></symbol>
     <symbol id="icon-moon" viewBox="0 0 16 16"><path d="M13.4 9.3A5.6 5.6 0 0 1 6.7 2.6a5.6 5.6 0 1 0 6.7 6.7Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
   </svg>
   <div class="app-shell">
+    <header class="lp-header">
+      <div class="lp-bar">
+        <a class="brand" href="/" aria-label="ComputeBasis home" data-view="brief">
+          <svg class="brand-mark" viewBox="0 0 34 16" aria-hidden="true" focusable="false"><use href="#logo-mark"/></svg>
+          <span class="brand-name">Compute<b>Basis</b></span>
+        </a>
+        <nav class="lp-nav" aria-label="On this page">
+          <button id="lp-go-problem" class="lp-link" type="button">The problem</button>
+          <button id="lp-go-how" class="lp-link" type="button">How it works</button>
+        </nav>
+        <div class="lp-actions">
+          <button id="lp-theme-toggle" class="icon-button" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark theme"><svg class="icon icon-sun" aria-hidden="true" focusable="false"><use href="#icon-sun"/></svg><svg class="icon icon-moon" aria-hidden="true" focusable="false"><use href="#icon-moon"/></svg></button>
+          <button id="lp-open" class="primary-button" type="button">Open the workbench</button>
+        </div>
+      </div>
+    </header>
     <header class="app-header">
       <div class="top-bar">
-        <a class="brand" href="/" aria-label="ComputeBasis">
-          <svg class="brand-mark" viewBox="0 0 34 16" aria-hidden="true" focusable="false"><line class="mark-link" x1="7" y1="8" x2="24" y2="8"/><circle class="mark-low" cx="4.5" cy="8" r="3.5"/><circle class="mark-all" cx="28" cy="8" r="4.6"/></svg>
+        <a class="brand" href="/" aria-label="ComputeBasis home" data-view="brief">
+          <svg class="brand-mark" viewBox="0 0 34 16" aria-hidden="true" focusable="false"><use href="#logo-mark"/></svg>
           <span class="brand-name">Compute<b>Basis</b></span>
         </a>
         <nav class="navigation" aria-label="Workspaces">
-          <button class="nav-item active" data-view="brief" aria-current="page">Brief</button>
           <button class="nav-item" data-view="desk">Overview</button>
           <button class="nav-item" data-view="quotes">Quotes</button>
           <button class="nav-item" data-view="pricing">Pricing</button>
@@ -112,7 +129,7 @@
         </section>
         <section id="brief-how" class="bf-section" aria-labelledby="brief-how-title">
           <header id="brief-how-head" class="bf-section-head rv">
-            <h2 id="brief-how-title" class="bf-h2">One all-in price for every quote</h2>
+            <h2 id="brief-how-title" class="bf-h2" tabindex="-1">One all-in price for every quote</h2>
           </header>
           <ol id="brief-steps" class="bf-steps rv-group">
             <li><span class="bf-index">Step 1</span><h3 class="bf-h3">Score the seller</h3><p>Six weighted categories, from certification to responsiveness, give every provider a grade from A to D.</p><div id="brief-weights" class="bf-slot"></div></li>
@@ -230,7 +247,7 @@
       <section id="cash-view" class="view" aria-labelledby="cash-title" hidden><div class="page-heading"><div><span class="eyebrow">06 / SETTLE</span><h1 id="cash-title" tabindex="-1">Dated cash</h1><p>Unrestricted funds, segregated advances and ordered liquidity troughs.</p></div><div class="heading-actions"><button id="evaluate-cash" class="primary-button" disabled>Evaluate funding path</button></div></div><div class="editor-layout"><section class="card"><div class="section-heading"><h2>Cash schedule</h2><span class="muted">Declared settlements</span></div><p class="muted">Actual dates, cleared amounts, entity/account/currency and facility terms. Restricted deposits remain separate.</p><div class="form-toolbar"><strong>Settlement inputs</strong><div><button id="cash-new-draft" class="quiet-button" type="button" title="Reset this unsaved draft to blank inputs">Reset inputs</button><button id="cash-read-fields" class="quiet-button" type="button">Read draft into fields</button></div></div><p id="cash-fields-state" class="field-help">Begin with a blank draft or load an existing request. Unknown values stay empty.</p><div id="cash-fields" class="structured-fields"></div><details class="response-details advanced-editor"><summary>Advanced request JSON</summary><label class="sr-only" for="cash-input">Cash request JSON</label><textarea id="cash-input" spellcheck="false" placeholder="Paste your dated cash scenario JSON."></textarea></details><p id="cash-input-state" class="field-help">No input supplied.</p></section><section class="card result-card"><div class="section-heading"><h2>Cash &amp; funding path</h2><span id="cash-result-state" class="pill">Not evaluated</span></div><div id="cash-summary" class="result-summary"><p class="empty-state">Review daily cash and the ordered same-day minimum.</p></div><details class="response-details"><summary>Complete response &amp; snapshot</summary><pre id="cash-output" tabindex="0" hidden></pre></details></section></div></section>
       <section id="portfolio-view" class="view" aria-labelledby="portfolio-title" hidden><div class="page-heading"><div><h1 id="portfolio-title" tabindex="-1">Portfolio reconciliation</h1><p>Three offtake routes. One supply ledger, cash account and set of exposure limits.</p></div><div class="heading-actions"><button id="evaluate-portfolio" class="primary-button" disabled>Assess shared portfolio</button></div></div><div class="editor-layout"><section class="card"><div class="section-heading"><h2>Shared candidate</h2><span class="muted">Supply, cash &amp; ownership</span></div><p class="muted">Join inference, resale and forward routes to exclusive physical reservations, owned cash events and dated evidence. Unallocated supply cost remains in the portfolio.</p><div class="form-toolbar"><strong>Portfolio inputs</strong><div><button id="portfolio-new-draft" class="quiet-button" type="button" title="Reset this unsaved draft to blank inputs">Reset inputs</button><button id="portfolio-read-fields" class="quiet-button" type="button">Read draft into fields</button></div></div><p id="portfolio-fields-state" class="field-help">All amounts, identities and limits must be supplied.</p><div id="portfolio-fields" class="structured-fields"></div><details class="response-details advanced-editor"><summary>Advanced portfolio JSON</summary><label class="sr-only" for="portfolio-input">Shared portfolio request JSON</label><textarea id="portfolio-input" spellcheck="false" placeholder="Supply a complete shared portfolio candidate."></textarea></details><p id="portfolio-input-state" class="field-help">No input supplied.</p></section><section class="card result-card"><div class="section-heading"><h2>Joint economics &amp; constraints</h2><span id="portfolio-result-state" class="pill">Not evaluated</span></div><div id="portfolio-summary" class="result-summary"><p class="empty-state">Independent profitable routes can still overcommit the same capacity or funding. Reconcile them here.</p></div><details class="response-details"><summary>Complete reconciliation &amp; snapshot</summary><pre id="portfolio-output" tabindex="0" hidden></pre></details></section></div></section>
     </main>
-    <footer class="app-footer"><div class="footer-inner"><span>ComputeBasis</span><span>Brief, Overview and Quotes run on a local simulation. Indicative only; nothing here executes a trade.</span></div></footer>
+    <footer class="app-footer"><div class="footer-inner"><span>ComputeBasis</span><span>Overview and Quotes run on a local simulation. Indicative only; nothing here executes a trade.</span></div></footer>
   </div>
 </body>
 </html>

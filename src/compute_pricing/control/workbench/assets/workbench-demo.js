@@ -473,11 +473,13 @@
     paintControls(); poll(true);
   });
   ["allin", "price"].forEach((key) => byId("sort-" + key).addEventListener("click", () => { state.sort = key; renderQuotes(); }));
-  ["brief-open-desk", "brief-open-desk-end"].forEach((id) => byId(id).addEventListener("click", () => showView("desk"))); byId("brief-open-quotes").addEventListener("click", () => showView("quotes"));
-  byId("brief-see-problem").addEventListener("click", () => {
+  ["lp-open", "brief-open-desk", "brief-open-desk-end"].forEach((id) => byId(id).addEventListener("click", () => showView("desk"))); byId("brief-open-quotes").addEventListener("click", () => showView("quotes"));
+  function goTo(sectionId, titleId) {
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
-    byId("brief-problem").scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" }); byId("brief-problem-title").focus({ preventScroll: true });
-  });
+    byId(sectionId).scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" }); byId(titleId).focus({ preventScroll: true });
+  }
+  [["brief-see-problem", "brief-problem", "brief-problem-title"], ["lp-go-problem", "brief-problem", "brief-problem-title"], ["lp-go-how", "brief-how", "brief-how-title"]]
+    .forEach(([button, section, title]) => byId(button).addEventListener("click", () => goTo(section, title)));
   window.addEventListener?.("resize", () => { if (state.view !== "brief" || !live()) return; clearTimeout(briefResize); briefResize = setTimeout(renderBrief, 150); });
   let deskResize = null;
   window.addEventListener?.("resize", () => { if (!["desk", "quotes"].includes(state.view) || !live()) return; clearTimeout(deskResize); deskResize = setTimeout(render, 150); });

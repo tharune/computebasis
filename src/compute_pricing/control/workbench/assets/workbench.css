@@ -161,9 +161,19 @@ code { font-family: var(--mono); }
 .top-bar { display: flex; align-items: center; gap: 40px; height: 56px; }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); }
 .brand-mark { width: 34px; height: 16px; flex: none; }
-.brand-mark .mark-low { fill: var(--ink); }
-.brand-mark .mark-link { stroke: var(--ink); stroke-width: 1.5; }
-.brand-mark .mark-all { fill: none; stroke: var(--accent); stroke-width: 2; }
+.logo-ink { fill: var(--ink); }
+.logo-ink-line { stroke: var(--ink); stroke-width: 1.5; }
+.logo-ring { fill: none; stroke: var(--accent); stroke-width: 2; }
+/* Two pages in one document: the landing page and the workbench. route.js and showView set data-page on <html>. */
+.lp-header { display: none; position: sticky; top: 0; z-index: 40; background: var(--chrome); border-bottom: 1px solid var(--border); -webkit-backdrop-filter: saturate(1.5) blur(14px); backdrop-filter: saturate(1.5) blur(14px); }
+html[data-page="landing"] .lp-header { display: block; }
+html[data-page="landing"] .app-header, html[data-page="landing"] .app-footer { display: none; }
+html[data-page="app"] #brief-view { display: none; }
+.lp-bar { display: flex; align-items: center; gap: 40px; width: min(100% - 2 * var(--gutter), var(--content)); height: 64px; margin-inline: auto; }
+.lp-nav { display: flex; gap: 28px; }
+.lp-link { padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; transition: color var(--fast) var(--ease); }
+.lp-link:hover { color: var(--ink); }
+.lp-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .brand-name { font-size: 16px; font-weight: 500; letter-spacing: -.016em; line-height: 1; }
 .brand-name b { font-weight: 700; }
 .header-utilities { display: flex; align-items: center; gap: 14px; margin-left: auto; font-size: 12px; color: var(--muted); }
@@ -681,7 +691,6 @@ p.standing { margin: 12px 0 0; font-size: 12.5px; }
 /* Brief */
 /* The landing page. Six sizes: display, section heading, h3, lede, body, caption. Hairlines instead of cards, one accent,
    grade colour only where it carries meaning. Charts are SVG whose text and marks take their colour from these rules. */
-.app-shell:has(#brief-view:not([hidden])) .app-footer { display: none; }
 .bf-hero { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 6fr); gap: 80px; align-items: center; padding: 80px 0 64px; }
 .bf-hero-copy h1 { max-width: 10.5em; font-size: clamp(40px, 4.7vw, 68px); font-weight: 600; letter-spacing: -.035em; line-height: 1.02; text-wrap: balance; }
 .bf-sub { max-width: 44ch; margin: 28px 0 0; color: var(--ink-soft); font-size: clamp(16px, 1.35vw, 19px); line-height: 1.55; }
@@ -760,7 +769,7 @@ p.standing { margin: 12px 0 0; font-size: 12.5px; }
 .bf-number .chart-inline { width: 120px; height: 32px; margin-top: auto; }
 
 /* Sections */
-.bf-section { padding-top: 120px; scroll-margin-top: 56px; }
+.bf-section { padding-top: 120px; scroll-margin-top: 64px; }
 .bf-section-head { max-width: 760px; }
 .bf-h2 { max-width: 16em; font-size: clamp(28px, 3.2vw, 46px); font-weight: 600; letter-spacing: -.03em; line-height: 1.06; text-wrap: balance; }
 .bf-intro { max-width: 52ch; margin: 24px 0 0; color: var(--ink-soft); font-size: clamp(16px, 1.3vw, 18px); line-height: 1.55; }
