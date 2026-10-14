@@ -47,3 +47,5 @@ def attach_quote_book(app, *, authenticated, json_body):
         except ValueError:
             raise HTTPException(422, detail="invalid_book_control") from None
         return {**result, "simulated": True, "execution_enabled": False}
+
+    return get_book

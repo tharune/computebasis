@@ -145,6 +145,15 @@ def _assumptions(values):
             "recovery_fraction": _amount(selected["recovery_fraction"], "recovery fraction", fraction=True)}
 
 
+def validate_assumptions(values=None) -> dict:
+    """Return detached exact-string financial assumptions for runtime policies."""
+    selected = _assumptions(values)
+    return {"label": selected["label"], "deposit_apr": text_number(selected["deposit_apr"]),
+            "annual_failure_probability": {grade: text_number(value) for grade, value
+                                           in selected["annual_failure_probability"].items()},
+            "recovery_fraction": text_number(selected["recovery_fraction"])}
+
+
 def _date(value, label):
     if not isinstance(value, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
         raise ValidationError(f"{label}: explicit ISO calendar date required")

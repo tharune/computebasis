@@ -331,6 +331,23 @@
       "liveness": "not_verified",
       "attribution": "GPUHunt, dstackai/gpuhunt (https://github.com/dstackai/gpuhunt); publisher-derived cloud instance references, normalized by ComputeBasis; no vendor endorsement or verified capacity",
       "verified_by": "documented-publisher-catalog-integration-review"
+    },
+    "gb_carbon_intensity": {
+      "enabled": true,
+      "rights_status": "allowed",
+      "rights_evidence": "https://api.carbonintensity.org.uk/ and https://carbon-intensity.github.io/api-definitions/ document anonymous GB national half-hour forecasts and estimated actuals. https://github.com/carbon-intensity/terms specifies CC BY 4.0 plus API-use restrictions: no resale of API access, replacement service, endorsement implication or excessive requests. https://creativecommons.org/licenses/by/4.0/ permits attributed retention and adaptation. Narrow purpose: bounded local normalized grid-carbon context in compute scenarios; not site or marginal emissions certification, compute prices, carbon credits or API resale. No raw responses in Git. Reviewed 2026-10-14.",
+      "permissions": {
+        "observe": "PASS",
+        "retain": "PASS",
+        "benchmark": "PASS",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 7200,
+      "min_interval_s": 60,
+      "liveness": "not_verified",
+      "attribution": "Source: Carbon Intensity API, National Energy System Operator (https://carbonintensity.org.uk), CC BY 4.0; normalized field names and UTC intervals; no endorsement",
+      "verified_by": "documented-grid-carbon-context-review"
     }
   }
 }

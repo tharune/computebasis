@@ -26,7 +26,8 @@ def main():
                 [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
                 [sys.executable, "-m", "compute_pricing.control.cli", "pricing", "examples/control-pricing.json"],
                 [sys.executable, "scripts/evaluate.py", "examples/request.json"],
-                [sys.executable, "scripts/gen_quote_book_seed.py", "--check"]]
+                [sys.executable, "scripts/gen_quote_book_seed.py", "--check"],
+                [sys.executable, "scripts/book_deal_example.py"]]
     for command in commands:
         subprocess.run(command, cwd=ROOT, check=True)
     print("Offline public validation passed")

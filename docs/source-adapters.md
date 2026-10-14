@@ -1,6 +1,6 @@
 # Public source adapters and economic units
 
-Seven documented public feeds are admitted narrowly for local analysis. Admission, retention, benchmark role and execution permissions remain separate. No price response creates owned capacity, a delivery right or a firm quote. The configured local launcher refreshes approved, bounded scopes automatically; library creation defaults to no reads, and `--no-auto-refresh` disables automatic reads in a launched workspace.
+Ten documented anonymous source roles are admitted narrowly for local analysis. Admission, retention, benchmark role and execution permissions remain separate. No price response creates owned capacity, a delivery right or a firm quote. The configured local launcher refreshes approved, bounded scopes automatically; library creation defaults to no reads, and `--no-auto-refresh` disables automatic reads in a launched workspace.
 
 | Feed | Supported retrieval | Economic boundary |
 | --- | --- | --- |
@@ -11,6 +11,9 @@ Seven documented public feeds are admitted narrowly for local analysis. Admissio
 | ECB | Official daily EUR-base XML | Attributed informational FX; no settlement quote |
 | Hugging Face Hub | Explicit public author/task, bounded metadata records | Licensing/gating/revision discovery; no weights, prices or goodput |
 | Hugging Face deployment catalog | Explicit task/engine/accelerator/license/search and bounded model limit | Publisher model/recipe metadata; no price, physical quantity or independent qualification |
+| Energinet day-ahead power | Explicit area and bounded completed rolling/calendar days | Signed EUR/MWh and DKK/MWh wholesale references; no site retail tariff or GPU-hour price |
+| GPUHunt publisher catalog | Explicit AWS/Azure/GCP provider and location/prefix, pinned bounded archive | Derived USD/instance-hour and technical configuration claims; no direct provider quote or physical supply qualification |
+| GB Carbon Intensity API | National half-hour UTC interval scope or completed rolling hours; one bounded anonymous GET | Forecast and estimated actual gCO2/kWh stay distinct; no site/marginal emissions, tariff, compute-price or carbon-credit qualification |
 
 ## Primary interface and use evidence
 
@@ -29,6 +32,12 @@ Seven documented public feeds are admitted narrowly for local analysis. Admissio
 [Hugging Face Catalog API documentation](https://huggingface.co/docs/inference-endpoints/en/api_reference) explicitly separates unauthenticated listing from authenticated deployment. Its [published OpenAPI](https://endpoints.huggingface.co/api/openapi.json) and [official SDK catalog guide](https://huggingface.co/docs/huggingface_hub/guides/inference_endpoints) define anonymous `GET https://endpoints.huggingface.co/api/v1/catalog/list`. The connector retains selected public model and recipe IDs, engine/accelerator labels, GGUF references and revision claims; it drops raw rows, opaque field values and executable configuration. Branch labels are distinct from immutable-commit claims. Filters require explicit scope and a model limit of at most 100, with 64 recipes per model and 500 recipes across the response. Nonmatching recipes are reported as exclusions. Capture and catalog-creation times remain distinct, and a single bounded response never claims the complete catalog. Model/recipe records have no price, physical GPU count, performance qualification or execution permission. [Hugging Face Terms](https://huggingface.co/terms-of-service) and attached model licenses remain separate; intended local recipe discovery does not admit model use, deployment, namespace/quota access or raw public redistribution.
 
 ## Configuration and safety boundaries
+
+[Grid-carbon context](grid-carbon-context.md) records the official API/CC BY terms,
+nullable forecast/actual contract and half-hour refresh floor. The
+[energy guide](electricity-and-compute-costs.md) and
+[provider coverage guide](provider-source-coverage.md) describe the other native
+reference roles and their separate reuse boundaries.
 
 The [source admission file](../examples/source-admission.json) records reviewed purposes; the [collection plan](../examples/collection-plan.json) supplies editable scopes. Neither contains observed prices, runtime keys or data snapshots. Source-quality rules in a saved pricing policy never grant data rights or enable execution. Current liveness stays unverified until a separate recorded probe; a successful probe is evidence for that instant.
 

@@ -149,6 +149,8 @@ class SourceSpec:
 
 
 SOURCE_SPECS = {
+    "gb_carbon_intensity": SourceSpec("gb_carbon_intensity", "api.carbonintensity.org.uk",
+        r"/intensity/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z"),
     "gpuhunt_catalog": SourceSpec("gpuhunt_catalog", "dstack-gpu-pricing.s3.eu-west-1.amazonaws.com",
         r"/v3/(?:aws|azure|gcp)/(?:version|[0-9]{8}-[0-9]{1,12}/catalog\.zip)",
         content_types=frozenset({"text/plain", "application/zip", "application/octet-stream", "binary/octet-stream"})),

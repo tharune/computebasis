@@ -213,5 +213,12 @@
       "location_prefix": "us-",
       "limit": 1000
     }
+  },
+  {
+    "source_id": "gb_carbon_intensity",
+    "filters": {
+      "rolling_hours": 24,
+      "limit": 336
+    }
   }
 ]

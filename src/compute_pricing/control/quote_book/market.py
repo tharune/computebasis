@@ -107,7 +107,12 @@ class QuoteBook:
         self._date = date.fromisoformat(SIMULATION_DATE)
         self._last_clock = _clock_value(clock)
         self._epoch, self._alert_number = 0, 0
+        from compute_pricing.control.api.book_policy import default_document
+        self._policy_document = default_document(self._policy)
+        self._economics = deepcopy(self._policy_document["economics"])
+        self._policy_revision, self._policy_history = 0, {}
         self._reset_state()
+        self._policy_history[0] = self._policy_record(None)
 
     def _reset_state(self):
         from .population import build_population
@@ -175,17 +180,19 @@ class QuoteBook:
                              "message": detail, "simulated": True})
         self._alerts = self._alerts[-32:]
 
-    def _build_frame(self):
+    def _build_frame(self, *, scorecard=None, economics=None):
         from .population import BASE_PRICE, MODELS
         from .scoring import CATEGORIES, GRADES, grade_for, quality_score, quote_economics
 
         when = self._as_of()
+        selected_policy = self._policy if scorecard is None else scorecard
+        selected_economics = self._economics if economics is None else economics
         provider_rows, provider_map = [], {}
         for raw in self._providers:
             tiers = raw.get("tiers", {})
             unknown = set(CATEGORIES) - set(tiers) or any(tiers.get(key) is None for key in CATEGORIES)
-            score = None if unknown else quality_score(tiers, self._policy)
-            graded = None if score is None else grade_for(score, self._policy)
+            score = None if unknown else quality_score(tiers, selected_policy)
+            graded = None if score is None else grade_for(score, selected_policy)
             row = {**deepcopy(raw), "score": None if score is None else float(score),
                    "score_exact": None if score is None else format(score, "f"),
                    "grade": None if graded is None else graded[0],
@@ -198,7 +205,7 @@ class QuoteBook:
         for raw in self._quotes:
             provider, graded = provider_map[raw["provider_id"]]
             computed = _serial(quote_economics(raw, grade=graded,
-                reference=BASE_PRICE[raw["gpu"]], as_of=when.isoformat()))
+                reference=BASE_PRICE[raw["gpu"]], as_of=when.isoformat(), assumptions=selected_economics))
             missing = computed["missing"]
             row = {**deepcopy(raw), **computed, "provider": provider["name"],
                    "provider_name": provider["name"], "quality_score": provider["score"],
@@ -319,8 +326,8 @@ class QuoteBook:
                 "providers": provider_rows, "quotes": quotes,
                 "assumptions": {"classification": "independently_invented_simulation",
                     "reference_prices": dict(BASE_PRICE), "reference_currency": "USD",
-                    "reference_unit": "gpu_hour", "scorecard_policy": deepcopy(self._policy),
-                    "weights": deepcopy(self._policy["weights"]),
+                    "reference_unit": "gpu_hour", "scorecard_policy": deepcopy(selected_policy),
+                    "weights": deepcopy(selected_policy["weights"]),
                     "quote_model_assumptions": deepcopy(quotes[0]["assumptions"]) if quotes else None,
                     "basis_definition": "current_synthetic_gpu_weighted_mean_supported_model_best_eligible_exposure_cost_over_lowest_native_offer_minus_one",
                     "basis_is_market_benchmark": False,
@@ -328,9 +335,10 @@ class QuoteBook:
                     "supply_basis": "synthetic_quoted_capacity_not_owned_inventory",
                     "calibration_verified": False}}
 
-    def _record(self, *, replace_current=False):
-        self._frame = self._build_frame()
+    def _record(self, *, replace_current=False, frame=None):
+        self._frame = self._build_frame() if frame is None else frame
         point = {"tick": self._tick, "time": self._time_text(), "as_of": self._as_of().isoformat(),
+                 "policy_revision": self._policy_revision,
                  "live": self._frame["kpis"]["live_quotes"], "gpus": self._frame["kpis"]["gpus"],
                  "eligible_share": self._frame["kpis"]["eligible_share"], "basis": self._frame["kpis"]["basis"],
                  "models": {row["gpu"]: {"cheapest": row["cheapest"]["price"] if row["cheapest"] else None,
@@ -347,7 +355,8 @@ class QuoteBook:
         series = {name: [point[name] for point in self._history] for name in
                   ("live", "gpus", "eligible_share", "basis")}
         series.update(ticks=[point["tick"] for point in self._history],
-                      times=[point["time"] for point in self._history])
+                      times=[point["time"] for point in self._history],
+                      policy_revisions=[point["policy_revision"] for point in self._history])
         series["models"] = {row["gpu"]: {name: [point["models"][row["gpu"]][name] for point in self._history]
                               for name in ("cheapest", "best", "basis", "median", "reference")}
                             for row in self._frame["models"]}
@@ -357,12 +366,14 @@ class QuoteBook:
             "time_basis": "one_simulation_minute_per_processed_tick",
             "tick": self._tick, "paused": self._paused, "scenario": self._scenario,
             "epoch": self._epoch, "source": "Independent simulation fixture", "step_minutes": 1,
+            "policy_revision": self._policy_revision, "policy_version": self._policy_document["version"],
             "tick_seconds": self._period, "seed": self._seed,
             "catchup_limit": CATCHUP_LIMIT, "catchup_clamped": self._catchup_clamped,
             "history_limit": HISTORY_LIMIT, "simulation_provenance": "independently_invented_population_and_policy",
             "simulated": True, "synthetic": True, "source_evidence_eligible": False,
             "firm_price_eligible": False, "execution_enabled": False},
             "series": series, "alerts": self._alerts, "simulated": True,
+            "policy": {"revision": self._policy_revision, "document": deepcopy(self._policy_document)},
             "synthetic": True, "source_evidence_eligible": False, "inventory_verified": False,
             "firm_price_eligible": False, "execution_enabled": False}
 
@@ -397,6 +408,73 @@ class QuoteBook:
 
     def etag(self):
         return self.encoded()[0]
+
+    def _policy_record(self, predecessor):
+        return {"revision": self._policy_revision, "predecessor_revision": predecessor,
+                "document": deepcopy(self._policy_document), "tick": self._tick,
+                "epoch": self._epoch, "applied_at_simulation_time": self._time_text(),
+                "simulated": True, "source_evidence_eligible": False, "execution_enabled": False}
+
+    def read_policy(self, revision=None):
+        from compute_pricing.control.api.book_policy import BookPolicyNotFound, MAX_REVISIONS
+        with self._lock:
+            selected = self._policy_revision if revision is None else revision
+            if type(selected) is not int or selected not in self._policy_history:
+                raise BookPolicyNotFound("book policy revision not found in this process")
+            history = [{key: record[key] for key in ("revision", "predecessor_revision", "tick", "epoch", "applied_at_simulation_time")}
+                       | {"version": record["document"]["version"]} for record in self._policy_history.values()]
+            return deepcopy({"schema_version": "book-policy-state/1.0", "current_revision": self._policy_revision,
+                "record": self._policy_history[selected], "history": history, "maximum_revisions": MAX_REVISIONS,
+                "storage": "process_memory_only", "simulated": True, "source_evidence_eligible": False,
+                "firm_price_eligible": False, "execution_enabled": False})
+
+    def _policy_candidate(self, expected_revision, document):
+        from compute_pricing.control.api.book_policy import BookPolicyConflict, validate_document
+        if type(expected_revision) is not int or expected_revision != self._policy_revision:
+            raise BookPolicyConflict("book policy revision changed")
+        candidate = validate_document(document)
+        if candidate["policy_id"] != self._policy_document["policy_id"]:
+            raise ValueError("book policy identity cannot change")
+        return candidate
+
+    def evaluate_policy(self, expected_revision, document):
+        from compute_pricing.control.api.book_policy import comparison
+        with self._lock:
+            candidate = self._policy_candidate(expected_revision, document)
+            after = self._build_frame(scorecard=candidate["scorecard"], economics=candidate["economics"])
+            return {"schema_version": "book-policy-comparison/1.0", "base_revision": self._policy_revision,
+                "candidate_document": deepcopy(candidate), "context": {"tick": self._tick, "epoch": self._epoch,
+                    "as_of": self._as_of().isoformat(), "time": self._time_text()},
+                **comparison(self._frame, after), "book_changed": False, "simulated": True,
+                "source_evidence_eligible": False, "firm_price_eligible": False, "execution_enabled": False}
+
+    def update_policy(self, expected_revision, document):
+        from compute_pricing.control.api.book_policy import (
+            BookPolicyCapacity, MAX_REVISIONS, comparison, policy_version, validate_document,
+        )
+        with self._lock:
+            candidate = validate_document(document)
+            current = self._policy_history[self._policy_revision]
+            if (type(expected_revision) is int and candidate == self._policy_document
+                    and expected_revision in (self._policy_revision, current["predecessor_revision"])):
+                return {**self.read_policy(), "changed": False, "comparison": None}
+            candidate = self._policy_candidate(expected_revision, candidate)
+            if policy_version(candidate["version"]) <= policy_version(self._policy_document["version"]):
+                raise ValueError("book policy successor version required")
+            if len(self._policy_history) >= MAX_REVISIONS:
+                raise BookPolicyCapacity("book policy history is full; no revision was removed")
+            after = self._build_frame(scorecard=candidate["scorecard"], economics=candidate["economics"])
+            change = comparison(self._frame, after)
+            predecessor = self._policy_revision
+            self._policy_revision += 1
+            self._policy_document = deepcopy(candidate)
+            self._policy = deepcopy(candidate["scorecard"])
+            self._economics = deepcopy(candidate["economics"])
+            self._policy_history[self._policy_revision] = self._policy_record(predecessor)
+            # Preserve previous tick/policy points. Policy changes have the same
+            # synthetic timestamp and never fabricate a price tick or RNG step.
+            self._record(frame=after)
+            return {**self.read_policy(), "changed": True, "comparison": change}
 
     def control(self, action, scenario=None):
         if not isinstance(action, str) or action not in {"pause", "resume", "reset", "scenario"}:

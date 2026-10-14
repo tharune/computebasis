@@ -20,7 +20,7 @@ from fastapi import HTTPException
 from compute_pricing.control.connectors.transport import ConnectorError, SOURCE_SPECS, SourcePolicy
 
 PUBLIC_AUTO_SOURCES = frozenset({"getdeploying", "azure", "aws_public_pricing", "openrouter", "gpuhunt_catalog",
-                                 "ecb", "huggingface", "huggingface_catalog", "energinet_day_ahead"})
+                                 "ecb", "huggingface", "huggingface_catalog", "energinet_day_ahead", "gb_carbon_intensity"})
 
 
 def scope_key(source_id: str, filters: dict) -> str:
@@ -142,7 +142,10 @@ class AutomaticRefresh:
         configured = self.config.source_cadence_s.get(source_id, self.config.cadence_s)
         policy = self.policies.get(source_id)
         # Cadence is operational only. Freshness still uses actual source dates.
-        return min(configured, max(60, policy.max_age_s // 2)) if policy else configured
+        cadence = min(configured, max(60, policy.max_age_s // 2)) if policy else configured
+        # National grid intervals change half-hourly. Client configuration must
+        # not turn this context feed into a high-frequency polling service.
+        return max(1800, cadence) if source_id == "gb_carbon_intensity" else cadence
 
     def eligibility(self, source_id: str) -> str | None:
         spec, policy = SOURCE_SPECS.get(source_id), self.policies.get(source_id)

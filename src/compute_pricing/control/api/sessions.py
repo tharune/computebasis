@@ -144,7 +144,8 @@ def request_scope(request: Request) -> str:
         return "read"
     if request.method == "PUT" and path == "/v1/inventory":
         return "inventory"
-    if request.method == "POST" and path == "/v1/book/control":
+    if (request.method == "POST" and path in {"/v1/book/control", "/v1/book/policy/evaluate"}
+            or request.method == "PUT" and path == "/v1/book/policy"):
         return "book"
     if request.method == "POST" and (path == "/v1/market/refresh" or path.startswith("/v1/sources/") and path.endswith("/collect")):
         return "collection"
@@ -156,6 +157,8 @@ def request_scope(request: Request) -> str:
         "/v1/power/evaluate", "/v1/power/from-reference", "/v1/curves/evaluate", "/v1/hedges/evaluate",
         "/v1/demo/scenario",
         "/v1/quotes/evaluate",
+        "/v1/book/deal/evaluate",
+        "/v1/market/reference/evaluate",
     }:
         return "evaluate"
     # Future write routes require an explicit browser-session scope decision.
