@@ -1,1 +1,201 @@
-/* The US capacity map: states, supply marks, hover and detail panel. Owned by the map component. */
+/* The US capacity map: states, supply marks, hover and detail panel. Owned by the map component.
+
+   One hue (the product's teal) for quoted GPUs per state, in five steps that get darker (lighter, in the dark theme) as supply grows;
+   states with no supply are a flat neutral. Circles are sites, a square around a circle is one of our positions, a dotted ring is an open
+   bid. Every one of those also differs in shape, never in colour alone. The step colours were checked with the dataviz validator
+   (monotone lightness, steps at least 0.06 apart in OKLCH L, lightest step at least 2:1 on the page surface, one hue) in both themes.
+   Colour reaches the page through classes; sizes through SVG attributes the script sets. */
+
+.cmap {
+  /* light theme */
+  --cm-none: #e8ecee;
+  --cm-1: #85bcb2; --cm-2: #68a69b; --cm-3: #4a8e83; --cm-4: #257569; --cm-5: #015a50;
+  --cm-edge: var(--canvas);
+  --cm-disc: rgba(250, 251, 251, .62); --cm-disc-line: #151a1f;
+  --cm-pos: #151a1f; --cm-bid: #151a1f; --cm-label: #151a1f; --cm-halo: rgba(250, 251, 251, .92);
+  --cm-track: rgba(21, 26, 31, .08);
+  position: relative; min-width: 0; color: var(--ink); font-variant-numeric: tabular-nums;
+}
+:root[data-theme="dark"] .cmap {
+  --cm-none: #1b232a;
+  --cm-1: #23544d; --cm-2: #336f66; --cm-3: #478b80; --cm-4: #5eac9f; --cm-5: #7cd0c2;
+  --cm-disc: rgba(12, 15, 18, .6); --cm-disc-line: #e7ecf0;
+  --cm-pos: #e7ecf0; --cm-bid: #e7ecf0; --cm-label: #e7ecf0; --cm-halo: rgba(12, 15, 18, .9);
+  --cm-track: rgba(231, 236, 240, .1);
+}
+/* Before the script applies the theme, follow the system preference. These values must mirror the dark block above. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .cmap {
+    --cm-none: #1b232a;
+    --cm-1: #23544d; --cm-2: #336f66; --cm-3: #478b80; --cm-4: #5eac9f; --cm-5: #7cd0c2;
+    --cm-disc: rgba(12, 15, 18, .6); --cm-disc-line: #e7ecf0;
+    --cm-pos: #e7ecf0; --cm-bid: #e7ecf0; --cm-label: #e7ecf0; --cm-halo: rgba(12, 15, 18, .9);
+    --cm-track: rgba(231, 236, 240, .1);
+  }
+}
+.cmap .g-u { --gc: var(--faint); }
+
+/* Filter row and finding */
+.cmap-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.cmap-sim { white-space: normal; }
+.cmap-finding { max-width: 78ch; margin: 14px 0 20px; font-size: 13px; line-height: 1.55; color: var(--ink-soft); }
+
+/* Layout: map and detail on the left, the two ranked lists on the right; one column when narrow */
+.cmap-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 372px); grid-template-areas: "stage detail" "lists detail"; align-items: start; gap: 0 40px; }
+.cmap-stage { grid-area: stage; min-width: 0; }
+.cmap-detail { grid-area: detail; min-width: 0; position: sticky; top: 72px; max-height: calc(100vh - 88px); overflow-y: auto; }
+.cmap-lists { grid-area: lists; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 24px 40px; min-width: 0; margin-top: 32px; }
+
+/* The map */
+.cmap-svg { display: block; width: 100%; height: auto; overflow: hidden; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.cmap-sea { fill: var(--canvas); fill-opacity: 0; }
+.cmap-state { fill: var(--cm-none); stroke: var(--cm-edge); stroke-width: 1; stroke-linejoin: round; vector-effect: non-scaling-stroke; transition: fill var(--fast) linear; outline: none; }
+.cmap-state.c1 { fill: var(--cm-1); } .cmap-state.c2 { fill: var(--cm-2); } .cmap-state.c3 { fill: var(--cm-3); } .cmap-state.c4 { fill: var(--cm-4); } .cmap-state.c5 { fill: var(--cm-5); }
+.cmap-state.is-live { cursor: pointer; }
+.cmap-overlay path { fill: none; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
+.cmap-halo { stroke: var(--cm-edge); stroke-width: 5; }
+.cmap-edge { stroke: var(--ink); stroke-width: 2; }
+.cmap-edge.soft { stroke-width: 1.5; }
+.cmap-pattern-bg { fill: Canvas; } .cmap-pattern-line { stroke: CanvasText; stroke-width: 1; }
+
+.cmap-site { outline: none; cursor: pointer; }
+.cmap-hit { fill: var(--ink); fill-opacity: 0; }
+.cmap-dot { fill: var(--cm-disc); stroke: var(--cm-disc-line); }
+.cmap-dot, .cmap-posbox, .cmap-poshalo, .cmap-bidring, .cmap-focus { transition: stroke var(--fast) linear; }
+.cmap-poshalo { fill: none; stroke: var(--cm-halo); }
+.cmap-posbox { fill: none; stroke: var(--cm-pos); }
+.cmap-bidring { fill: none; stroke: var(--cm-bid); stroke-linecap: round; }
+.cmap-focus { fill: none; stroke: var(--focus); opacity: 0; }
+.cmap-site:focus-visible .cmap-focus, .cmap-site.is-active .cmap-focus { opacity: 1; }
+.cmap-site.is-kin .cmap-focus { opacity: .55; }
+.cmap-site.is-pinned .cmap-focus { opacity: 1; }
+.cmap-site.is-empty .cmap-dot { fill-opacity: .4; }
+.is-off { display: none; }
+.cmap-leader { stroke: var(--cm-label); stroke-opacity: .55; stroke-linecap: round; fill: none; }
+.cmap-anchor { fill: var(--cm-label); fill-opacity: .7; }
+.cmap-labels { pointer-events: none; }
+.cmap-label { fill: var(--cm-label); stroke: var(--cm-halo); stroke-linejoin: round; paint-order: stroke; font-family: var(--font); font-weight: 500; letter-spacing: .005em; }
+
+/* Legend: under the map, so nothing on the map is ever covered */
+.cmap-legend { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 36px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.cmap-lg { min-width: 0; }
+.cmap-lg-title { margin: 0 0 8px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.cmap-sw-row { display: grid; grid-auto-flow: column; grid-auto-columns: 38px; gap: 2px; }
+.cmap-sw { display: block; height: 10px; background: var(--cm-none); }
+.cmap-sw.c1 { background: var(--cm-1); } .cmap-sw.c2 { background: var(--cm-2); } .cmap-sw.c3 { background: var(--cm-3); } .cmap-sw.c4 { background: var(--cm-4); } .cmap-sw.c5 { background: var(--cm-5); }
+.cmap-tick-row { display: grid; grid-auto-flow: column; grid-auto-columns: 38px; gap: 2px; margin: 4px 14px 0 0; font-size: 11px; line-height: 1.3; color: var(--muted); }
+.cmap-tick { justify-self: end; transform: translateX(50%); white-space: nowrap; }
+.cmap-none { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.cmap-none .cmap-sw { width: 18px; }
+.cmap-ref-row { display: flex; align-items: flex-end; gap: 10px; }
+.cmap-ref { fill: none; stroke: var(--cm-disc-line); stroke-width: 1.25; }
+.cmap-ref-labels { display: flex; flex-direction: column; justify-content: space-between; align-self: stretch; font-size: 11px; line-height: 1.3; color: var(--muted); }
+.cmap-keys { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--ink-soft); }
+.cmap-keys li { display: flex; align-items: center; gap: 8px; }
+.cmap-key { width: 12px; height: 12px; flex: none; overflow: visible; }
+.cmap-key-pos { fill: none; stroke: var(--cm-pos); stroke-width: 1.6; }
+.cmap-key-bid { fill: none; stroke: var(--cm-bid); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: .1 3; }
+
+/* Detail panel */
+.cmap-detail { padding-top: 16px; border-top: 1px solid var(--border); }
+.cmap-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.cmap-detail-titles { min-width: 0; }
+.cmap-detail-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; line-height: 1.35; overflow-wrap: anywhere; }
+.cmap-detail-kind { margin: 2px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
+.cmap-clear { flex: none; min-height: 28px; }
+.cmap-detail-body { margin-top: 14px; }
+.cmap-big { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.cmap-big strong { font-size: 28px; font-weight: 600; letter-spacing: -.028em; line-height: 1.1; color: var(--ink); }
+.cmap-sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.cmap-hint, .cmap-empty { margin: 14px 0 0; font-size: 12px; color: var(--muted); }
+.cmap-facts { display: grid; gap: 0; margin: 14px 0 0; }
+.cmap-fact { display: grid; grid-template-columns: minmax(84px, 36%) minmax(0, 1fr); gap: 12px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 12.5px; }
+.cmap-fact dt { margin: 0; color: var(--muted); }
+.cmap-fact dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.cmap-fact-note { color: var(--muted); }
+.cmap-block { margin-top: 16px; }
+.cmap-h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 12.5px; font-weight: 600; }
+.cmap-h4-note { margin-left: auto; font-weight: 400; color: var(--muted); }
+.cmap-mix, .cmap-items { margin: 0; padding: 0; list-style: none; }
+.cmap-mix li { display: grid; grid-template-columns: minmax(56px, 22%) minmax(0, 1fr) 52px 40px; align-items: center; gap: 10px; padding: 3px 0; font-size: 12.5px; }
+.cmap-mix-gpus, .cmap-mix-share { text-align: right; }
+.cmap-mix-share { color: var(--muted); }
+.cmap-items li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 12px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 12.5px; }
+.cmap-item-money { text-align: right; font-weight: 600; white-space: nowrap; }
+.cmap-item-sub { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.cmap-item-sub.right { text-align: right; white-space: nowrap; }
+
+/* Bars (tiny SVGs scaled to their cell) */
+.cmap-meter { display: block; width: 100%; height: 6px; }
+.cmap-meter-track { fill: var(--cm-track); }
+.cmap-meter-fill { fill: var(--cm-3); }
+.cmap-meter.t1 .cmap-meter-fill { fill: var(--cm-1); } .cmap-meter.t2 .cmap-meter-fill { fill: var(--cm-2); } .cmap-meter.t4 .cmap-meter-fill { fill: var(--cm-4); } .cmap-meter.t5 .cmap-meter-fill { fill: var(--cm-5); }
+.cmap-meter.t0 .cmap-meter-fill { fill: var(--cm-none); }
+
+/* Ranked lists */
+.cmap-list-title { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -.005em; }
+.cmap-list-note { margin: 2px 0 10px; font-size: 12px; line-height: 1.45; color: var(--muted); }
+.cmap-rows { margin: 0; padding: 0; list-style: none; max-height: 31rem; overflow-y: auto; border-bottom: 1px solid var(--border); }
+.cmap-abroad.is-empty .cmap-rows { display: none; }
+.cmap-row { border-top: 1px solid var(--border); }
+.cmap-row:first-child { border-top-color: var(--border); }
+.cmap-row-button { display: grid; grid-template-columns: minmax(0, 1fr) minmax(48px, 30%) 46px 34px; align-items: center; gap: 0 10px; width: 100%; min-height: 32px; padding: 0 6px; border: 0; border-radius: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; text-align: left; transition: background-color var(--fast) linear; }
+.cmap-row-button:hover, .cmap-row.is-active .cmap-row-button { background: var(--surface); }
+.cmap-row.is-pinned .cmap-row-button { background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent); }
+.cmap-row-button:focus-visible { outline-offset: -2px; }
+.cmap-row-name { display: flex; gap: 8px; min-width: 0; overflow-wrap: break-word; }
+.cmap-abbr { flex: none; min-width: 2.2ch; color: var(--muted); }
+.cmap-row-gpus { text-align: right; font-weight: 500; }
+.cmap-row-marks { display: flex; justify-content: flex-end; gap: 6px; }
+.cmap-row-mark { display: inline-flex; }
+
+.cmap-foot { max-width: 78ch; margin: 24px 0 0; font-size: 12px; line-height: 1.55; color: var(--muted); }
+
+/* First draw only: the states fade up, then the sites settle in, one after another. Gone from the page after 2.4 s, so nothing replays. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes cmap-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes cmap-settle { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: scale(1); } }
+  .cmap-reveal .cmap-states { animation: cmap-fade 650ms var(--ease) both; }
+  .cmap-reveal .cmap-site-in { animation: cmap-settle 520ms var(--ease) both 520ms; }
+  .cmap-reveal .cmap-site:nth-child(2) .cmap-site-in { animation-delay: 600ms; }
+  .cmap-reveal .cmap-site:nth-child(3) .cmap-site-in { animation-delay: 680ms; }
+  .cmap-reveal .cmap-site:nth-child(4) .cmap-site-in { animation-delay: 760ms; }
+  .cmap-reveal .cmap-site:nth-child(5) .cmap-site-in { animation-delay: 840ms; }
+  .cmap-reveal .cmap-site:nth-child(6) .cmap-site-in { animation-delay: 920ms; }
+  .cmap-reveal .cmap-site:nth-child(n+7) .cmap-site-in { animation-delay: 1000ms; }
+  .cmap-reveal .cmap-labels, .cmap-reveal .cmap-leaders { animation: cmap-fade 400ms var(--ease) both 1000ms; }
+}
+
+/* Narrower than a wide desktop: the detail goes under the map and stops following the scroll */
+@media (max-width: 1000px) {
+  .cmap-main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "stage" "detail" "lists"; gap: 24px 0; }
+  .cmap-detail { position: static; max-height: none; overflow: visible; }
+  .cmap-lists { margin-top: 8px; }
+  .cmap-rows { max-height: none; }
+}
+@media (max-width: 720px) {
+  .cmap-finding { margin: 12px 0 16px; }
+  .cmap-filter .tab { min-height: 44px; padding: 0 14px; }
+  .cmap-sim { align-self: flex-start; }
+  .cmap-legend { gap: 16px 28px; }
+  .cmap-row-button { min-height: 44px; font-size: 13px; }
+  .cmap-clear { min-height: 44px; }
+  .cmap-fact { grid-template-columns: minmax(84px, 40%) minmax(0, 1fr); }
+  .cmap-mix li { grid-template-columns: minmax(48px, 24%) minmax(0, 1fr) 46px 38px; gap: 8px; }
+}
+
+/* Forced colours and print: colours collapse to the system pair, so supply steps become hatching that grows denser, and shapes carry the rest */
+@media (forced-colors: active), print {
+  .cmap-state { fill: Canvas; stroke: CanvasText; stroke-width: 1; }
+  .cmap-state.c1 { fill: url(#cmap-t1); } .cmap-state.c2 { fill: url(#cmap-t2); } .cmap-state.c3 { fill: url(#cmap-t3); } .cmap-state.c4 { fill: url(#cmap-t4); } .cmap-state.c5 { fill: url(#cmap-t5); }
+  .cmap-halo { stroke: Canvas; } .cmap-edge { stroke: Highlight; }
+  .cmap-dot { fill: Canvas; stroke: CanvasText; } .cmap-posbox, .cmap-bidring, .cmap-leader { stroke: CanvasText; } .cmap-poshalo { stroke: Canvas; } .cmap-focus { stroke: Highlight; }
+  .cmap-label { fill: CanvasText; stroke: Canvas; }
+  .cmap-sw { background: Canvas; border: 1px solid CanvasText; }
+  .cmap-sw.c1 { background: repeating-linear-gradient(45deg, CanvasText 0 1px, Canvas 1px 10px); } .cmap-sw.c2 { background: repeating-linear-gradient(135deg, CanvasText 0 1px, Canvas 1px 8px); }
+  .cmap-sw.c3 { background: repeating-linear-gradient(45deg, CanvasText 0 1px, Canvas 1px 6.5px); } .cmap-sw.c4 { background: repeating-linear-gradient(135deg, CanvasText 0 1px, Canvas 1px 5px); }
+  .cmap-sw.c5 { background: repeating-linear-gradient(45deg, CanvasText 0 1px, Canvas 1px 4px); }
+  .cmap-meter-track { fill: Canvas; stroke: CanvasText; stroke-width: 1; } .cmap-meter-fill { fill: CanvasText; }
+  .cmap-key-pos, .cmap-key-bid, .cmap-ref { stroke: CanvasText; }
+  .cmap-row.is-pinned .cmap-row-button { box-shadow: inset 3px 0 Highlight; }
+}
