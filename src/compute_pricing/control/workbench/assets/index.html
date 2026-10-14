@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/workbench/assets/workbench.css"><link rel="stylesheet" href="/workbench/assets/landing.css"><script src="/workbench/assets/workbench-drafts.js" defer></script><script src="/workbench/assets/workbench-charts.js" defer></script><script src="/workbench/assets/workbench.js" defer></script><script src="/workbench/assets/workbench-demo.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#workspace">Skip to workspace</a>
+  <a class="skip-link" href="#workspace">Skip to main content</a>
   <svg class="icon-sprite" aria-hidden="true" focusable="false" width="0" height="0">
     <symbol id="logo-mark" viewBox="4 4 24 24"><path class="logo-ink" d="M4 12h16v16H4z"/><path class="logo-accent" d="M4 4h24v24h-6V10H4z"/></symbol>
     <symbol id="icon-chevron" viewBox="0 0 16 16"><path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -75,7 +75,7 @@
       </section>
       <div class="activity-bar" id="activity-bar" hidden><span id="activity-label" role="status" aria-live="polite">Working…</span><button id="cancel-request" class="quiet-button">Stop waiting</button></div>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
-      <section id="brief-view" class="view brief" aria-labelledby="brief-title">
+      <section id="brief-view" class="view brief">
         <div class="bf-hero bf-grid">
           <div class="bf-hero-copy">
             <h1 id="brief-title" tabindex="-1">Compare GPU quotes by all-in cost</h1>
@@ -138,7 +138,7 @@
           <ol id="brief-steps" class="bf-pipeline bf-grid rv-group">
             <li class="bf-stage"><span class="bf-stage-n" aria-hidden="true">1</span><h3 class="bf-h3">Grade the seller</h3><p>Six weighted categories give each seller a score out of 100, and the score sets a grade from A to D.</p><div id="brief-weights" class="bf-slot"></div></li>
             <li class="bf-stage"><span class="bf-stage-n" aria-hidden="true">2</span><h3 class="bf-h3">Estimate the odds of failure</h3><p>The grade sets the yearly chance that a seller fails to deliver.</p><div id="brief-odds" class="bf-slot"></div></li>
-            <li class="bf-stage"><span class="bf-stage-n" aria-hidden="true">3</span><h3 class="bf-h3">Price the risk</h3><p>Financing on the down payment and the expected loss from failure are added to the quoted price.</p><div class="bf-slot"><ul class="bf-sum"><li>quoted price</li><li><span aria-hidden="true">+</span>financing</li><li><span aria-hidden="true">+</span>expected loss</li><li class="bf-sum-total"><span aria-hidden="true">=</span>all-in cost</li></ul></div></li>
+            <li class="bf-stage"><span class="bf-stage-n" aria-hidden="true">3</span><h3 class="bf-h3">Price the risk</h3><p>Financing on the down payment and the expected loss from failure are added to the quoted price.</p><div class="bf-slot"><ul class="bf-sum"><li>quoted price</li><li><span aria-hidden="true">+</span><span class="sr-only">plus </span>financing</li><li><span aria-hidden="true">+</span><span class="sr-only">plus </span>expected loss</li><li class="bf-sum-total"><span aria-hidden="true">=</span><span class="sr-only">equals </span>all-in cost</li></ul></div></li>
             <li class="bf-stage"><span class="bf-stage-n" aria-hidden="true">4</span><h3 class="bf-h3">Rank what is eligible</h3><p>A quote is eligible when its seller is graded C or better, it states a contract length and a down payment, and at most three of the ten key terms are blank.</p><div id="brief-eligible" class="bf-slot bf-stat"></div></li>
           </ol>
           <div id="brief-basis" class="bf-basis bf-grid rv">
@@ -152,10 +152,6 @@
           <p class="bf-intro">Every number here comes from one simulated market. In the overview, trigger a price war, a supply shock or a provider downgrade and watch the basis move.</p></div>
           <div class="bf-actions"><button id="brief-open-desk-end" class="primary-button bf-button" type="button">Open the overview</button><button id="brief-open-quotes" class="secondary-button bf-button" type="button">Browse the quotes</button></div>
         </section>
-        <footer class="bf-footer bf-grid">
-          <span class="brand"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#logo-mark"/></svg><span class="brand-name">ComputeBasis</span></span>
-          <p class="bf-footer-note">Simulated data, not market prices. Indicative only; nothing here executes a trade.</p>
-        </footer>
       </section>
       <section id="desk-view" class="view desk" aria-labelledby="desk-title" hidden>
         <div class="page-heading"><div><h1 id="desk-title" tabindex="-1">Overview</h1><p id="desk-lede">Opening the simulated book…</p></div><div id="desk-controls" class="sim-slot"></div></div>
@@ -255,6 +251,10 @@
       <section id="cash-view" class="view" aria-labelledby="cash-title" hidden><div class="page-heading"><div><span class="eyebrow">06 / SETTLE</span><h1 id="cash-title" tabindex="-1">Dated cash</h1><p>Unrestricted funds, segregated advances and ordered liquidity troughs.</p></div><div class="heading-actions"><button id="evaluate-cash" class="primary-button" disabled>Evaluate funding path</button></div></div><div class="editor-layout"><section class="card"><div class="section-heading"><h2>Cash schedule</h2><span class="muted">Declared settlements</span></div><p class="muted">Actual dates, cleared amounts, entity/account/currency and facility terms. Restricted deposits remain separate.</p><div class="form-toolbar"><strong>Settlement inputs</strong><div><button id="cash-new-draft" class="quiet-button" type="button" title="Reset this unsaved draft to blank inputs">Reset inputs</button><button id="cash-read-fields" class="quiet-button" type="button">Read draft into fields</button></div></div><p id="cash-fields-state" class="field-help">Begin with a blank draft or load an existing request. Unknown values stay empty.</p><div id="cash-fields" class="structured-fields"></div><details class="response-details advanced-editor"><summary>Advanced request JSON</summary><label class="sr-only" for="cash-input">Cash request JSON</label><textarea id="cash-input" spellcheck="false" placeholder="Paste your dated cash scenario JSON."></textarea></details><p id="cash-input-state" class="field-help">No input supplied.</p></section><section class="card result-card"><div class="section-heading"><h2>Cash &amp; funding path</h2><span id="cash-result-state" class="pill">Not evaluated</span></div><div id="cash-summary" class="result-summary"><p class="empty-state">Review daily cash and the ordered same-day minimum.</p></div><details class="response-details"><summary>Complete response &amp; snapshot</summary><pre id="cash-output" tabindex="0" hidden></pre></details></section></div></section>
       <section id="portfolio-view" class="view" aria-labelledby="portfolio-title" hidden><div class="page-heading"><div><h1 id="portfolio-title" tabindex="-1">Portfolio reconciliation</h1><p>Three offtake routes. One supply ledger, cash account and set of exposure limits.</p></div><div class="heading-actions"><button id="evaluate-portfolio" class="primary-button" disabled>Assess shared portfolio</button></div></div><div class="editor-layout"><section class="card"><div class="section-heading"><h2>Shared candidate</h2><span class="muted">Supply, cash &amp; ownership</span></div><p class="muted">Join inference, resale and forward routes to exclusive physical reservations, owned cash events and dated evidence. Unallocated supply cost remains in the portfolio.</p><div class="form-toolbar"><strong>Portfolio inputs</strong><div><button id="portfolio-new-draft" class="quiet-button" type="button" title="Reset this unsaved draft to blank inputs">Reset inputs</button><button id="portfolio-read-fields" class="quiet-button" type="button">Read draft into fields</button></div></div><p id="portfolio-fields-state" class="field-help">All amounts, identities and limits must be supplied.</p><div id="portfolio-fields" class="structured-fields"></div><details class="response-details advanced-editor"><summary>Advanced portfolio JSON</summary><label class="sr-only" for="portfolio-input">Shared portfolio request JSON</label><textarea id="portfolio-input" spellcheck="false" placeholder="Supply a complete shared portfolio candidate."></textarea></details><p id="portfolio-input-state" class="field-help">No input supplied.</p></section><section class="card result-card"><div class="section-heading"><h2>Joint economics &amp; constraints</h2><span id="portfolio-result-state" class="pill">Not evaluated</span></div><div id="portfolio-summary" class="result-summary"><p class="empty-state">Independent profitable routes can still overcommit the same capacity or funding. Reconcile them here.</p></div><details class="response-details"><summary>Complete reconciliation &amp; snapshot</summary><pre id="portfolio-output" tabindex="0" hidden></pre></details></section></div></section>
     </main>
+    <footer class="lp-footer">
+      <span class="brand"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#logo-mark"/></svg><span class="brand-name">ComputeBasis</span></span>
+      <p class="lp-footer-note">Simulated data, not market prices. Indicative only; nothing here executes a trade.</p>
+    </footer>
     <footer class="app-footer"><div class="footer-inner"><span>ComputeBasis</span><span>Overview and Quotes run on a local simulation. Indicative only; nothing here executes a trade.</span></div></footer>
   </div>
 </body>

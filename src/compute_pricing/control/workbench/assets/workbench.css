@@ -38,7 +38,7 @@
   /* Ink */
   --ink: #151a1f;
   --ink-soft: #2f3943;
-  --muted: #5c6771;
+  --muted: #4d5863;
   --faint: #7b868f;
 
   /* Rules */
@@ -49,7 +49,7 @@
   --accent: #16695e;
   --accent-soft: rgba(22, 105, 94, .09);
   --accent-ring: rgba(22, 105, 94, .35);
-  --focus: #1b7f72;
+  --focus: #151a1f;
   --selection: rgba(22, 105, 94, .2);
   --good: #1b7a4b;
   --good-bg: #e8f3ec; --good-line: #b3d3bf;
@@ -88,7 +88,7 @@
   color-scheme: dark;
   --canvas: #0c0f12; --panel: #0c0f12; --chrome: rgba(12, 15, 18, .86);
   --surface: #14191e; --surface-hover: #1b2127; --input: #10151a;
-  --ink: #e7ecf0; --ink-soft: #c5cfd6; --muted: #929ea9; --faint: #66727d;
+  --ink: #e7ecf0; --ink-soft: #c5cfd6; --muted: #a1acb6; --faint: #66727d;
   --border: rgba(231, 236, 240, .11); --control-border: #5f6c77;
   --accent: #79c8b3; --accent-soft: rgba(121, 200, 179, .12); --accent-ring: rgba(121, 200, 179, .4);
   --focus: #93d8c6; --selection: rgba(121, 200, 179, .28);
@@ -116,7 +116,7 @@
     color-scheme: dark;
     --canvas: #0c0f12; --panel: #0c0f12; --chrome: rgba(12, 15, 18, .86);
     --surface: #14191e; --surface-hover: #1b2127; --input: #10151a;
-    --ink: #e7ecf0; --ink-soft: #c5cfd6; --muted: #929ea9; --faint: #66727d;
+    --ink: #e7ecf0; --ink-soft: #c5cfd6; --muted: #a1acb6; --faint: #66727d;
     --border: rgba(231, 236, 240, .11); --control-border: #5f6c77;
     --accent: #79c8b3; --accent-soft: rgba(121, 200, 179, .12); --accent-ring: rgba(121, 200, 179, .4);
     --focus: #93d8c6; --selection: rgba(121, 200, 179, .28);
@@ -167,7 +167,7 @@ code { font-family: var(--mono); }
 .app-header > *, main, .footer-inner { width: min(100% - 2 * var(--gutter), var(--content)); margin-inline: auto; }
 .app-header { position: sticky; top: 0; z-index: 40; background: var(--chrome); border-bottom: 1px solid var(--border); -webkit-backdrop-filter: saturate(1.5) blur(14px); backdrop-filter: saturate(1.5) blur(14px); }
 .top-bar { display: flex; align-items: center; gap: 40px; height: 56px; }
-.brand { display: flex; align-items: center; gap: 10px; color: var(--ink); }
+.brand { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--ink); }
 .brand-mark { width: 24px; height: 24px; flex: none; }
 .logo-ink { fill: var(--ink); }
 .logo-accent { fill: var(--logo-accent); }
@@ -182,7 +182,7 @@ html[data-page="app"] #brief-view { display: none; }
 .status-dot.connected { background: var(--faint); }
 .status-dot.live { background: var(--good); animation: pulse 2.4s var(--ease) infinite; }
 .status-dot.paused { background: var(--warn); animation: none; }
-.navigation { display: flex; align-items: stretch; gap: 26px; height: 56px; }
+.navigation { display: flex; align-items: stretch; gap: 6px; height: 56px; }
 .more { position: relative; display: flex; }
 .more > summary { list-style: none; cursor: pointer; }
 .more > summary::-webkit-details-marker { display: none; }
@@ -193,7 +193,7 @@ html[data-page="app"] #brief-view { display: none; }
 .menu-item:hover { background: var(--surface); color: var(--ink); }
 .menu-item.active { color: var(--ink); font-weight: 600; }
 .menu-rule { margin: 6px 0; border: 0; border-top: 1px solid var(--border); }
-.nav-item { position: relative; display: inline-flex; flex: none; align-items: center; padding: 0; border: 0; border-radius: 0; background: none; color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap; transition: color var(--fast) var(--ease); }
+.nav-item { position: relative; display: inline-flex; flex: none; align-items: center; padding: 0 10px; border: 0; border-radius: 0; background: none; color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap; transition: color var(--fast) var(--ease); }
 .nav-item::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 2px 2px 0 0; background: transparent; transition: background-color var(--fast) var(--ease); }
 .nav-item:hover { color: var(--ink); }
 .nav-item.active { color: var(--ink); }
@@ -548,7 +548,7 @@ pre { max-height: 600px; margin: 0; padding: 14px; overflow: auto; border: 1px s
   .top-bar { flex-wrap: wrap; height: auto; padding: 12px 0 0; gap: 8px 16px; }
   .header-utilities { margin-left: auto; gap: 10px; }
   .navigation { order: 3; width: 100%; height: 44px; overflow-x: auto; overflow-y: visible; }
-  .navigation { gap: 20px; }
+  .navigation { gap: 4px; }
   .more-panel { position: fixed; top: auto; left: 16px; right: 16px; bottom: 16px; }
   .nav-item { min-height: 44px; }
   .page-heading { margin-top: 28px; }
@@ -782,4 +782,17 @@ p.standing { margin: 12px 0 0; font-size: 12.5px; }
 }
 @media (max-width: 720px) {
   .sim-controls button, .tab { min-height: 44px; }
+}
+
+/* Anchors styled as buttons keep the button look without the underline. */
+a.primary-button, a.secondary-button, a.quiet-button { text-decoration: none; }
+
+/* Forced colours (Windows high contrast): marks that only differ by fill would vanish, so give them system colours. */
+@media (forced-colors: active) {
+  .swatch { forced-color-adjust: none; border: 1px solid CanvasText; }
+  .nav-item.active::after { background: Highlight; }
+  .status-dot { forced-color-adjust: none; border: 1px solid CanvasText; }
+  .logo-ink, .logo-accent { forced-color-adjust: none; }
+  .logo-ink { fill: CanvasText; }
+  .logo-accent { fill: Highlight; }
 }

@@ -61,6 +61,20 @@ class LandingWiringTests(unittest.TestCase):
             self.assertIn(rule, CSS)
         self.assertRegex(CSS, r"\.lp-header \{ display: none;", "the landing header is off until the landing page is showing")
 
+    def test_landmarks_are_clean_and_the_footer_is_outside_main(self):
+        main = re.search(r"<main\b.*?</main>", HTML, re.S).group(0)
+        self.assertEqual(HTML.count("<main"), 1)
+        self.assertNotIn("<footer", main, "a footer inside main is not a page footer landmark")
+        self.assertIn('class="lp-footer"', HTML)
+        brief = re.search(r'<section id="brief-view"[^>]*>', HTML).group(0)
+        self.assertNotIn("aria-labelledby", brief, "a named section becomes a redundant region landmark")
+        self.assertIn(">Skip to main content<", HTML)
+
+    def test_the_formula_reads_as_a_sentence_to_a_screen_reader(self):
+        formula = re.search(r'<ul class="bf-sum">.*?</ul>', HTML, re.S).group(0)
+        self.assertIn('<span class="sr-only">plus </span>financing', formula)
+        self.assertIn('<span class="sr-only">equals </span>all-in cost', formula)
+
     def test_the_landing_header_has_a_way_in(self):
         ids = {attrs["id"] for _, attrs in TAGS.tags if "id" in attrs}
         self.assertTrue({"lp-open", "lp-go-problem", "lp-go-how", "lp-theme-toggle"} <= ids)

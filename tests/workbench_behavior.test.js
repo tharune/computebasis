@@ -65,7 +65,7 @@ function harness({ prefersDark = false, hash = "" } = {}) {
     if (url === "/v1/session/logout") return logoutResponses.shift() || Promise.resolve({ ok: true, status: 200, json: async () => ({ ended: true }) });
     const response = responses.shift(); assert.ok(response, "Unexpected request: " + url); return response(options);
   };
-  const context = vm.createContext({ Date: ClockDate, document: { ...pageDocument, get hidden() { return pageDocument.hidden; }, documentElement, getElementById: (id) => { assert.ok(nodes.has(id), "Missing DOM element " + id); return nodes.get(id); }, createElement: (tag) => new Node(tag), createElementNS: (_, tag) => new Node(tag), querySelectorAll: () => nav }, window, fetch, AbortController, structuredClone, crypto: { randomUUID }, setTimeout: (fn, delay) => { timers.set(++timerId, { fn, delay }); return timerId; }, clearTimeout: (id) => timers.delete(id), setInterval: (fn) => intervals.push(fn), console });
+  const context = vm.createContext({ Date: ClockDate, document: { ...pageDocument, get title() { return pageDocument.title; }, set title(value) { pageDocument.title = value; }, get hidden() { return pageDocument.hidden; }, documentElement, getElementById: (id) => { assert.ok(nodes.has(id), "Missing DOM element " + id); return nodes.get(id); }, createElement: (tag) => new Node(tag), createElementNS: (_, tag) => new Node(tag), querySelectorAll: () => nav }, window, fetch, AbortController, structuredClone, crypto: { randomUUID }, setTimeout: (fn, delay) => { timers.set(++timerId, { fn, delay }); return timerId; }, clearTimeout: (id) => timers.delete(id), setInterval: (fn) => intervals.push(fn), console });
   vm.runInContext(draftScript, context, { filename: "workbench-drafts.js" });
   vm.runInContext(script, context, { filename: "workbench.js" });
   function reply(body, status = 200, headers = {}) { responses.push(async () => ({ ok: status >= 200 && status < 300, status, headers: headerBag(headers), json: async () => structuredClone(body), text: async () => typeof body === "string" ? body : JSON.stringify(body) })); }
@@ -163,6 +163,12 @@ test("opening on an app address shows that page, and an unknown address shows th
   assert.equal(odd.node("brief-view").hidden, false);
   const loose = harness({ hash: "#brief" }); await loose.window.emit("load");
   assert.equal(loose.node("brief-view").hidden, false);
+});
+
+test("every page has its own tab title", async () => {
+  const h = harness(); const nav = (view) => h.nav.find((button) => button.dataset.view === view);
+  await nav("inventory").emit("click"); assert.match(h.page.title, / · ComputeBasis$/);
+  await nav("brief").emit("click"); assert.equal(h.page.title, "ComputeBasis: GPU quotes priced all-in");
 });
 
 test("both header theme toggles stay in step", async () => {

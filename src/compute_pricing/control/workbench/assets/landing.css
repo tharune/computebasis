@@ -25,8 +25,9 @@
 /* Grid. One 12-column grid for the page, so every block starts on a column line. Two axes carry the layout: the left margin and
    the line at column 7, where the hero chart, the third figure, the right-hand problem charts, the third stage, the basis figure
    and the closing buttons all begin. Spacing steps: 8 16 24 32 48 64 96 128. */
-.brief { --gap: 24px; --fig: clamp(32px, 3.2vw, 44px); }
-html[data-page="landing"] { --content: 1560px; }
+/* Landing tokens. Hairlines are stronger here than in the workbench because this page uses them instead of cards, and a projector washes them out. */
+html[data-page="landing"] { --content: 1560px; --gap: 24px; --fig: clamp(32px, 3.2vw, 44px); --border: rgba(21, 26, 31, .2); }
+html[data-page="landing"][data-theme="dark"] { --border: rgba(231, 236, 240, .22); }
 .bf-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gap); }
 
 /* The hero fills the first screen below the 64px header, so the figures begin exactly at the fold. */
@@ -162,12 +163,13 @@ html[data-page="landing"] { --content: 1560px; }
 .bf-close-copy { grid-column: 1 / span 6; }
 .bf-close-copy .bf-intro { margin-top: 24px; }
 .bf-close .bf-actions { grid-column: 7 / span 6; margin-top: 0; }
-.bf-footer { align-items: center; padding: 24px 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
-.bf-footer .brand { grid-column: 1 / span 6; }
-.bf-footer-note { grid-column: 7 / span 6; margin: 0; }
+.lp-footer { display: none; }
+html[data-page="landing"] .lp-footer { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gap); align-items: center; width: min(100% - 2 * var(--gutter), var(--content)); margin-inline: auto; padding: 24px 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+.lp-footer .brand { grid-column: 1 / span 6; }
+.lp-footer-note { grid-column: 7 / span 6; margin: 0; }
 
 @media (max-width: 1100px) {
-  .brief { --gap: 20px; }
+  html[data-page="landing"] { --gap: 20px; }
   .bf-hero { row-gap: 48px; min-height: 0; padding: 48px 0 56px; }
   .bf-hero-copy, .bf-hero-figure { grid-column: 1 / -1; }
   .bf-hero-copy .bf-actions { margin-top: 40px; padding-top: 0; }
@@ -188,11 +190,11 @@ html[data-page="landing"] { --content: 1560px; }
   .bf-basis-live { min-height: 0; }
   .bf-close { row-gap: 32px; padding: 72px 0 64px; }
   .bf-close-copy, .bf-close .bf-actions { grid-column: 1 / -1; }
-  .bf-footer { row-gap: 12px; }
-  .bf-footer .brand, .bf-footer-note { grid-column: 1 / -1; }
+  .lp-footer { row-gap: 12px; }
+  .lp-footer .brand, .lp-footer-note { grid-column: 1 / -1; }
 }
 @media (max-width: 720px) {
-  .brief { --gap: 16px; }
+  html[data-page="landing"] { --gap: 16px; }
   .bf-hero { row-gap: 40px; padding: 40px 0; }
   .bf-actions { margin-top: 32px; }
   .bf-actions .bf-button { flex: 1 1 100%; }
@@ -211,3 +213,6 @@ html[data-page="landing"] { --content: 1560px; }
   .bf-close { padding: 56px 0 48px; }
 }
 /* end Brief */
+
+/* At 400% zoom a sticky header takes nearly half the screen, so on very short viewports it scrolls away. */
+@media (max-height: 500px) { .lp-header, .app-header { position: static; } }

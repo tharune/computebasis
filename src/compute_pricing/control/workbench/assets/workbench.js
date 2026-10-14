@@ -62,6 +62,7 @@
   /* The landing page lives at "/" and every app page at "/#name", so a refresh or the back button lands where the person was.
      route.js, which runs before first paint, keeps its own list of the app names. */
   const VIEWS = ["brief", "desk", "quotes", "dashboard", "market", "inventory", "underwriting", "pricing", "policy", "inference", "cash", "portfolio"];
+  const LANDING_TITLE = "ComputeBasis: GPU quotes priced all-in";
   let routing = false;
   const routeOf = () => { const name = (window.location?.hash || "").slice(1); return name !== "brief" && VIEWS.includes(name) ? name : "brief"; };
   function writeRoute(name) {
@@ -72,6 +73,7 @@
     const arriving = byId(name + "-view").hidden;
     VIEWS.forEach((view) => { byId(view + "-view").hidden = view !== name; });
     document.documentElement.setAttribute("data-page", name === "brief" ? "landing" : "app"); writeRoute(name);
+    document.title = name === "brief" ? LANDING_TITLE : String(byId(name + "-title").textContent || "").trim() + " · ComputeBasis";
     byId("more-summary").classList.toggle("active", MORE_VIEWS.includes(name)); byId("more-menu").open = false;
     document.querySelectorAll("[data-view]").forEach((button) => {
       const selected = button.dataset.view === name;
