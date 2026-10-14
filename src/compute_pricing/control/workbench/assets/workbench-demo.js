@@ -44,8 +44,10 @@
     if (state.inflight || !host.isSession() || (document.hidden && !force)) return;
     state.inflight = true; const meta = { ifNoneMatch: force ? "" : state.tag };
     try {
-      const data = await api("/v1/book", {}, meta);
+      const raw = await api("/v1/book", {}, meta);
       state.error = "";
+      const data = raw ? window.BookAdapter.normalizeBook(raw) : null;
+      if (raw && !data) throw new Error("The server sent something other than a quote book.");
       if (data) {
         const first = state.data === null; const previous = state.data;
         state.data = data; state.tag = meta.etag || "";
@@ -194,12 +196,12 @@
     const example = briefExample(data);
     if (example) {
       const quote = example.quote; const price = Number(quote.price); const financing = quote.financing || 0; const exposure = quote.exposure || 0; const allin = price + financing + exposure;
-      replace("brief-fact-cost", statLine(pct(allin / price - 1, 0, true), ["Quote " + quote.id + ", the lowest " + example.entry.model + " offer, asks " + usd(price) + " ", h("span", "bf-nowrap", "per GPU-hour"), ". All-in it costs " + usd(allin) + "."]));
+      replace("brief-fact-cost", statLine(pct(allin / price - 1, 0, true), ["Quote " + quote.ref + ", the lowest " + example.entry.model + " offer, asks " + usd(price) + " ", h("span", "bf-nowrap", "per GPU-hour"), ". All-in it costs " + usd(allin) + "."]));
       const part = (name, value, className) => h("div", "", h("dt", "", h("span", "swatch " + className), name), h("dd", "", usd(value, value < 1 ? 3 : 2)));
       replace("brief-anatomy",
         briefBars({ rows: [{ label: "Quoted", parts: [{ value: price, className: "part-price", title: "Quoted price " + usd(price) }], text: usd(price) },
           { label: "All-in", parts: [{ value: price, className: "part-price", title: "Quoted price " + usd(price) }, { value: financing, className: "part-financing", title: "Financing on the down payment " + usd(financing, 3) }, { value: exposure, className: "part-exposure", title: "Expected loss if the seller fails " + usd(exposure, 3) }], text: usd(allin) }],
-        max: allin, width: briefWidth(520), labelWidth: 64, valueWidth: 64, rowHeight: 48, bar: 18, grow, description: "Quote " + quote.id + " per GPU-hour: quoted " + usd(price) + ", plus financing " + usd(financing, 3) + ", plus expected loss " + usd(exposure, 3) + ", is " + usd(allin) + " all-in." }),
+        max: allin, width: briefWidth(520), labelWidth: 64, valueWidth: 64, rowHeight: 48, bar: 18, grow, description: "Quote " + quote.ref + " per GPU-hour: quoted " + usd(price) + ", plus financing " + usd(financing, 3) + ", plus expected loss " + usd(exposure, 3) + ", is " + usd(allin) + " all-in." }),
         h("dl", "bf-split", part("Quoted price", price, "part-price"), part("Financing", financing, "part-financing"), part("Expected loss", exposure, "part-exposure")),
         h("p", "bf-caption", quote.id + " · " + quote.provider + " · grade " + quote.grade));
     } else { replace("brief-fact-cost", statLine("—", "No quote with a stated term to price yet.")); replace("brief-anatomy", empty("No comparison available yet.")); }
@@ -285,8 +287,7 @@
       h("p", "figure-caption", "The letter beside each bar is the seller's grade. " + (widest ? widest.model + " has the widest basis at " + pct(widest.basis, 1, true) + ", and its lowest quote comes from a grade " + widest.cheapest.grade + " seller. " : "") + (none.length ? none.join(", ") + (none.length > 1 ? " have" : " has") + " no eligible seller." : "")));
   }
 
-  /* Scenario flags for the price chart. A flag for another model's market is drawn faint and names that model. */
-  const SCENARIO_NAMES = [[/^Price war/, "Price war"], [/^Supply shock/, "Supply shock"], [/downgraded/, "Provider downgrade"]];
+  /* Scenario flags for the price chart. A scenario moves the whole market, so the same flag is drawn on every model. */
   /* The feed keeps only the latest alerts, so a scenario is remembered here until its tick leaves the chart window. */
   const scenarioSeen = new Map(); let scenarioEpoch = null;
   function rememberScenarios() {
@@ -295,12 +296,9 @@
     data.alerts.forEach((a) => { if (a.kind === "scenario") scenarioSeen.set(a.n, a); });
     [...scenarioSeen].forEach(([n, a]) => { if (!data.series.ticks.includes(a.tick)) scenarioSeen.delete(n); });
   }
-  function scenarioMarkers(forModel) {
+  function scenarioMarkers() {
     const data = state.data; rememberScenarios();
-    return [...scenarioSeen.values()].map((a) => {
-      const named = SCENARIO_NAMES.find(([pattern]) => pattern.test(a.text)); const target = /^(?:Price war|Supply shock) in ([^:]+):/.exec(a.text); const dim = Boolean(target) && target[1] !== forModel;
-      return { index: data.series.ticks.indexOf(a.tick), label: (named ? named[1] : "Scenario") + (dim ? " · " + target[1] : ""), dim, title: a.text };
-    }).filter((marker) => marker.index >= 0);
+    return [...scenarioSeen.values()].map((a) => ({ index: data.series.ticks.indexOf(a.tick), label: a.scenario_label || "Scenario", dim: false, title: a.text })).filter((marker) => marker.index >= 0);
   }
   /* Price history for one model: lowest quote against best eligible all-in cost, with the basis as the shaded gap. */
   function renderTrend() {
@@ -315,7 +313,7 @@
       m.best ? h("div", "is-best", h("dt", "", narrow ? "Best all-in" : "Best eligible, all-in"), h("dd", "", usd(m.best.risk_adjusted, 3), chip(m.best.grade, "The best eligible quote, " + m.best.id + ", is from a grade " + m.best.grade + " seller"))) : h("div", "", h("dt", "", "Best eligible"), h("dd", "muted", "None")),
       m.best ? h("div", "", h("dt", "", "Basis"), h("dd", "", pct(m.basis, 1, true))) : null);
     replace("desk-trend", readout,
-      charts.lineChart({ points: times.length, series: lines, gap: hasBest ? ["best", "cheapest"] : null, format: (v) => "$" + v.toFixed(2), markers: scenarioMarkers(m.model), xLabel: (i) => clock(times[i]), width, height: narrow ? 220 : 270, marginRight: narrow ? 52 : 134, endLabels: narrow ? "value" : "full", yTickCount: 5, xTickCount: narrow ? 2 : 3,
+      charts.lineChart({ points: times.length, series: lines, gap: hasBest ? ["best", "cheapest"] : null, format: (v) => "$" + v.toFixed(2), markers: scenarioMarkers(), xLabel: (i) => clock(times[i]), width, height: narrow ? 220 : 270, marginRight: narrow ? 52 : 134, endLabels: narrow ? "value" : "full", yTickCount: 5, xTickCount: narrow ? 2 : 3,
         hover: (i) => clock(times[i]) + " · " + lines.map((l) => l.name + " " + at(l.values, i)).join(" · "),
         description: m.model + " price history. " + (m.best ? "The best eligible all-in cost is " + usd(m.best.risk_adjusted, 3) + " against a lowest quote of " + usd(low) + "." : "No eligible seller for this model.") }),
       narrow ? charts.legend(lines.map((l) => ({ label: l.name, className: "ln-swatch " + l.className }))) : null,
@@ -441,7 +439,7 @@
     })));
     const facts = [["Contract value", q.contract_value === null ? "—" : "$" + compact(q.contract_value)], ["GPUs", int(q.gpus)], ["Term", q.months === null ? "—" : q.months + " months"], ["Down payment", q.down_payment === null ? "—" : pct(q.down_payment, 0)], ["Payment terms", q.payment_days === null ? "—" : "net " + q.payment_days], ["Location", q.location ? q.location + (q.country ? ", " + q.country : "") : "—"], ["Expires", q.days_to_expiry === null ? "No expiry" : q.days_to_expiry + " days"], ["Discount to reference", q.discount_to_reference === null ? "No index" : pct(q.discount_to_reference, 1)]];
     const grid = h("dl", "facts", facts.map(([k, v]) => [h("dt", "", k), h("dd", "", v)]));
-    const prefill = h("button", "primary-button", "Price this quote"); prefill.type = "button"; prefill.addEventListener("click", () => host.priceQuote ? host.priceQuote(q) : showView("pricing"));
+    const prefill = h("button", "primary-button", "Price this quote"); prefill.type = "button"; prefill.addEventListener("click", () => host.priceQuote ? host.priceQuote({ ...q, price: q.exact?.price ?? String(q.price) }) : showView("pricing"));
     replace("quotes-detail", h("div", "detail-head", h("div", "", h("h2", "", q.id), h("p", "muted", q.provider)), h("div", "detail-grade", chip(q.grade), h("strong", "", provider.score.toFixed(0)), h("small", "", "quality score"))),
       h("h3", "", "All-in cost per GPU-hour"), q.risk_adjusted === null ? empty("Term not stated, so no all-in cost can be computed.") : costBreakdown([{ label: q.id, quote: q }], false),
       q.eligible ? h("p", "standing ok", "Eligible: grade " + q.grade + ", " + q.missing.length + " of 10 key terms missing.") : h("p", "standing no", "Not eligible: " + q.reasons.join("; ") + "."),

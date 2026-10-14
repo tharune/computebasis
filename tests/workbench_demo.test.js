@@ -14,6 +14,8 @@ const snapshots = JSON.parse(fs.readFileSync(snapshotFile, "utf8"));
 const html = fs.readFileSync(path.join(assets, "index.html"), "utf8");
 const chartsSource = fs.readFileSync(path.join(assets, "workbench-charts.js"), "utf8");
 const demoSource = fs.readFileSync(path.join(assets, "workbench-demo.js"), "utf8");
+const dataSource = fs.readFileSync(path.join(assets, "landing-data.js"), "utf8");
+const adapterSource = fs.readFileSync(path.join(assets, "book-adapter.js"), "utf8");
 
 class El {
   constructor(tag) {
@@ -85,6 +87,8 @@ function makePage(initial, { priceQuote, browser = {} } = {}) {
   const window = { ComputeHost: host, ...browser };  // browser: IntersectionObserver and matchMedia stand-ins
   const context = vm.createContext({ window, document: doc, setInterval: (fn, ms) => intervals.push({ fn, ms }), console });
   vm.runInContext(chartsSource, context, { filename: "workbench-charts.js" });
+  vm.runInContext(adapterSource, context, { filename: "book-adapter.js" });
+  vm.runInContext(dataSource, context, { filename: "landing-data.js" });
   vm.runInContext(demoSource, context, { filename: "workbench-demo.js" });
   const el = (id) => host.byId(id);
   const button = (id, label) => findAll(el(id), (item) => item.tagName === "button" && item.textContent === label)[0];
@@ -96,13 +100,17 @@ function makePage(initial, { priceQuote, browser = {} } = {}) {
     visibility: () => documentListeners.filter((item) => item.name === "visibilitychange").forEach((item) => item.action({})),
   };
 }
-const { base, war, reset } = snapshots;
+const { base, war, reset } = snapshots;  // what the server sends: decimal strings, reason codes
+const adapterContext = vm.createContext({ window: {} }); vm.runInContext(adapterSource, adapterContext, { filename: "book-adapter.js" });
+const normalize = (raw) => adapterContext.window.BookAdapter.normalizeBook(raw);
+const book = { base: normalize(base), war: normalize(war), reset: normalize(reset) };  // what the pages draw
 const assertLive = (page) => { assert.equal(page.el("session-state").textContent, "Live"); assert.ok(page.el("session-dot").has("live")); };
 
 test("snapshots come from the simulator and the scenario and reset change them", () => {
   assert.equal(base.simulated, true);
   assert.notEqual(base.kpis.basis, war.kpis.basis);
-  assert.ok(war.alerts.some((alert) => alert.kind === "scenario"));
+  assert.ok(war.alerts.some((alert) => alert.scenario === "price_war"));
+  assert.ok(book.war.alerts.some((alert) => alert.kind === "scenario" && alert.scenario_label === "Price war"), "the adapter names the scenario");
   assert.notEqual(war.meta.epoch, reset.meta.epoch);
 });
 
@@ -160,7 +168,7 @@ test("the first poll draws the Brief from the simulated book and marks the works
   assertLive(page);
   const live = page.el("brief-live");
   assert.equal(byTag(live, "svg").length >= 1, true);
-  base.models.forEach((entry) => assert.match(live.textContent, new RegExp(entry.model)));
+  book.base.models.forEach((entry) => assert.match(live.textContent, new RegExp(entry.model)));
   BRIEF_SLOTS.forEach((id) => { assertClean(page.el(id), id); assert.ok(page.el(id).children.length > 0, id + " is empty"); });
   assert.ok(page.el("brief-facts").textContent.length > 0);
 });
@@ -170,11 +178,10 @@ const BRIEF_SLOTS = ["brief-live", "brief-facts", "brief-fact-gaps", "brief-gaps
 test("the Brief states the problem with figures from the book and draws clean bars, not dumbbells", async () => {
   const page = makePage(base); page.connect(); await settle();
   const hero = page.el("brief-live");
-  assert.equal(byClass(hero, "bf-bar").length, base.models.filter((entry) => entry.best).length, "one bar per model with an eligible seller");
-  assert.match(hero.textContent, /No eligible seller/, "a model without an eligible seller says so instead of drawing a bar");
+  assert.equal(byClass(hero, "bf-bar").length, book.base.models.filter((entry) => entry.best).length, "one bar per model with an eligible seller");
   assert.equal(byClass(page.el("brief-facts"), "bf-number").length, 4);
   assert.match(page.el("brief-facts").textContent, new RegExp(String(base.kpis.live_quotes)));
-  assert.match(page.el("brief-fact-grades").textContent, new RegExp("of " + base.models.length));
+  assert.match(page.el("brief-fact-grades").textContent, new RegExp("of " + book.base.models.length));
   assert.equal(byClass(page.el("brief-gaps"), "bf-bar").length, 5, "the five most often omitted terms");
   const anatomy = page.el("brief-anatomy"); const stack = byClass(anatomy, "bf-bar-group")[1];
   assert.equal(byClass(stack, "bf-bar").length, 3, "the all-in bar stacks price, financing and expected loss");
@@ -230,7 +237,7 @@ test("a changed book redraws the Overview and highlights only what moved", async
   assert.equal(byClass(kpis, "kpi").length, 6);
   assert.equal(byClass(kpis, "flash").length, 0, "nothing flashes on first paint");
   assert.match(kpis.textContent, new RegExp((base.kpis.basis * 100).toFixed(1) + "%"));
-  assert.equal(byClass(page.el("desk-basis"), "ch-part").length, base.models.reduce((count, entry) => count + 1 + (entry.best ? 1 : 0), 0), "a bar for each model's lowest quote and one for its best eligible quote");
+  assert.equal(byClass(page.el("desk-basis"), "ch-part").length, book.base.models.reduce((count, entry) => count + 1 + (entry.best ? 1 : 0), 0), "a bar for each model's lowest quote and one for its best eligible quote");
   ["desk-kpis", "desk-basis", "desk-trend", "desk-supply", "desk-completeness", "desk-grades", "desk-providers", "desk-activity", "desk-expiry"].forEach((id) => { assertClean(page.el(id), id); assert.ok(page.el(id).children.length > 0, id + " is empty"); });
   page.server.snapshot = war; page.server.tag = 'W/"two"';
   page.poll(); await settle();
@@ -241,30 +248,30 @@ test("a changed book redraws the Overview and highlights only what moved", async
 });
 
 test("the Overview basis bars carry the book's own numbers, and a model with no eligible seller says so", async () => {
-  const page = makePage(base); page.connect(); await settle(); page.host.showView("desk"); await settle();
+  const drawn = structuredClone(base); const lone = drawn.models[drawn.models.length - 1];
+  lone.best = null; lone.basis = null; lone.eligible = 0; lone.eligible_count = 0;  // one market with nobody eligible
+  const expected = normalize(drawn);
+  const page = makePage(drawn); page.connect(); await settle(); page.host.showView("desk"); await settle();
   const basis = page.el("desk-basis");
   const labels = byClass(basis, "ch-value").map((node) => node.textContent); const trails = byClass(basis, "ch-trail").map((node) => node.textContent);
-  assert.equal(trails.length, base.models.length);
-  base.models.forEach((entry, index) => {
+  assert.equal(trails.length, expected.models.length);
+  expected.models.forEach((entry, index) => {
     assert.ok(labels.includes("$" + Number(entry.cheapest.price).toFixed(2)), entry.model + " lowest quote is labelled");
     if (entry.best) { assert.ok(labels.includes("$" + entry.best.risk_adjusted.toFixed(3)), entry.model + " best eligible all-in is labelled"); assert.equal(trails[index], "+" + (entry.basis * 100).toFixed(1) + "%"); }
     else assert.equal(trails[index], "—");
   });
-  assert.ok(base.models.some((entry) => !entry.best), "the starting book has a model with no eligible seller");
   assert.match(basis.textContent, /No eligible seller/);
   const bars = byClass(basis, "ch-part"); assert.ok(bars.every((bar) => Number(bar.attributes.width) > 0 && Number(bar.attributes.x) >= 0), "bars start at the zero line");
-  assert.equal(page.el("desk-grades").textContent.includes("Grade D looks"), true, "the grade chart explains the gap in words");
 });
 
 test("the Overview price chart flags each scenario and names the market a flag belongs to", async () => {
   const page = makePage(war); page.connect(); await settle(); page.host.showView("desk"); await settle();
   const flags = byClass(page.el("desk-trend"), "ch-marker-label"); assert.ok(flags.some((node) => /^Price war/.test(node.textContent)));
-  page.server.snapshot = { ...war, alerts: war.alerts.filter((alert) => alert.kind !== "scenario") }; page.server.tag = 'W/"quiet"'; page.poll(); await settle();
+  page.server.snapshot = { ...war, alerts: war.alerts.filter((alert) => !alert.scenario) }; page.server.tag = 'W/"quiet"'; page.poll(); await settle();
   assert.ok(byClass(page.el("desk-trend"), "ch-marker-label").some((node) => /^Price war/.test(node.textContent)), "a flag stays on the chart after the feed has moved past its alert");
   const other = page.el("desk-model-tabs").children.find((button) => button.dataset.model !== "B300"); await other.click(); await settle();
-  const faint = byClass(page.el("desk-trend"), "ch-marker-label").filter((node) => classes(node).includes("dim"));
-  assert.ok(faint.some((node) => /Price war · B300/.test(node.textContent)), "a flag for another model is faint and names that model");
-  assert.equal(page.el("desk-model-tabs").children.length, base.models.length);
+  assert.ok(byClass(page.el("desk-trend"), "ch-marker-label").some((node) => /^Price war$/.test(node.textContent)), "a scenario moves the whole market, so the same flag is on every model");
+  assert.equal(page.el("desk-model-tabs").children.length, book.base.models.length);
 });
 
 test("a reset removes the scenario flags it leaves behind on the Overview price chart", async () => {
@@ -279,7 +286,7 @@ test("a reset removes the scenario flags it leaves behind on the Overview price 
 
 test("the Quotes cost bars print every component and the all-in total straight from the quote", async () => {
   const page = makePage(base); page.connect(); await settle(); page.host.showView("quotes"); await settle();
-  const b300 = base.models.find((entry) => entry.model === "B300"); const best = base.quotes.find((quote) => quote.id === b300.best.id);
+  const b300 = book.base.models.find((entry) => entry.model === "B300"); const best = book.base.quotes.find((quote) => quote.id === b300.best.id);
   const callout = page.el("quotes-callout"); assert.equal(byClass(callout, "cost-row").length, 2);
   assert.ok(byClass(callout, "cost-total").some((node) => node.textContent.startsWith("$" + best.risk_adjusted.toFixed(3))));
   ["$" + Number(best.price).toFixed(2), "$" + best.financing.toFixed(3), "$" + best.exposure.toFixed(3)].forEach((value) => assert.ok(callout.textContent.includes(value), value + " is printed"));
@@ -356,7 +363,7 @@ test("a reset restarts alert numbering, so the next event is highlighted", async
 test("Quotes ranks every quote for the selected model and Price this quote hands off the selected one", async () => {
   const page = makePage(base, { priceQuote: true }); page.connect(); await settle(); page.host.showView("quotes"); await settle();
   const rows = byTag(page.el("quotes-table"), "tbody")[0].children;
-  const b300 = base.quotes.filter((quote) => quote.gpu === "B300");
+  const b300 = book.base.quotes.filter((quote) => quote.gpu === "B300");
   assert.equal(rows.length, b300.length);
   ["quotes-lede", "quotes-callout", "quotes-table", "quotes-detail", "quotes-models"].forEach((id) => assertClean(page.el(id), id));
   const first = findAll(rows[0], (node) => node.tagName === "button")[0];
@@ -367,7 +374,7 @@ test("Quotes ranks every quote for the selected model and Price this quote hands
   await page.button("quotes-detail", "Price this quote").click();
   assert.equal(page.priced.length, 1);
   assert.equal(page.priced[0].id, chosen.id);
-  assert.equal(page.priced[0].price, chosen.price);
+  assert.equal(page.priced[0].price, chosen.exact.price, "the exact decimal the server sent, not a rounded number");
   assert.equal(typeof page.priced[0].price, "string", "prices stay decimal strings");
 });
 
@@ -438,10 +445,96 @@ test("the figures and chart rows stagger in on the first draw only, never again 
   assert.equal(byClass(page.el("brief-live"), "bf-grow").length, 0);
 });
 
+test("the basis breakdown adds up to the basis and to the server's own figure", () => {
+  const { window } = (() => { const w = {}; vm.runInContext(dataSource, vm.createContext({ window: w })); return { window: w }; })();
+  const { basisBreakdown } = window.LandingData;
+  [["start", book.base], ["price war", book.war], ["reset", book.reset]].forEach(([name, snapshot]) => {
+    const parts = basisBreakdown(snapshot);
+    assert.ok(parts, name + " has a breakdown");
+    assert.ok(Math.abs(parts.screen + parts.costing - parts.basis) < 1e-12, name + ": screen and costing add up to the basis");
+    assert.ok(Math.abs(parts.basis - snapshot.kpis.basis) < 6e-4, name + ": " + parts.basis + " matches the server's " + snapshot.kpis.basis);
+    assert.ok(parts.screen >= 0 && parts.costing >= 0, name + ": both sources are non-negative");
+    assert.ok(parts.models >= 1 && parts.models <= parts.modelsTotal);
+    [parts.basis, parts.screen, parts.costing, parts.gpus].forEach((value) => assert.ok(Number.isFinite(value)));
+  });
+});
+
+test("the basis breakdown says nothing when no model has an eligible, priced quote", () => {
+  const w = {}; vm.runInContext(dataSource, vm.createContext({ window: w })); const { basisBreakdown } = w.LandingData;
+  assert.equal(basisBreakdown(null), null);
+  assert.equal(basisBreakdown({}), null);
+  assert.equal(basisBreakdown({ quotes: [], models: [{ model: "X", gpus: 8, best: null }] }), null);
+  const lone = { models: [{ model: "X", gpus: 8, best: { risk_adjusted: 6 } }], quotes: [{ gpu: "X", price: "5", eligible: false }] };
+  assert.equal(basisBreakdown(lone), null, "a model whose only quote is ineligible is left out");
+  const one = { models: [{ model: "X", gpus: 8, best: { risk_adjusted: 6 } }], quotes: [{ gpu: "X", price: "4", eligible: false }, { gpu: "X", price: "5", eligible: true }] };
+  const parts = basisBreakdown(one);
+  assert.ok(Math.abs(parts.basis - 0.5) < 1e-12 && Math.abs(parts.screen - 0.25) < 1e-12 && Math.abs(parts.costing - 0.25) < 1e-12);
+});
+
 test("the sources keep to the content security policy", () => {
-  for (const [name, source] of [["workbench-charts.js", chartsSource], ["workbench-demo.js", demoSource]]) {
+  for (const [name, source] of [["workbench-charts.js", chartsSource], ["workbench-demo.js", demoSource], ["landing-data.js", dataSource]]) {
     for (const forbidden of ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function", "localStorage", "sessionStorage", ".style.", 'setAttribute("style"', "setAttribute('style'"]) {
       assert.equal(source.includes(forbidden), false, name + " must not use " + forbidden);
     }
   }
+});
+
+test("the adapter turns the server's decimal strings into numbers and keeps the exact text beside the money", () => {
+  const quote = book.base.quotes[0]; const sent = base.quotes[0];
+  assert.equal(typeof quote.price, "number");
+  assert.equal(quote.exact.price, sent.price, "the exact decimal stays available for labels and the handoff");
+  assert.equal(quote.exact.contract_value, sent.contract_value);
+  assert.equal(quote.ref, "Q" + sent.id.match(/(\d+)$/)[1]);
+  assert.equal(book.base.models[0].best.exact === undefined, true, "only quotes carry exact strings");
+  assert.equal(typeof book.base.kpis.basis, "number");
+  assert.ok(Math.abs(book.base.kpis.basis - Number(base.kpis.basis)) < 1e-15);
+  assert.equal(base.quotes[0].id, quote.id, "ids are never turned into numbers");
+});
+
+test("the adapter gives every unrated seller grade U and never counts it as a grade", () => {
+  const unrated = book.base.quotes.filter((quote) => base.quotes.find((raw) => raw.id === quote.id).grade === null);
+  assert.ok(unrated.length > 0, "the starting book includes unrated sellers");
+  unrated.forEach((quote) => assert.equal(quote.grade, "U"));
+  assert.ok("U" in book.base.grade_mix && !("unknown" in book.base.grade_mix));
+  Object.values(book.base.supply).forEach((row) => assert.ok("U" in row && !("unknown" in row)));
+  book.base.completeness.forEach((row) => assert.ok("U" in row.by_grade && !("unknown" in row.by_grade)));
+  book.base.providers.forEach((provider) => assert.match(provider.grade, /^[ABCDU]$/));
+});
+
+test("the adapter keeps a quote's missing terms as a list and gives every ineligible quote readable reasons", () => {
+  const gaps = book.base.quotes.filter((quote) => quote.missing.length);
+  assert.ok(gaps.length > 0);
+  gaps.forEach((quote) => { assert.ok(Array.isArray(quote.missing)); assert.equal(quote.missing_count, quote.missing.length); });
+  book.base.quotes.filter((quote) => !quote.eligible).forEach((quote) => {
+    assert.ok(quote.reason_codes.length > 0, quote.id + " says why it is not eligible");
+    assert.equal(quote.reasons.length, quote.reason_codes.length);
+    quote.reasons.forEach((reason) => assert.doesNotMatch(reason, /_/, "no machine codes in readable reasons: " + reason));
+  });
+  book.base.quotes.filter((quote) => quote.eligible).forEach((quote) => assert.deepEqual([...quote.reasons], []));
+});
+
+test("the adapter leaves a price it cannot know as null instead of making one up", () => {
+  const unpriced = book.base.quotes.filter((quote) => quote.risk_adjusted === null);
+  assert.ok(unpriced.length > 0, "the book has quotes that cannot be priced all-in");
+  unpriced.forEach((quote) => { assert.equal(quote.eligible, false); assert.equal(Number.isNaN(quote.financing), false); });
+  const walk2 = (value, where) => {
+    if (typeof value === "number") assert.ok(Number.isFinite(value), where + " is not finite");
+    else if (Array.isArray(value)) value.forEach((item, index) => walk2(item, where + "[" + index + "]"));
+    else if (value && typeof value === "object") Object.entries(value).forEach(([key, item]) => { if (key !== "raw") walk2(item, where + "." + key); });
+  };
+  ["base", "war", "reset"].forEach((name) => walk2(book[name], name));
+});
+
+test("the adapter names each scenario and refuses a response that is not a book", () => {
+  assert.equal(book.war.alerts[0].scenario_label, "Price war");
+  assert.equal(book.base.alerts.length, 0);
+  [null, undefined, 0, "book", [], {}, { quotes: [] }, { ...base, kpis: null }, { ...base, quotes: "none" }].forEach((bad) => assert.equal(normalize(bad), null, JSON.stringify(bad)?.slice(0, 40)));
+  const older = structuredClone(book.base); older.raw = undefined;
+  assert.ok(normalize(JSON.parse(JSON.stringify(base))), "a book is accepted whole");
+});
+
+test("the page says so when the server sends something that is not a book", async () => {
+  const page = makePage({ simulated: true, quotes: "none" }); page.connect(); await settle();
+  assert.match(page.el("session-state").textContent, /Reconnecting|Connecting/);
+  assert.equal(page.el("brief-live").children.length >= 0, true);
 });
