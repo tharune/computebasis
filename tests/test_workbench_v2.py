@@ -1,8 +1,11 @@
 """Workbench shell security and dynamic API wiring, without external reads."""
 from html.parser import HTMLParser
 import json
+import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import unittest
 
@@ -142,6 +145,28 @@ class WorkbenchV2Tests(unittest.TestCase):
         self.assertEqual(result["status"], "indicative")
         self.assertFalse(result["firm_price_eligible"])
         self.assertFalse(result["executable"])
+
+    def test_shipped_inventory_demo_passes_the_real_capacity_validator(self):
+        from compute_pricing.control.inventory.model import evaluate_inventory
+        node = os.environ.get("COMPUTEBASIS_NODE") or shutil.which("node")
+        self.assertTrue(node, "Node 24 is required. Set COMPUTEBASIS_NODE to an installed Node executable.")
+        # Execute the actual shipped factory rather than reproducing its state in Python.
+        program = r'''const fs = require("node:fs"); const vm = require("node:vm");
+const script = fs.readFileSync(process.argv[1], "utf8");
+const begin = script.indexOf("  function syntheticInventory(asOf) {");
+const end = script.indexOf("\n  function policyEdited(", begin);
+if (begin < 0 || end < 0) throw new Error("Inventory demo factory missing");
+process.stdout.write(vm.runInNewContext(script.slice(begin, end) + '\nJSON.stringify(syntheticInventory("2026-10-14T00:00:00Z"))'));
+'''
+        generated = subprocess.run([node, "-e", program, str(ASSETS / "workbench.js")],
+                                   capture_output=True, text=True, check=True, timeout=10)
+        state = json.loads(generated.stdout)
+        report = evaluate_inventory(state, as_of="2026-10-14T00:00:00Z")
+        self.assertEqual(report["summary"]["by_unit_kind"]["gpu"]["sold"], 2)
+        self.assertEqual(report["summary"]["by_unit_kind"]["gpu"]["reserved"], 1)
+        self.assertEqual(report["summary"]["by_unit_kind"]["gpu"]["maintenance"], 1)
+        self.assertEqual(report["summary"]["by_unit_kind"]["node"]["available"], 2)
+        self.assertEqual(len(report["unlocated_sites"]), 1)
 
 
 if __name__ == "__main__":

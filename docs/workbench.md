@@ -41,7 +41,9 @@ the unauthenticated shell and health endpoint contain no financial data or key.
 | Source | Current role and verification | Important limit |
 | --- | --- | --- |
 | GetDeploying | Published weekly advertised GPU-hour reference; current complete week selected, attribution retained | Global publisher aggregate; no independent lot, delivery right, local premium or confirmed inventory |
-| Azure Retail Prices | Documented unauthenticated internal comparison API; explicit N-family region/SKU consumption-hour scope, exact retail USD/native node-hour amounts | Price API does not supply GPU model/count or rentable quantity; no automatic GPU-hour normalization or tax/storage/transfer inclusion |
+| Azure Retail Prices | Documented unauthenticated internal comparison API; explicit region/SKU/prefix consumption-hour scope, exact retail USD/native node-hour amounts | Price API does not supply GPU model/count or rentable quantity; no automatic GPU-hour normalization or tax/storage/transfer inclusion |
+| AWS published prices | Bounded regional Lightsail/ECS/Bedrock native meter tariffs | Tiers, reserved terms, monthly caps and included resources need their own cost model; no GPU mapping or owned inventory |
+| OpenRouter Models API | Anonymous scoped current-default model catalog and exact token rates | Conditional workload/time pricing stays unapplied; no provider-pinned quote, inference call or broader archival/resale permission |
 | ECB | Attributed published daily reference FX, exact EUR-base quote rates | Informational reference, not an executable settlement/hedge quote; observation date stays separate from capture |
 | Hugging Face | Bounded public author/task model metadata, licensing/gating/revision claims retained | No prices, weight downloads, model-use permission or measured technical qualification; limited response is not a complete model universe |
 
@@ -96,3 +98,9 @@ offers, complete contracts/buyer demand, independently validated risk inputs and
 durable capacity/treasury/execution acceptance described in the broader plan.
 
 The [quality/intake release](quality-and-intake.md) adds precise native-price ordering, explicit draft/result states and bounded-history coverage.
+
+## Inventory and model policy
+
+The [inventory/policy workspace](inventory-and-policy.md) adds declared physical units, local site map, sold/reserved/maintenance/available states, contract intervals and immutable plan revisions. Load an explicit synthetic demo to explore; it cannot save holdings. Follow-current-UTC mode only reloads the local ledger while this pane is visible and idle. It never schedules external feed collection.
+
+Model Policy versions the estimator, source quality and recency, concentration/support gates and typed feature ownership. Structured controls explicitly write to JSON; validation and saving are separate from applying a saved policy to a pricing draft. Extra features remain unpriced until their registered owning method is qualified. Collection scopes have an editable JSON panel; its original bytes pass the strict shared API parser.

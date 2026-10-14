@@ -117,20 +117,21 @@
       "verified_by": null
     },
     "openrouter": {
-      "enabled": false,
-      "rights_status": "pending",
-      "rights_evidence": "",
+      "enabled": true,
+      "rights_status": "allowed",
+      "rights_evidence": "https://openrouter.ai/docs/guides/overview/models documents freely available no-auth Models API metadata and production integrations, including pagination/current-default pricing; narrow intended documented API integration for local catalog cost comparison only. https://openrouter.ai/terms (2026-08-31), sections 7(4), 7(5), and 12 restrict access resale/competing services/automated copying/materials; general automation ambiguity remains, no website scraping, broad archival/raw public redistribution, Model API access resale, prompts, inference, provider-endpoint queries, routing or broker execution admitted; independent legal review required before commercial resale or broader archive use; reviewed 2026-10-14",
       "permissions": {
-        "observe": "UNKNOWN",
-        "retain": "UNKNOWN",
-        "benchmark": "UNKNOWN",
+        "observe": "PASS",
+        "retain": "PASS",
+        "benchmark": "PASS",
         "execution": "FAIL"
       },
       "expires_at": null,
       "max_age_s": 3600,
       "liveness": "not_verified",
-      "attribution": "",
-      "verified_by": null
+      "attribution": "OpenRouter public Models API; advertised USD rates under current default conditions, no provider-pinned or future workload quote",
+      "verified_by": "documented-model-catalog-integration-review",
+      "min_interval_s": 1
     },
     "kalshi": {
       "enabled": false,
@@ -208,6 +209,74 @@
       },
       "expires_at": null,
       "max_age_s": 86400,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    },
+    "aws_public_pricing": {
+      "enabled": true,
+      "rights_status": "allowed",
+      "rights_evidence": "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html expressly supports cost control/scenario planning/budget forecasting and AWS cost comparison; https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/using-the-aws-price-list-bulk-api-fetching-price-list-files-manually.html documents published regional price-file downloads; narrow local AWS cost-comparison admission, no raw public redistribution or resale license; https://aws.amazon.com/terms/ and https://aws.amazon.com/agreement/ restrictions retained; reviewed 2026-10-14",
+      "permissions": {
+        "observe": "PASS",
+        "retain": "PASS",
+        "benchmark": "PASS",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 86400,
+      "min_interval_s": 1,
+      "liveness": "not_verified",
+      "attribution": "Amazon Web Services published price list; informational native AWS meters for local cost comparison, service pricing pages control actual charges",
+      "verified_by": "documented-aws-cost-tool-review"
+    },
+    "aws_ec2": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "Public regional EC2 price files may exceed bounded retrieval limits; authenticated scoped Price List Query API requires IAM credentials, not admitted by public-only collection.",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 86400,
+      "min_interval_s": 1,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    },
+    "oracle": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "https://docs.oracle.com/en-us/iaas/Content/Billing/Tasks/signingup_topic-Estimating_Costs.htm documents public partNumber/currencyCode list-price access; https://www.oracle.com/legal/terms/ limits Materials to personal informational noncommercial use and automated means absent specific written permission; commercial retention/benchmark scope remains pending.",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 86400,
+      "min_interval_s": 1,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    },
+    "ovhcloud": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "Public price pages and catalog discovery do not establish intended data retention/reuse rights here; current Oct 1 2026 pricing separates instance/local-storage/public-IPv4 components; documented public-catalog semantics and scope require review.",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 86400,
+      "min_interval_s": 1,
       "liveness": "not_verified",
       "attribution": "",
       "verified_by": null

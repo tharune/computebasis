@@ -113,7 +113,7 @@ class AdmissionConfigHardeningTests(unittest.TestCase):
 
     def test_registered_sources_and_rights_values_unchanged(self):
         policies = load_policies(Path(__file__).resolve().parents[1] / "examples/source-admission.json")
-        self.assertEqual({name for name, policy in policies.items() if policy.enabled}, {"getdeploying", "azure", "ecb", "huggingface"})
+        self.assertEqual({name for name, policy in policies.items() if policy.enabled}, {"getdeploying", "azure", "ecb", "huggingface", "aws_public_pricing", "openrouter"})
         for policy in policies.values():
             self.assertNotEqual(policy.permissions.get("execution"), "PASS")
         self.assertEqual(policies["ecb"].blockers("benchmark", dt.datetime(2026, 10, 14, tzinfo=dt.timezone.utc)), [])

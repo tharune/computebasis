@@ -22,7 +22,7 @@ from compute_pricing.control.domain.generate import json_schema
 from compute_pricing.control.reporting import SnapshotStore, SnapshotStoreError
 from compute_pricing.control.treasury import evaluate_cash_payload
 
-SERVICE_VERSION = "0.3.0"
+SERVICE_VERSION = "0.4.0"
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
 # Leave room for the canonical snapshot envelope and evaluation output wrappers.
 MAX_REQUEST_DEPTH = 24
@@ -243,6 +243,12 @@ def create_app(*, api_key: str, store_path: Path,
     async def sources() -> dict[str, Any]:
         return {"sources": source_status(policies), "execution_enabled": False}
 
+    @app.post("/v1/requests/parse", dependencies=[Depends(authenticated)])
+    async def parse_request(request: Request) -> dict[str, Any]:
+        # A pure editor boundary: no evaluation, persistence or semantic approval.
+        payload = await _json_body(request)
+        return {"request": payload, "boundary_validation": "json_only", "execution_enabled": False}
+
     @app.get("/v1/market/index", dependencies=[Depends(authenticated)])
     async def index() -> dict[str, Any]:
         from .market import market_index
@@ -395,5 +401,10 @@ def create_app(*, api_key: str, store_path: Path,
         return snapshot.to_dict()
 
     from compute_pricing.control.workbench import add_workbench
+    from compute_pricing.control.policies.routes import attach_policies
+    from compute_pricing.control.inventory import attach_inventory
+    attach_policies(app, authenticated=authenticated, json_body=_json_body,
+                    store_path=store.path, source_policies=policies)
+    attach_inventory(app, authenticated=authenticated, json_body=_json_body, store_path=store.path)
     add_workbench(app)
     return app

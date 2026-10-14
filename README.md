@@ -17,7 +17,9 @@ Maintained by **Tharun Ekambaram**.
 - Inverse bid/ask economics with explicit collection/fee/margin denominators and nonoverlapping owned costs.
 - Full dated cash ledgers, segregated advances, supplier prepayments, reserves, facility roll-forwards and conservative cash-limited price ticks.
 - Exact-workload inference qualification and complete allocated GPU costs, including idle capacity, versus explicit routed token/request tariffs.
-- Capacity interval checks, portfolio exposure, explicit scenario/tail research, forward readiness and receivable financing simulations.
+- Persistent declared inventory with physical-unit interval checks, sold/reserved/maintenance/available states, local geographic map and contract timelines.
+- Immutable benchmark and typed feature policies with exact source weights, freshness/support controls, registry ownership and optimistic concurrency.
+- Portfolio exposure, explicit scenario/tail research, forward readiness and receivable financing simulations.
 - Version-bound paper approvals, idempotent paper intents, uncertain-effect holds and authenticated immutable decision snapshots.
 - Research-only regional/configuration regression with temporal and group/lot-separated holdouts.
 
@@ -25,7 +27,7 @@ This is a local read-only and paper development release. Source and qualificatio
 
 ## Run the local workbench
 
-The [workbench guide](docs/workbench.md) runs a local browser UI with current source admission, native prices, freshness and immutable provenance. It includes manual scoped refresh and actual retained-reference evaluation; pricing/cash/inference editors keep synthetic examples separate. Four source roles are available: weekly GPU references, regional cloud VM retail meters, informational FX and bounded model discovery. They are not four interchangeable GPU-price feeds.
+The [workbench guide](docs/workbench.md) runs a local browser UI with current source admission, native prices, freshness and immutable provenance. It includes manual scoped refresh and actual retained-reference evaluation; pricing/cash/inference editors keep synthetic examples separate. Six documented public feeds provide weekly GPU references, regional VM retail meters, native AWS tariffs, advertised inference token rates, informational FX and bounded model discovery. These economic units stay separate. Review the [source scope guide](docs/source-adapters.md) before use.
 
 After installation, start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json`, then open `http://127.0.0.1:8000`. Retrieve your locally generated development key with the explicit `scripts/local.py key` command and paste it into the page. Startup makes no live request; choose **Read admitted feeds** to index the configured scopes.
 
@@ -77,3 +79,5 @@ MIT licensed. Public samples are invented; credentials, customer records, eviden
 ## Analyst workspace and flexible intake
 
 The [quality and intake guide](docs/quality-and-intake.md) covers the responsive analyst layout, exact native-unit sorting, bounded collection and schema-neutral local table evidence. Unknown columns and source meanings remain visible; arbitrary input never becomes approved pricing evidence automatically. Offline validation requires Node 24 for the dependency-free frontend behavior tests; serving the app requires no JavaScript build.
+
+The [inventory and policy guide](docs/inventory-and-policy.md) covers versioned local holdings, source controls and factor registration. Public demos are independently invented; listings never automatically become inventory. Map outlines are packaged [public-domain Natural Earth geometry](docs/third-party-notices.md), with no external tile or location request.

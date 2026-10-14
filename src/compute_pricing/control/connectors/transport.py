@@ -149,6 +149,11 @@ class SourceSpec:
 
 
 SOURCE_SPECS = {
+    "aws_public_pricing": SourceSpec("aws_public_pricing", "pricing.us-east-1.amazonaws.com",
+        r"/offers/v1\.0/aws/(?:AmazonLightsail|AmazonECS|AmazonBedrock)/(?:current|[0-9]{14})/(?:region_index\.json|[a-z0-9-]+/index\.json)",
+        content_types=frozenset({"application/json", "application/octet-stream", "binary/octet-stream"})),
+    "oracle": SourceSpec("oracle", "apexapps.oracle.com", r"/pls/apex/cetools/api/v1/products/",
+        query_keys=frozenset({"partNumber", "currencyCode"})),
     "azure": SourceSpec("azure", "prices.azure.com", r"/api/retail/prices",
                         query_keys=frozenset({"api-version", "currencyCode", "$filter", "$skip", "meterRegion"})),
     "ecb": SourceSpec("ecb", "www.ecb.europa.eu", r"/stats/eurofxref/eurofxref-daily\.xml",
@@ -161,9 +166,8 @@ SOURCE_SPECS = {
                                content_types=frozenset({"text/csv", "application/csv"})),
     "vast": SourceSpec("vast", "console.vast.ai", r"/api/v0/bundles", method="POST",
                        secret_env="COMPUTEBASIS_VAST_READ_API_KEY", post_contract="vast_offer_search_v1"),
-    "openrouter": SourceSpec("openrouter", "openrouter.ai",
-                             r"/api/v1/models(?:/[A-Za-z0-9_.:-]+/[A-Za-z0-9_.:-]+/endpoints)?",
-                             secret_env="COMPUTEBASIS_OPENROUTER_READ_API_KEY"),
+    "openrouter": SourceSpec("openrouter", "openrouter.ai", r"/api/v1/models",
+        query_keys=frozenset({"offset", "limit", "q", "input_modalities", "output_modalities"})),
     "runpod": SourceSpec("runpod", "api.runpod.io", r"/v2/catalog/gpus",
                          query_keys=frozenset({"include", "product", "count", "cloud", "countryCodes", "cudaVersions"}),
                          secret_env="COMPUTEBASIS_RUNPOD_READ_API_KEY"),

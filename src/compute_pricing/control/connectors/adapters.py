@@ -201,27 +201,31 @@ def parse_getdeploying(raw: RawResponse, policy: SourcePolicy) -> ConnectorBatch
 
 def azure_request(filters: Mapping[str, Any] | None) -> ReadRequest:
     options = dict(filters or {})
-    if set(options) - {"region", "sku", "max_pages"}:
+    if set(options) - {"region", "sku", "sku_prefix", "max_pages"}:
         raise ConnectorError("azure_collection_option_not_allowed")
-    region, sku = options.get("region"), options.get("sku")
+    region, sku, prefix = options.get("region"), options.get("sku"), options.get("sku_prefix", "Standard_N")
     if not isinstance(region, str) or not re.fullmatch(r"[a-z0-9]{1,64}", region):
         raise ConnectorError("azure_explicit_region_required")
-    if sku is not None and (not isinstance(sku, str) or not re.fullmatch(r"Standard_N[A-Za-z0-9_.-]{1,100}", sku)):
+    if not isinstance(prefix, str) or not re.fullmatch(r"Standard_[A-Za-z][A-Za-z0-9_.-]{0,100}", prefix):
+        raise ConnectorError("azure_sku_prefix_invalid")
+    if sku is not None and (not isinstance(sku, str) or not re.fullmatch(r"Standard_[A-Za-z0-9_.-]{1,100}", sku) or not sku.startswith(prefix)):
         raise ConnectorError("azure_gpu_family_sku_required")
     max_pages = options.get("max_pages", 3)
     if type(max_pages) is not int or not 1 <= max_pages <= 5:
         raise ConnectorError("azure_pagination_budget_invalid")
-    gpu_filter = "armSkuName eq '" + sku + "'" if sku else "startswith(armSkuName, 'Standard_N')"
+    gpu_filter = "armSkuName eq '" + sku + "'" if sku else "startswith(armSkuName, '" + prefix + "')"
     expression = "serviceName eq 'Virtual Machines' and priceType eq 'Consumption' and armRegionName eq '" + region + "' and " + gpu_filter
     query = urllib.parse.urlencode({"api-version": "2023-01-01-preview", "currencyCode": "'USD'",
                                    "meterRegion": "'primary'", "$filter": expression})
     return ReadRequest(SOURCE_SPECS["azure"], "https://prices.azure.com/api/retail/prices?" + query)
 
 
-def parse_azure(raw: RawResponse, policy: SourcePolicy) -> ConnectorBatch:
+def parse_azure(raw: RawResponse, policy: SourcePolicy, *, sku_prefix: str = "Standard_N") -> ConnectorBatch:
     if raw.source_id != "azure" or policy.source_id != "azure":
         raise ConnectorError("source_policy_mismatch")
     policy.require("benchmark", parse_utc(raw.captured_at))
+    if not isinstance(sku_prefix, str) or not re.fullmatch(r"Standard_[A-Za-z][A-Za-z0-9_.-]{0,100}", sku_prefix):
+        raise ConnectorError("azure_sku_prefix_invalid")
     payload = json_payload(raw)
     if not isinstance(payload, dict) or not isinstance(payload.get("Items"), list) or "NextPageLink" not in payload:
         raise ConnectorError("azure_catalog_shape_changed")
@@ -230,8 +234,8 @@ def parse_azure(raw: RawResponse, policy: SourcePolicy) -> ConnectorBatch:
         if not isinstance(meter, dict):
             raise ConnectorError("invalid_azure_meter")
         sku = meter.get("armSkuName")
-        if not isinstance(sku, str) or not sku.startswith("Standard_N"):
-            exclusions.append({"row": position, "reason": "outside_requested_gpu_family"})
+        if not isinstance(sku, str) or not sku.startswith(sku_prefix):
+            exclusions.append({"row": position, "reason": "outside_requested_sku_prefix"})
             continue
         if (meter.get("serviceName") != "Virtual Machines" or meter.get("type") != "Consumption"
                 or meter.get("unitOfMeasure") != "1 Hour" or meter.get("isPrimaryMeterRegion") is not True
@@ -251,6 +255,7 @@ def parse_azure(raw: RawResponse, policy: SourcePolicy) -> ConnectorBatch:
             kind="listing_ask", amount=amount, unit="node_hour", model=None,
             observed=parse_utc(raw.captured_at), side="ask", provider_group_id="microsoft-azure",
             extensions={"source_row": meter, "cloud_sku": sku, "provider_region": meter["armRegionName"],
+                "requested_sku_prefix": sku_prefix, "hardware_class_not_inferred_from_sku": True,
                 "provider_location_label": meter.get("location"), "billing_type": billing,
                 "effective_start_date": effective, "price_scope": "retail_vm_meter_hour", "os_license_variant": meter["productName"],
                 "gpu_model_and_count": "not_in_price_api_response", "availability": "not_verified_rentable",
@@ -360,6 +365,55 @@ def parse_vast(raw: RawResponse, policy: SourcePolicy) -> ConnectorBatch:
         "bundle_rate_not_gpu_only_rate", "listing_claims_not_verified_executable_capacity"))
 
 
+OPENROUTER_PRICE_FIELDS = frozenset({"prompt", "completion", "request", "image", "web_search", "internal_reasoning",
+    "input_cache_read", "input_cache_write", "input_audio", "output_audio", "input_audio_cache"})
+OPENROUTER_CONDITION_FIELDS = frozenset({"min_prompt_tokens", "utc_start", "utc_end", "utc_days"})
+
+
+def _openrouter_validate_rate(field: str, value: Any) -> None:
+    amount = decimal_value(value)
+    decimal_string(amount)
+    if field in {"prompt", "completion"}:
+        # Validate the actual observation representation before catalog
+        # admission. A bounded per-token amount may exceed its output budget
+        # after exact per-million scaling; that model must remain unpriced.
+        decimal_string(per_million(amount))
+
+
+def _openrouter_price_quality(pricing: Mapping[str, Any]) -> list[dict[str, str]]:
+    """Validate rate claims without assigning meaning to negative sentinels.
+
+    A model with an unsupported rate is discovery metadata only. Other pricing
+    fields remain workload-specific; this helper never evaluates an override.
+    """
+    invalid = []
+    if len(pricing) > 128:
+        return [{"dimension": "pricing", "code": "price_dimension_budget"}]
+    for field, value in pricing.items():
+        if field == "overrides":
+            continue
+        try:
+            _openrouter_validate_rate(field, value)
+        except ConnectorError as error:
+            invalid.append({"dimension": field, "code": error.code})
+    if "overrides" in pricing:
+        overrides = pricing["overrides"]
+        if not isinstance(overrides, list) or len(overrides) > 128:
+            invalid.append({"dimension": "overrides", "code": "invalid_override_list_or_budget"})
+        else:
+            for index, override in enumerate(overrides):
+                if not isinstance(override, dict) or len(override) > 128:
+                    invalid.append({"dimension": f"overrides[{index}]", "code": "invalid_override_record_or_budget"})
+                    continue
+                rate_fields = (OPENROUTER_PRICE_FIELDS | set(pricing)) - {"overrides"} - OPENROUTER_CONDITION_FIELDS
+                for field in set(override) & rate_fields:
+                    try:
+                        _openrouter_validate_rate(field, override[field])
+                    except ConnectorError as error:
+                        invalid.append({"dimension": f"overrides[{index}].{field}", "code": error.code})
+    return sorted(invalid, key=lambda item: item["dimension"])
+
+
 def parse_openrouter(raw: RawResponse, policy: SourcePolicy) -> ConnectorBatch:
     if raw.source_id != "openrouter" or policy.source_id != "openrouter":
         raise ConnectorError("source_policy_mismatch")
@@ -367,25 +421,63 @@ def parse_openrouter(raw: RawResponse, policy: SourcePolicy) -> ConnectorBatch:
     payload = json_payload(raw)
     if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
         raise ConnectorError("model_catalog_shape_changed")
-    observations, seen = [], set()
+    observations, catalog, seen, excluded = [], [], set(), []
     for model in payload["data"]:
         if not isinstance(model, dict) or not isinstance(model.get("id"), str) or not isinstance(model.get("pricing"), dict):
             raise ConnectorError("invalid_model_catalog_entry")
         model_id = model["id"]
-        if not model_id or model_id in seen:
+        if not model_id or len(model_id) > 256 or model_id in seen:
             raise ConnectorError("duplicate_or_missing_model_id")
         seen.add(model_id)
+        retained = {key: model[key] for key in ("id", "canonical_slug", "name", "created", "context_length",
+            "architecture", "top_provider", "per_request_limits", "supported_parameters", "expiration_date") if key in model}
+        invalid_dimensions = _openrouter_price_quality(model["pricing"])
+        # Invalid monetary claims are never persisted as rates or substituted
+        # with zero. The source hash and safe dimension codes explain the hold.
+        retained["pricing"] = None if invalid_dimensions else model["pricing"]
+        unknown = sorted(set(model) - set(retained) - {"description", "benchmarks", "links"})
+        conditional = bool(model["pricing"].get("overrides"))
+        available = [field for field in ("prompt", "completion") if field in model["pricing"]]
+        price_status = "unpriced_invalid_advertised_dimensions" if invalid_dimensions else "unpriced_missing_token_rates" if not available else "partial_token_rates" if len(available) < 2 else "advertised_token_rates"
+        if invalid_dimensions:
+            excluded.append({"model_id": model_id, "invalid_dimensions": invalid_dimensions})
+        catalog.append(_jsonable({"source_id": "openrouter", "kind": "model_price_catalog", "model_id": model_id,
+            "observed_at": raw.captured_at, "expires_at": utc_string(parse_utc(raw.captured_at) + dt.timedelta(seconds=policy.max_age_s)),
+            "status": "claimed", "metadata": retained, "unknown_field_names": unknown,
+            "price_status": price_status, "price_eligible": bool(available) and not invalid_dimensions,
+            "invalid_dimensions": invalid_dimensions,
+            "base_rate_basis": "advertised_current_default_conditions", "conditional_pricing_present": conditional,
+            "qualification_verified": False, "gpu_hour_benchmark_eligible": False, "execution_enabled": False,
+            "rights": _permission(policy), "attribution": policy.attribution,
+            "evidence": {"artifact_sha256": raw.sha256, "accessed_at": raw.captured_at, "locator": raw.endpoint_path}}))
+        if invalid_dimensions:
+            continue
         for field, unit in (("prompt", "input_million_tokens"), ("completion", "output_million_tokens")):
             if field not in model["pricing"]:
                 continue  # No invented zero or old fixture fallback.
             amount = per_million(decimal_value(model["pricing"][field]))
             observations.append(_observation(raw, policy, key=model_id + "|" + field + "|" + raw.captured_at,
                 kind="model_token_price", amount=amount, unit=unit, model=model_id,
-                observed=parse_utc(raw.captured_at), side="ask", extensions={"source_row": model,
+                observed=parse_utc(raw.captured_at), side="ask", extensions={"model_metadata": retained,
                     "pricing_dimension": field, "catalog_price_not_provider_pinned_quote": True,
-                    "privacy_and_route_compatibility_not_assumed": True}))
+                    "pricing_conditions_present": conditional, "base_rate_basis": "advertised_current_default_conditions",
+                    "pricing_overrides_unapplied": model["pricing"].get("overrides", []),
+                    "other_billing_dimensions_require_separate_workload_costs": True,
+                    "unknown_field_names": unknown, "privacy_and_route_compatibility_not_assumed": True}))
+    warnings = ("token_prices_never_enter_gpu_hour_index",
+            "current_default_catalog_rates_not_future_pinned_route_quotes",
+            "conditional_cache_request_media_and_other_rates_require_workload_and_time_qualification")
+    if excluded:
+        warnings += ("invalid_advertised_rates_quarantined_as_unpriced_catalog_metadata",)
     return ConnectorBatch(policy.source_id, raw.metadata(), tuple(observations),
-        catalog_records=tuple(payload["data"]), warnings=("token_prices_never_enter_gpu_hour_index",))
+        catalog_records=tuple(catalog), warnings=warnings, coverage={
+            "price_coverage_complete": not excluded and all(row["price_status"] == "advertised_token_rates" for row in catalog),
+            "models_with_token_rates": sum(row["price_eligible"] for row in catalog),
+            "models_without_token_rates": sum(not row["price_eligible"] for row in catalog),
+            "models_with_partial_token_rates": sum(row["price_status"] == "partial_token_rates" for row in catalog),
+            "invalid_price_model_count": len(excluded),
+            "invalid_price_dimension_count": sum(len(row["invalid_dimensions"]) for row in excluded),
+            "price_exclusions": excluded})
 
 
 @dataclasses.dataclass(frozen=True)
@@ -402,6 +494,17 @@ class SourceAdapter:
         spec = SOURCE_SPECS[self.source_id]
         if self.source_id == "azure":
             return azure_request(filters)
+        if self.source_id == "aws_public_pricing":
+            from .aws import aws_request
+            return aws_request(filters)
+        if self.source_id == "openrouter":
+            from .openrouter import openrouter_request
+            return openrouter_request(filters)
+        if self.source_id == "oracle":
+            options = dict(filters or {})
+            if set(options) != {"partNumber", "currencyCode"} or not isinstance(options["partNumber"], str) or not re.fullmatch(r"B[0-9]{3,12}", options["partNumber"]) or not isinstance(options["currencyCode"], str) or not re.fullmatch(r"[A-Z]{3}", options["currencyCode"]):
+                raise ConnectorError("oracle_explicit_part_currency_required")
+            return ReadRequest(spec, "https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/?" + urllib.parse.urlencode(options))
         if self.source_id == "ecb":
             if filters:
                 raise ConnectorError("ecb_daily_request_has_no_filters")
@@ -436,13 +539,17 @@ class SourceAdapter:
 
 
 ADAPTERS = {adapter.source_id: adapter for adapter in (
+    SourceAdapter("aws_public_pricing", "native_cloud_meter_tariff", "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html", "implemented"),
+    SourceAdapter("aws_ec2", "cloud_vm_list_price", "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/using-the-aws-price-list-bulk-api-fetching-price-list-files-manually.html", "not_implemented", "bounded_file_or_authenticated_query_required"),
+    SourceAdapter("oracle", "native_product_price_catalog", "https://docs.oracle.com/en-us/iaas/Content/Billing/Tasks/signingup_topic-Estimating_Costs.htm", "rights_review_pending", "commercial_retention_use_permission_required"),
+    SourceAdapter("ovhcloud", "public_cloud_catalog", "https://www.ovhcloud.com/en/public-cloud/prices/", "not_implemented", "documented_catalog_reuse_rights_required"),
     SourceAdapter("azure", "cloud_vm_list_price", "https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices", "implemented"),
     SourceAdapter("ecb", "reference_fx", "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html", "implemented"),
     SourceAdapter("scaleway", "public_cloud_catalog", "https://www.scaleway.com/en/developers/api/product-catalog/public-catalog", "rights_review_pending"),
     SourceAdapter("huggingface", "model_metadata", "https://huggingface.co/docs/hub/en/api", "implemented"),
     SourceAdapter("getdeploying", "aggregate_advertised_index", "https://getdeploying.com/dataset/gpu-prices", "implemented"),
     SourceAdapter("vast", "listing_ask", "https://docs.vast.ai/api-reference/search/search-offers", "implemented"),
-    SourceAdapter("openrouter", "model_token_price", "https://openrouter.ai/docs/api/api-reference/models/get-models", "implemented"),
+    SourceAdapter("openrouter", "model_token_price", "https://openrouter.ai/docs/guides/overview/models", "implemented"),
     SourceAdapter("runpod", "catalog", "https://docs.runpod.io/api-reference-v2/catalog/list-gpu-types", "price_units_pending"),
     SourceAdapter("kalshi", "event_contract_price", "https://docs.kalshi.com/api-reference/market/get-markets", "rights_review_pending"),
     SourceAdapter("silicon_data", "licensed_compute_index", "https://www.silicondata.com/products/index-datasets", "not_implemented", "licensed_spec_required"),
@@ -473,7 +580,7 @@ def source_status(policies: Mapping[str, SourcePolicy], now: dt.datetime | None 
                        "auth_required": bool(spec and spec.secret_env), "auth_present": auth_ready,
                        "auth_state": "not_required" if not (spec and spec.secret_env) else "present" if auth_ready else "missing",
                        "max_age_s": policy.max_age_s if policy else None,
-                       "collection_parameters": {"required": ["region"], "optional": ["sku", "max_pages"], "max_pages": 5} if name == "azure" else {"required": ["author", "pipeline_tag", "limit", "full"], "optional": [], "max_limit": 100} if name == "huggingface" else {"required": [], "optional": []},
+                       "collection_parameters": {"required": ["region"], "optional": ["sku", "sku_prefix", "max_pages"], "max_pages": 5, "default_sku_prefix": "Standard_N"} if name == "azure" else {"required": ["service", "region"], "optional": ["sku"], "approved_services": ["AmazonLightsail", "AmazonECS", "AmazonBedrock"], "native_units_not_gpu_hours": True} if name == "aws_public_pricing" else {"required": [], "optional": ["q", "input_modalities", "output_modalities", "offset", "limit", "max_pages"], "max_limit": 100, "max_pages": 3, "price_scope": "current_default_conditions_only"} if name == "openrouter" else {"required": ["partNumber", "currencyCode"], "optional": []} if name == "oracle" else {"required": ["author", "pipeline_tag", "limit", "full"], "optional": [], "max_limit": 100} if name == "huggingface" else {"required": [], "optional": []},
                        "can_attempt_read": not blocked, "blockers": blocked, "execution_enabled": False})
     return result
 
@@ -485,6 +592,16 @@ def collect_source(source_id: str, policies: Mapping[str, SourcePolicy], *,
         raise ConnectorError("unknown_or_unadmitted_source")
     adapter, policy = ADAPTERS[source_id], policies[source_id]
     client = transport or ReadOnlyTransport()
+    # The catalog collector returns retainable comparison data. Resolve all
+    # purposes before constructing a request or processing user query filters.
+    for purpose in ("observe", "retain", "benchmark"):
+        policy.require(purpose, client.clock())
+    if source_id == "aws_public_pricing":
+        from .aws import collect_aws
+        return collect_aws(policy, client, filters)
+    if source_id == "openrouter":
+        from .openrouter import collect_openrouter
+        return collect_openrouter(policy, client, filters)
     if source_id == "azure":
         return collect_azure(policy, client, filters)
     raw = client.fetch(adapter.request(filters=filters), policy)
@@ -516,7 +633,7 @@ def collect_azure(policy: SourcePolicy, transport: ReadOnlyTransport,
         if page:
             transport.wait_for_source("azure", max_wait_s=transport.max_wait_s)
         raw = transport.fetch(request, policy)
-        batch = parse_azure(raw, policy)
+        batch = parse_azure(raw, policy, sku_prefix=options.get("sku_prefix", "Standard_N"))
         total_bytes += len(raw.body)
         if total_bytes > 8 * 1024 * 1024:
             raise ConnectorError("azure_collection_size_budget")
@@ -558,7 +675,7 @@ def collect_azure(policy: SourcePolicy, transport: ReadOnlyTransport,
                 "completion_basis": "provider_next_page_contract", "request_count": len(pages),
                 "rows_received": total_rows, "rows_accepted": len(observations), "exclusions": exclusions,
                 "scope": {"provider": "Azure", "region": options["region"], "sku": options.get("sku"),
-                          "family": "Standard_N", "price_type": "Consumption", "meter_region": "primary", "currency": "USD"},
+                          "family": options.get("sku_prefix", "Standard_N"), "price_type": "Consumption", "meter_region": "primary", "currency": "USD"},
                 "all_market_inventory": False, "gpu_model_mapping_complete": False}
     warnings = ["retail_cloud_vm_price_not_verified_inventory_or_gpu_hour", "gpu_model_and_count_require_separate_specification_join"]
     if not complete:

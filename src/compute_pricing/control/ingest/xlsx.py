@@ -99,7 +99,7 @@ def column_letters(index: int) -> str:
 
 
 def split_ref(ref: str) -> tuple[int, int]:
-    match = _REF.match(ref or "")
+    match = _REF.fullmatch(ref or "")
     if not match:
         raise WorkbookError("invalid cell reference")
     row, column = int(match.group(2)), column_index(match.group(1))
@@ -224,16 +224,18 @@ def _refuse_declarations(data: bytes, *, max_cells: int = MAX_CELLS) -> None:
     parser.ExternalEntityRefHandler = refuse
     try:
         parser.Parse(data, True)
-    except xml.parsers.expat.ExpatError as exc:
-        raise WorkbookError("malformed XML part") from exc
+    except (xml.parsers.expat.ExpatError, LookupError, ValueError) as exc:
+        if isinstance(exc, WorkbookError):
+            raise
+        raise WorkbookError("unsupported or malformed XML part") from exc
 
 
 def _safe_xml(data: bytes, *, max_cells: int = MAX_CELLS) -> ET.Element:
     _refuse_declarations(data, max_cells=max_cells)
     try:
         return ET.fromstring(data)
-    except ET.ParseError as exc:
-        raise WorkbookError("malformed XML part") from exc
+    except (ET.ParseError, LookupError, ValueError) as exc:
+        raise WorkbookError("unsupported or malformed XML part") from exc
 
 
 class _Archive:
@@ -404,7 +406,7 @@ def read_workbook(data: bytes, *, max_cells: int = MAX_CELLS) -> Workbook:
                        (merged.findall(f"{{{MAIN_NS}}}mergeCell") if merged is not None else []))
         sheets.append(Sheet(name, state, "worksheet", part, hashlib.sha256(raw).hexdigest(), cells,
                             ranges))
-    if len({sheet.name for sheet in sheets}) != len(sheets):
+    if len({sheet.name.casefold() for sheet in sheets}) != len(sheets):
         raise WorkbookError("duplicate sheet names")
     return Workbook(hashlib.sha256(data).hexdigest(), len(data), epoch == MAC_EPOCH, tuple(sheets))
 
@@ -425,7 +427,8 @@ def _read_cells(root: ET.Element, strings: list[str], xf_formats: list[str],
             row_index, column = split_ref(ref)
             if (row_index, column) in cells:
                 raise WorkbookError("duplicate cell reference")
-            cells[(row_index, column)] = _parse_cell(element, ref, row_index, column, strings,
+            canonical = f"{column_letters(column)}{row_index}"
+            cells[(row_index, column)] = _parse_cell(element, canonical, row_index, column, strings,
                                                      xf_formats, epoch)
     return cells
 
@@ -451,8 +454,14 @@ def _parse_cell(element, ref, row, column, strings, xf_formats, epoch) -> Cell:
         if formula_element.get("t") in ("shared", "array", "dataTable"):
             raise WorkbookError("shared, array and data-table formulas are not supported")
         formula = "=" + (formula_element.text or "")
+        cached = raw_text
+        if ooxml_type == "s" and raw_text:
+            index = _int(raw_text, "shared string index")
+            if not 0 <= index < len(strings):
+                raise WorkbookError("shared string index out of range")
+            cached = strings[index]
         return Cell(ref, row, column, formula, "f", number_format, ooxml_type, raw_text,
-                    formula=formula, cached_text=raw_text)
+                    formula=formula, cached_text=cached)
     value: object = value_text
     if value_text is not None:
         if excel_type == "n":

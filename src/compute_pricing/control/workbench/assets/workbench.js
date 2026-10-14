@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const byId = (id) => document.getElementById(id);
-  const state = { key: "", epoch: 0, index: null, rows: [], sources: [], snapshots: [], page: 0, synthetic: false, busy: false, action: null, controllers: new Map(), detailOrigin: null };
+  const state = { key: "", epoch: 0, index: null, rows: [], sources: [], snapshots: [], page: 0, synthetic: false, busy: false, action: null, controllers: new Map(), detailOrigin: null, inventory: null, inventoryDemo: false, inventorySite: "", selectedLot: "", land: null, policyEntries: [], policyCatalog: [], policyRows: [], policySaved: null, policyDirty: true, policyControlsDirty: false };
   const PAGE_SIZE = 100;
   const EMPTY = "—";
 
@@ -29,10 +29,15 @@
     ["pricing", "inference", "cash"].forEach((kind) => {
       byId("evaluate-" + kind).disabled = busy || !state.key || !byId(kind + "-input").value.trim();
     });
+    ["inventory-load", "inventory-demo", "policy-load", "policy-template", "policy-read-json", "policy-add-source"].forEach((id) => { byId(id).disabled = busy || !state.key; });
+    byId("inventory-at").disabled = busy || byId("inventory-live").checked;
+    byId("inventory-save").disabled = busy || !state.key || state.inventoryDemo || !byId("inventory-input").value.trim();
+    ["policy-update-json", "policy-save"].forEach((id) => { byId(id).disabled = busy || !state.key || !byId("policy-input").value.trim(); });
+    byId("policy-apply").disabled = busy || !state.key || !state.policySaved || state.policyDirty;
     if (byId("evaluate-live-reference")) byId("evaluate-live-reference").disabled = busy || !state.key || !byId("live-model").value || !byId("live-terms").value;
   }
   function showView(name, focus = true) {
-    ["market", "pricing", "inference", "cash"].forEach((view) => { byId(view + "-view").hidden = view !== name; });
+    ["market", "inventory", "pricing", "policy", "inference", "cash"].forEach((view) => { byId(view + "-view").hidden = view !== name; });
     document.querySelectorAll("[data-view]").forEach((button) => {
       const selected = button.dataset.view === name;
       button.classList.toggle("active", selected);
@@ -57,6 +62,16 @@
     text("pricing-mode", "Declared input · no example loaded");
     byId("record-detail-json").textContent = ""; byId("record-detail").hidden = true;
     byId("record-query").value = ""; state.detailOrigin = null;
+    state.inventory = null; state.inventoryDemo = false; state.inventorySite = ""; state.selectedLot = "";
+    ["inventory-input", "inventory-at", "inventory-query", "inventory-status", "policy-input"].forEach((id) => { byId(id).value = ""; });
+    ["inventory-output", "policy-output"].forEach((id) => { byId(id).textContent = ""; byId(id).hidden = true; });
+    state.policyEntries = []; state.policyCatalog = []; state.policyRows = []; state.policySaved = null; state.policyDirty = true; state.policyControlsDirty = false;
+    [...POLICY_FIELDS, ...BENCHMARK_FIELDS].forEach(([, id]) => { byId(id).value = ""; });
+    selection(byId("policy-select"), [], "Load available versions");
+    byId("policy-source-rules").replaceChildren(element("p", "No policy loaded.", "empty-state")); byId("policy-feature-registry").replaceChildren(element("p", "No registry loaded.", "empty-state"));
+    byId("policy-source-catalog").replaceChildren(element("p", "Load policy versions to inspect source permissions.", "muted"));
+    text("policy-state", "No policy loaded"); text("policy-feedback", "A saved version is required before applying to a pricing draft."); renderInventory();
+    text("inventory-time-help", "This evaluates the declared plan at a UTC instant; it does not reconstruct historically observed holdings.");
     renderIndex(); setBusy(false); notify(message);
   }
   async function request(path, options = {}, { authenticated = true, timeout = 30000, format = "json" } = {}) {
@@ -73,8 +88,9 @@
       if (controller.signal.aborted) { const error = new Error("Request aborted"); error.name = "AbortError"; throw error; }
       if (!response.ok) {
         if (response.status === 401) { clearSession("The API rejected this session. Enter the current local key."); throw new Error("Session rejected"); }
-        const detail = typeof data?.detail === "string" ? data.detail : "Request rejected";
-        throw new Error("HTTP " + response.status + " · " + detail);
+        const detail = typeof data?.detail === "string" ? data.detail : typeof data?.detail?.code === "string" ? data.detail.code : "Request rejected";
+        const action = detail === "feature_changes_require_successor_registry_version" ? ". Increase the feature registry version as well as the policy version, then validate again." : /revision_conflict/.test(detail) ? ". Reload current versions before retrying; your unsaved draft is preserved." : "";
+        throw new Error("HTTP " + response.status + " · " + detail + action);
       }
       if (format === "json" && (!data || Array.isArray(data) || typeof data !== "object")) throw new Error("The local API returned an invalid JSON response. Reload the retained index before retrying.");
       return data;
@@ -99,7 +115,7 @@
     return { amount: EMPTY, currency: record.currency || EMPTY, unit: record.unit || EMPTY };
   }
   function modelOf(record) { return record.hardware?.model || record.hardware_model || record.extensions?.cloud_sku || record.sku || record.sku_name || record.armSkuName || record.model_id || record.model || record.id || "Unmapped hardware / SKU"; }
-  function regionOf(record) { return (typeof record.region === "string" ? record.region : record.region?.country_code || record.region?.locality || record.region?.name) || record.extensions?.provider_region || record.region_name || record.armRegionName || record.location || "Unknown / global"; }
+  function regionOf(record) { return (typeof record.region === "string" ? record.region : record.region?.country_code || record.region?.locality || record.region?.name) || record.provider_region || record.extensions?.provider_region || record.region_name || record.armRegionName || record.location || "Unknown / global"; }
   function kindOf(record) { return record.extensions?.price_scope || record.kind || record.role || (record._catalog ? "native_catalog_reference" : "unknown_scope"); }
   function isFx(record) { return /(?:fx|exchange_rate)/i.test(record.kind || record.role || "") || Boolean(record.base_currency && (record.quote_currency || record.currency) && (record.quote_per_base !== undefined || record.rate !== undefined)); }
   function isModelMetadata(record) { return record.kind === "model_metadata" || record.role === "model_metadata" || record.price_eligible === false && Boolean(record.model_id); }
@@ -132,6 +148,7 @@
       card.append(element("p", latest.captured ? latest.count + " price observations · " + latest.catalog + " catalog records · " + latest.scopes.length + " retained scopes" : state.index?.coverage?.history_scan_truncated ? "No collection found in the bounded indexed history" : "No retained collection"));
       card.append(element("p", "Last successful capture: " + (latest.captured || "not available")));
       if (source.coverage?.complete === false || latest.scopes.some((scope) => scope.coverage?.complete === false)) card.append(element("p", "Partial coverage within configured scopes", "blocker"));
+      if (source.coverage?.price_coverage_complete === false || latest.scopes.some((scope) => scope.coverage?.price_coverage_complete === false)) card.append(element("p", "Pricing coverage is partial; some model catalogs have missing or invalid advertised rate dimensions.", "blocker"));
       if (latest.scopes.some((scope) => scope.stale)) card.append(element("p", "One or more retained scopes are stale", "blocker"));
       const detail = element("details"); detail.append(element("summary", "Permissions, scope & last attempt"));
       const meta = element("div", undefined, "source-meta");
@@ -236,12 +253,16 @@
   function renderModelDiscovery(index) {
     const records = (index?.model_discovery || []).concat((index?.catalog_records || []).filter((record) => !isFx(record) && (isModelMetadata(record) || !hasPublishedPrice(record))));
     const container = byId("model-records"); container.replaceChildren(); byId("model-section").hidden = !records.length;
-    text("model-record-count", records.length + " metadata records · no prices / goodput");
+    const priceCatalogs = records.filter((record) => record.kind === "model_price_catalog");
+    const isUnpriced = (record) => record.price_eligible === false || record.price_status?.startsWith("unpriced_") || !record.metadata?.pricing || (record.metadata.pricing.prompt === undefined && record.metadata.pricing.completion === undefined);
+    const unpriced = priceCatalogs.filter(isUnpriced).length;
+    text("model-record-count", records.length + " catalog records / " + (priceCatalogs.length - unpriced) + " advertised rate catalogs / " + unpriced + " unpriced model catalogs / " + (records.length - priceCatalogs.length) + " metadata only");
     records.slice(0, 100).forEach((record) => {
       const row = element("div", undefined, "snapshot-row");
       const description = element("div", record.model_id || record.id || "Model metadata");
       description.append(element("br"), element("code", "Revision " + (record.repository_revision || "unknown") + " · License declared: " + (record.card_license || record.license_tags?.join(", ") || "unknown")));
-      description.append(element("p", (record.gated ? "Gated access; permission review required" : "Public metadata; serving permissions unverified") + " · " + freshness(record) + " · No measured runtime qualification", "muted"));
+      const scope = record.kind === "model_price_catalog" ? isUnpriced(record) ? "UNPRICED / " + (record.price_status === "unpriced_invalid_advertised_dimensions" ? "invalid advertised dimensions quarantined" : "input/output token rates not published") : (record.price_status === "partial_token_rates" ? "Partial current-default token rates" : "Advertised current-default token rates") + " / " + (record.conditional_pricing_present ? "conditional pricing retained, unapplied" : "other billing dimensions require workload qualification") : record.gated ? "Gated access; permission review required" : "Public metadata; serving permissions unverified";
+      description.append(element("p", scope + " · " + freshness(record) + " · No measured runtime qualification", "muted"));
       const inspect = element("button", "Inspect metadata", "quiet-button"); inspect.addEventListener("click", () => showRecord(record, inspect));
       row.append(description, inspect); container.append(row);
     });
@@ -356,7 +377,7 @@
       const term = { billing_type: cohort.billing_type, reservation_months: cohort.reservation_months };
       const rows = aggregateRows().filter((row) => row.hardware.model === selectedModel && row.price.currency === cohort.currency && row.extensions.billing_type === term.billing_type && row.extensions.reservation_months === term.reservation_months);
       if (!rows.length) throw new Error("No current admitted aggregate records remain for that model and term. Refresh source data or choose another cohort.");
-      const rules = {};
+      const rules = Object.create(null);
       rows.forEach((row) => {
         const source = state.sources.find((candidate) => candidate.source_id === row.source_id);
         const maxAge = Number(source?.max_age_s);
@@ -373,6 +394,200 @@
       notify("Live retained source evidence evaluated as a global advertised reference. No commercial bid, ask, localized premium or physical capacity is asserted.");
     });
   }
+  const POLICY_FIELDS = [["policy_id", "policy-id"], ["version", "policy-version"], ["model_version", "policy-model-version"], ["registry_version", "policy-registry-version"], ["effective_at", "policy-effective"], ["expires_at", "policy-expiry"]];
+  const BENCHMARK_FIELDS = [["estimator", "policy-estimator"], ["max_source_share", "policy-source-cap"], ["max_provider_share", "policy-provider-cap"], ["min_observations", "policy-min-observations"], ["min_sources", "policy-min-sources"], ["min_provider_groups", "policy-min-providers"]];
+  const CAPACITY_STATES = ["available", "reserved", "sold", "maintenance", "unavailable"];
+  function utcSelection() {
+    if (byId("inventory-live").checked) return null;
+    const value = byId("inventory-at").value.trim(); if (!value) return null;
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().replace(".000Z", "Z") !== value) throw new Error("Enter a valid UTC instant in YYYY-MM-DDTHH:MM:SSZ format. Local timestamps are ambiguous.");
+    return value;
+  }
+  function safeEditableJson(raw) {
+    // Transformations reject duplicate keys and unsafe numeric literals. Direct evaluations still send original bytes.
+    const result = JSON.parse(raw); let cursor = 0;
+    const white = () => { while (/\s/.test(raw[cursor] || "") && cursor < raw.length) cursor++; };
+    const string = () => { const start = cursor++; while (cursor < raw.length) { if (raw[cursor] === "\\") cursor += 2; else if (raw[cursor++] === '"') break; } return JSON.parse(raw.slice(start, cursor)); };
+    const value = () => {
+      white(); const token = raw[cursor];
+      if (token === "{") { cursor++; white(); const keys = new Set(); if (raw[cursor] === "}") { cursor++; return; } while (cursor < raw.length) { white(); const key = string(); if (keys.has(key)) throw new Error("Duplicate JSON key: " + key + ". Correct the draft before transforming it."); keys.add(key); white(); cursor++; value(); white(); if (raw[cursor++] === "}") break; } }
+      else if (token === "[") { cursor++; white(); if (raw[cursor] === "]") { cursor++; return; } while (cursor < raw.length) { value(); white(); if (raw[cursor++] === "]") break; } }
+      else if (token === '"') string();
+      else { const match = /^(?:-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)/.exec(raw.slice(cursor)); if (!match) throw new Error("Invalid JSON token"); cursor += match[0].length; if (/^-?\d/.test(match[0]) && (!/^-?\d+$/.test(match[0]) || !Number.isSafeInteger(Number(match[0])))) throw new Error("JSON transformations require exact decimal strings and safe whole-number literals. Correct this draft first."); }
+    };
+    value(); return result;
+  }
+  function svgNode(tag, attributes = {}) { const node = document.createElementNS("http://www.w3.org/2000/svg", tag); Object.entries(attributes).forEach(([name, value]) => node.setAttribute(name, String(value))); return node; }
+  function project(longitude, latitude) { return [(longitude + 180) * 960 / 360, (90 - latitude) * 460 / 180 + 20]; }
+  function landPath(rings) {
+    return rings.map((ring) => { let last = null; return ring.map((point, index) => { const xy = project(point[0], point[1]); const command = !index || last && Math.abs(xy[0] - last[0]) > 480 ? "M" : "L"; last = xy; return command + xy.map((coordinate) => coordinate.toFixed(2)).join(","); }).join(" ") + " Z"; }).join(" ");
+  }
+  function siteCapacityState(site) {
+    const active = CAPACITY_STATES.filter((kind) => Object.values(site.by_unit_kind || {}).some((counts) => Number(counts[kind]) > 0));
+    return active.length === 1 ? active[0] : active.length ? "mixed" : "unavailable";
+  }
+  function renderInventoryMap() {
+    const map = byId("inventory-map"); map.replaceChildren();
+    [-120, -60, 0, 60, 120].forEach((longitude) => { const x = project(longitude, 0)[0]; map.append(svgNode("line", { x1: x, x2: x, y1: 20, y2: 480, class: "map-grid" })); });
+    [-60, -30, 0, 30, 60].forEach((latitude) => { const y = project(0, latitude)[1]; map.append(svgNode("line", { x1: 0, x2: 960, y1: y, y2: y, class: "map-grid" })); });
+    (state.land?.features || []).forEach((feature) => {
+      const geometry = feature.geometry; const polygons = geometry?.type === "Polygon" ? [geometry.coordinates] : geometry?.type === "MultiPolygon" ? geometry.coordinates : [];
+      polygons.forEach((rings) => map.append(svgNode("path", { d: landPath(rings), class: "world-land" })));
+    });
+    const sites = state.inventory?.sites || []; let mapped = 0;
+    sites.forEach((site) => {
+      if (site.latitude === null || site.latitude === undefined || site.longitude === null || site.longitude === undefined) return;
+      const latitude = Number(site.latitude); const longitude = Number(site.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return;
+      mapped++; const [x, y] = project(longitude, latitude);
+      const marker = svgNode("g", { class: "map-site-control", tabindex: "0", role: "button", "aria-label": (site.name || site.site_id) + ", " + siteCapacityState(site) + ". Select site to filter inventory." });
+      const title = svgNode("title"); title.textContent = (site.name || site.site_id) + " / " + (site.country_code || "country unknown");
+      marker.append(title, svgNode("circle", { cx: x, cy: y, r: 6, class: "map-hit-target", "aria-hidden": "true" }), svgNode("circle", { cx: x, cy: y, r: 6, class: "map-site " + siteCapacityState(site) + (state.inventorySite === site.site_id ? " selected" : ""), "aria-hidden": "true" }));
+      const select = () => { state.inventorySite = site.site_id; state.selectedLot = (state.inventory?.lots || []).find((lot) => lot.site_id === site.site_id)?.lot_id || ""; renderInventory(); byId("lot-detail-title").focus({ preventScroll: true }); };
+      marker.addEventListener("click", select); marker.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); } }); map.append(marker);
+      if (state.inventorySite === site.site_id) { const label = svgNode("text", { x: Math.min(850, x + 10), y: Math.max(15, y - 10), class: "map-site-label" }); label.textContent = site.name || site.site_id; map.append(label); }
+    });
+    byId("map-empty").hidden = sites.length > 0;
+    text("inventory-map-state", state.inventory ? mapped + " located sites / " + (sites.length - mapped) + " unmapped" + (state.inventorySite ? " / selected: " + state.inventorySite : "") : "No site locations loaded.");
+    byId("inventory-clear-site").hidden = !state.inventorySite;
+  }
+  function inventoryLots() {
+    const query = byId("inventory-query").value.trim().toLowerCase(); const filter = byId("inventory-status").value;
+    return (state.inventory?.lots || []).filter((lot) => (!state.inventorySite || lot.site_id === state.inventorySite) && (!query || [lot.lot_id, lot.site_id, lot.hardware_model, (state.inventory?.sites || []).find((site) => site.site_id === lot.site_id)?.name].join(" ").toLowerCase().includes(query)) && (!filter || Number(lot.counts?.[filter]) > 0));
+  }
+  function showInventoryLot(lotId) { state.selectedLot = lotId; state.inventorySite = state.inventory?.lots?.find((lot) => lot.lot_id === lotId)?.site_id || ""; renderInventory(); byId("lot-detail-title").focus({ preventScroll: true }); }
+  function renderLotDetail() {
+    const container = byId("lot-detail"); container.replaceChildren(); const lot = state.inventory?.lots?.find((record) => record.lot_id === state.selectedLot);
+    text("lot-detail-state", lot ? lot.unit_kind : "No selection");
+    if (!lot) { container.append(element("p", "Select a site marker or inventory row to inspect capacity and contract intervals.", "empty-state")); return; }
+    const facts = element("dl", undefined, "lot-facts"); const site = state.inventory.sites.find((record) => record.site_id === lot.site_id);
+    [["Lot", lot.lot_id], ["Hardware", lot.hardware_model || "not declared"], ["Site", site?.name || lot.site_id], ["Location", site?.latitude !== null && site?.latitude !== undefined && site?.longitude !== null && site?.longitude !== undefined ? site.latitude + ", " + site.longitude : "Unmapped / no coordinates declared"], ["Supply interval", lot.start_at + " → " + lot.end_at], ["Declared purchase value", lot.purchase_value ? lot.purchase_value.amount + " " + lot.purchase_value.currency + " / " + lot.purchase_value.unit : "not declared"]].forEach(([name, value]) => facts.append(element("dt", name), element("dd", value))); container.append(facts);
+    const timeline = element("div", undefined, "lot-timeline"); timeline.append(element("strong", "Contract intervals", "small-label"));
+    const start = Date.parse(lot.start_at); const end = Date.parse(lot.end_at); const instant = Date.parse(state.inventory.as_of);
+    const range = element("div", undefined, "timeline-range"); range.append(element("span", lot.start_at), element("span", lot.end_at)); timeline.append(range);
+    (state.inventory.timeline || []).filter((interval) => interval.lot_id === lot.lot_id).forEach((interval) => {
+      const line = element("div", undefined, "timeline-line"); const caption = element("div"); caption.append(element("span", (interval.kind === "availability" ? "Supply window" : interval.kind) + " / " + interval.unit_ids.length + " " + lot.unit_kind, "capacity-status " + interval.kind), element("span", interval.position_id || "supply", "muted")); line.append(caption);
+      const track = svgNode("svg", { viewBox: "0 0 300 13", class: "timeline-track", "aria-hidden": "true" });
+      if (end > start) { const left = Math.max(0, (Date.parse(interval.start_at) - start) / (end - start) * 300); const right = Math.min(300, (Date.parse(interval.end_at) - start) / (end - start) * 300); if (right > left) track.append(svgNode("rect", { x: left.toFixed(3), y: "0", width: (right - left).toFixed(3), height: "13", class: "timeline-interval " + interval.kind })); const now = (instant - start) / (end - start) * 300; if (now >= 0 && now <= 300) track.append(svgNode("line", { x1: now.toFixed(3), x2: now.toFixed(3), y1: "0", y2: "13", class: "timeline-now" })); }
+      line.append(track, element("p", interval.start_at + " → " + interval.end_at + (interval.active_at_as_of ? " / active at selected instant" : " / outside selected instant"), "muted")); timeline.append(line);
+    }); container.append(timeline);
+    const positions = lot.positions || []; positions.filter((position) => position.sale_value).forEach((position) => container.append(element("p", "Declared sale " + position.position_id + ": " + position.sale_value.amount + " " + position.sale_value.currency + " / " + position.sale_value.unit, "muted")));
+    const details = element("details", undefined, "response-details"); details.append(element("summary", "Unit IDs & complete lot record"), element("pre", JSON.stringify(lot, null, 2))); container.append(details);
+  }
+  function renderInventory() {
+    const inventory = state.inventory; const totals = byId("inventory-totals"); totals.replaceChildren();
+    text("inventory-mode", inventory ? state.inventoryDemo ? "SYNTHETIC / not saved" : "Paper inventory / revision " + (inventory.revision ?? EMPTY) : "No inventory loaded"); byId("inventory-mode").className = "pill" + (state.inventoryDemo ? " warn" : "");
+    text("inventory-demo", state.inventoryDemo ? "Exit synthetic demo" : "Load synthetic demo"); text("inventory-load", state.inventoryDemo ? "Re-evaluate demo at UTC" : "Load positions");
+    const groups = Object.entries(inventory?.summary?.by_unit_kind || {});
+    groups.forEach(([unit, counts]) => { const card = element("article", undefined, "inventory-total"); card.append(element("h2", unit + " / declared units")); const list = element("dl"); ["total", "unsold", "available", "reserved", "sold", "maintenance", "unavailable"].forEach((name) => { const pair = element("div"); pair.append(element("dt", name), element("dd", counts[name] ?? EMPTY)); list.append(pair); }); card.append(list); totals.append(card); });
+    if (!groups.length) totals.append(element("p", "No declared capacity. Market offers do not become holdings automatically.", "empty-state"));
+    renderInventoryMap(); renderLotDetail(); const body = byId("inventory-body"); body.replaceChildren(); const lots = inventoryLots();
+    lots.forEach((lot) => { const row = element("tr", undefined, lot.lot_id === state.selectedLot ? "selected" : ""); const hardware = element("td", lot.lot_id); hardware.append(element("span", lot.hardware_model || "Hardware not declared", "subtext")); const site = inventory.sites.find((record) => record.site_id === lot.site_id); const place = element("td", site?.name || lot.site_id); place.append(element("span", site?.latitude === null || site?.latitude === undefined || site?.longitude === null || site?.longitude === undefined ? "Unmapped" : site.country_code || "country not declared", "subtext")); row.append(hardware, place); ["total", "available", "reserved", "sold", "maintenance"].forEach((kind) => row.append(element("td", (lot.counts?.[kind] ?? EMPTY) + " " + lot.unit_kind))); row.append(element("td", lot.active ? "Declared / active supply" : "Outside supply interval")); const button = element("button", "Select", "quiet-button"); button.setAttribute("aria-label", "Select inventory lot " + lot.lot_id); button.addEventListener("click", () => showInventoryLot(lot.lot_id)); const action = element("td"); action.append(button); row.append(action); body.append(row); });
+    if (!lots.length) { const row = element("tr"); const cell = element("td", inventory?.lots?.length ? "No lots match the selected site and filters." : "No holdings loaded. Published market quotes are separate from inventory.", "empty-state"); cell.colSpan = 9; row.append(cell); body.append(row); }
+    text("inventory-count", lots.length + " lots / " + (inventory?.lots?.length || 0) + " declared");
+  }
+  async function loadLand() {
+    if (state.land) return;
+    const epoch = state.epoch;
+    try { const land = await request("/workbench/assets/world-land.json", {}, { authenticated: false }); if (land.type !== "FeatureCollection" || !Array.isArray(land.features)) throw new Error("Invalid map geometry"); state.land = land; renderInventoryMap(); }
+    catch (error) { if (epoch !== state.epoch || /Stopped waiting|timed out/.test(error.message)) throw error; text("map-attribution", "Local land geometry unavailable. Declared site coordinates and the capacity table remain usable."); }
+  }
+  function acceptInventory(report, demo) {
+    if (!report || !Array.isArray(report.lots) || !Array.isArray(report.sites) || !report.state || !report.summary?.by_unit_kind) throw new Error("Unexpected inventory response. No holdings were replaced.");
+    state.inventorySite = report.sites.some((site) => site.site_id === state.inventorySite) ? state.inventorySite : ""; state.selectedLot = report.lots.some((lot) => lot.lot_id === state.selectedLot) ? state.selectedLot : "";
+    state.inventory = report; state.inventoryDemo = demo; byId("inventory-at").value = report.as_of;
+    byId("inventory-input").value = JSON.stringify(report.state, null, 2); byId("inventory-output").textContent = JSON.stringify(report, null, 2); byId("inventory-output").hidden = false; renderInventory();
+  }
+  function syntheticInventory(asOf) {
+    const instant = Date.parse(asOf); const stamp = (days) => new Date(instant + days * 86400000).toISOString().replace(".000Z", "Z");
+    return { schema_version: "paper-inventory/1.0", sites: [{ site_id: "synthetic:north", name: "Synthetic North", country_code: "US", latitude: "41.9", longitude: "-87.6", extensions: { provenance: "independently_invented_synthetic_ui_demo_not_a_real_holding" } }, { site_id: "synthetic:west", name: "Synthetic West", country_code: "NL", latitude: "52.3", longitude: "4.9" }, { site_id: "synthetic:unmapped", name: "Synthetic / location withheld", latitude: null, longitude: null }], lots: [{ lot_id: "synthetic:gpu-a", site_id: "synthetic:north", unit_kind: "gpu", unit_ids: ["demo:a1", "demo:a2", "demo:a3", "demo:a4"], hardware_model: "Invented accelerator A", start_at: stamp(-7), end_at: stamp(21) }, { lot_id: "synthetic:node-b", site_id: "synthetic:west", unit_kind: "node", unit_ids: ["demo:b1", "demo:b2"], hardware_model: "Invented node bundle B", start_at: stamp(-7), end_at: stamp(21) }, { lot_id: "synthetic:gpu-c", site_id: "synthetic:unmapped", unit_kind: "gpu", unit_ids: ["demo:c1", "demo:c2"], hardware_model: "Invented accelerator C", start_at: stamp(-7), end_at: stamp(21) }], positions: [{ position_id: "demo:sale", lot_id: "synthetic:gpu-a", unit_ids: ["demo:a1", "demo:a2"], status: "sold", start_at: stamp(-1), end_at: stamp(7) }, { position_id: "demo:reservation", lot_id: "synthetic:gpu-a", unit_ids: ["demo:a3"], status: "reserved", start_at: stamp(0), end_at: stamp(10) }, { position_id: "demo:maintenance", lot_id: "synthetic:gpu-c", unit_ids: ["demo:c1"], status: "maintenance", start_at: stamp(-2), end_at: stamp(2) }] };
+  }
+  function policyEdited(controls = false) { state.policyDirty = true; if (controls) state.policyControlsDirty = true; text("policy-state", "Unsaved policy draft"); text("policy-feedback", state.policyControlsDirty ? "Control edits are not in the JSON yet. Choose Write controls to JSON, then validate and save the successor version." : "Changes need validation and a saved successor version before applying to pricing."); setBusy(state.busy); }
+  function sourceRule(sourceId = "", rule = {}) {
+    const card = element("div", undefined, "policy-source-rule"); const inputs = {};
+    [["source_id", "Source ID", sourceId], ["quality", "Quality / declared weight", rule.quality ?? ""], ["max_age_hours", "Maximum age (hours)", rule.max_age_hours ?? ""], ["half_life_hours", "Recency half-life (hours)", rule.half_life_hours ?? ""]].forEach(([name, label, value]) => { const input = element("input"); input.type = "text"; input.value = value; input.setAttribute("aria-label", label); input.addEventListener("input", () => policyEdited(true)); inputs[name] = input; const field = element("label", label); field.append(input); card.append(field); });
+    const enabled = element("input"); enabled.type = "checkbox"; enabled.checked = rule.enabled === true; enabled.addEventListener("change", () => policyEdited(true)); const label = element("label", "Enabled for benchmark", "source-enabled"); label.append(enabled); card.append(label); inputs.enabled = enabled;
+    const remove = element("button", "Remove source", "quiet-button"); remove.addEventListener("click", () => { state.policyRows = state.policyRows.filter((row) => row.inputs !== inputs); card.remove(); policyEdited(true); }); card.append(remove); state.policyRows.push({ inputs, card }); byId("policy-source-rules").append(card);
+  }
+  function displayPolicy(document, entry = null) {
+    if (!document?.policy || !document.policy.parameters?.benchmark || !Array.isArray(document.feature_definitions)) throw new Error("Supply a policy document with policy.parameters.benchmark and feature_definitions.");
+    const policy = document.policy; const benchmark = policy.parameters.benchmark;
+    POLICY_FIELDS.forEach(([name, id]) => { byId(id).value = policy[name] ?? ""; }); BENCHMARK_FIELDS.forEach(([name, id]) => { byId(id).value = benchmark[name] ?? ""; });
+    state.policyRows = []; byId("policy-source-rules").replaceChildren(); Object.entries(benchmark.source_rules || {}).forEach(([id, rule]) => sourceRule(id, rule));
+    const registry = byId("policy-feature-registry"); registry.replaceChildren(); document.feature_definitions.forEach((feature) => { const card = element("article", undefined, "feature-definition"); card.append(element("strong", feature.feature_id), element("code", feature.owning_path + " / " + feature.owner_model), element("p", "Type: " + feature.value_type + " / unit: " + (feature.unit || "none") + " / " + (feature.required ? "required" : "optional")), element("p", "Bounds: " + (feature.minimum ?? "unknown") + " → " + (feature.maximum ?? "unknown") + (feature.allowed_values?.length ? " / values: " + feature.allowed_values.join(", ") : "")), element("p", "Registered definition only. Pricing activation requires a supported qualified owning model.")); registry.append(card); });
+    if (!document.feature_definitions.length) registry.append(element("p", "No custom feature definitions. Add typed definitions to the full JSON; unsupported critical factors will hold pricing.", "empty-state"));
+    byId("policy-input").value = JSON.stringify(document, null, 2); state.policySaved = entry; state.policyDirty = !entry; state.policyControlsDirty = false;
+    text("policy-state", entry ? policy.policy_id + " / " + policy.version : "Unsaved policy draft"); text("policy-feedback", entry ? "Saved revision " + entry.revision + ". Applying changes the pricing draft; evaluate it explicitly." : "Review source weights and gates, then validate and save a new version."); setBusy(state.busy);
+  }
+  function policyControlsDocument() {
+    const document = safeEditableJson(byId("policy-input").value); if (!document.policy?.parameters?.benchmark) throw new Error("Read a complete policy JSON document into the controls first.");
+    POLICY_FIELDS.forEach(([name, id]) => { document.policy[name] = byId(id).value.trim() || (name === "expires_at" ? null : ""); });
+    const benchmark = document.policy.parameters.benchmark;
+    BENCHMARK_FIELDS.forEach(([name, id]) => { const value = byId(id).value.trim(); if (name.startsWith("min_")) { if (!/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value))) throw new Error("Minimum support counts must be positive safe integers."); benchmark[name] = Number(value); } else benchmark[name] = value; });
+    benchmark.source_rules = Object.create(null); state.policyRows.forEach(({ inputs }) => { const id = inputs.source_id.value.trim(); if (!id || Object.prototype.hasOwnProperty.call(benchmark.source_rules, id)) throw new Error("Each source rule needs a unique source ID."); benchmark.source_rules[id] = { enabled: inputs.enabled.checked, quality: inputs.quality.value.trim(), max_age_hours: inputs.max_age_hours.value.trim(), half_life_hours: inputs.half_life_hours.value.trim() }; });
+    return document;
+  }
+  async function readInventory(quiet = false) {
+    const asOf = utcSelection();
+    if (state.inventoryDemo) { acceptInventory(await api("/v1/inventory/evaluate", { method: "POST", body: JSON.stringify({ state: state.inventory.state, as_of: asOf || new Date().toISOString().replace(/\.\d{3}Z$/, "Z") }) }), true); }
+    else acceptInventory(await api("/v1/inventory" + (asOf ? "?as_of=" + encodeURIComponent(asOf) : "")), false);
+    await loadLand();
+    text("inventory-time-help", (byId("inventory-live").checked ? "Following current UTC / last local read " : "Fixed selected instant / last local read ") + state.inventory.as_of + ". Declared-plan availability, not reconstructed historical observations.");
+    if (!quiet) notify(state.inventoryDemo ? "Synthetic availability recalculated by the inventory validator. Nothing was saved." : "Declared paper inventory loaded at " + state.inventory.as_of + ". Market quotes remain separate.");
+  }
+  byId("inventory-load").addEventListener("click", () => runAction("Loading declared inventory at the selected UTC instant…", readInventory));
+  byId("inventory-demo").addEventListener("click", () => {
+    if (state.inventoryDemo) { state.inventory = null; state.inventoryDemo = false; state.inventorySite = ""; state.selectedLot = ""; byId("inventory-input").value = ""; byId("inventory-output").textContent = ""; byId("inventory-output").hidden = true; renderInventory(); setBusy(state.busy); notify("Synthetic demo cleared. Load stored positions to view declared inventory."); return; }
+    return runAction("Validating the explicitly labelled synthetic demo…", async () => { const asOf = utcSelection() || new Date().toISOString().replace(/\.\d{3}Z$/, "Z"); const report = await api("/v1/inventory/evaluate", { method: "POST", body: JSON.stringify({ state: syntheticInventory(asOf), as_of: asOf }) }); acceptInventory(report, true); await loadLand(); notify("SYNTHETIC DEMO: invented sites, hardware and commitments. No inventory was persisted. Exit demo before importing declared holdings."); });
+  });
+  byId("inventory-save").addEventListener("click", () => runAction("Validating and saving declared paper inventory…", async () => {
+    if (state.inventoryDemo) throw new Error("Synthetic demo cannot be saved from this view. Exit demo and load declared inventory before importing.");
+    const raw = byId("inventory-input").value; JSON.parse(raw); const asOf = utcSelection();
+    const current = state.inventory?.revision === null || state.inventory?.revision === undefined ? await api("/v1/inventory") : state.inventory;
+    if (!Number.isSafeInteger(current.revision)) throw new Error("Current inventory revision is unavailable. Reload before importing.");
+    const body = '{"expected_revision":' + current.revision + ',"state":' + raw + '}'; await api("/v1/inventory", { method: "PUT", body });
+    const report = await api("/v1/inventory" + (asOf ? "?as_of=" + encodeURIComponent(asOf) : "")); const currentDraft = byId("inventory-input").value; acceptInventory(report, false);
+    if (currentDraft !== raw) { byId("inventory-input").value = currentDraft; text("inventory-time-help", "Submitted packet saved. The editor changed while saving and still contains an unsaved draft; the map shows the saved revision."); }
+    notify("Declared inventory saved with an immutable revision. No booking, lease, trade or payment was placed.");
+  }));
+  ["inventory-query", "inventory-status"].forEach((id) => byId(id).addEventListener("input", renderInventory));
+  byId("inventory-input").addEventListener("input", () => setBusy(state.busy));
+  byId("inventory-at").addEventListener("input", () => text("inventory-time-help", "Changed UTC draft. Choose " + (state.inventoryDemo ? "Re-evaluate demo" : "Load positions") + " to recalculate availability."));
+  byId("inventory-live").addEventListener("change", () => { setBusy(state.busy); text("inventory-time-help", byId("inventory-live").checked ? "Following current UTC. Local inventory reloads every minute while this pane is open and the inventory editor is unchanged." : "Fixed UTC instant. Edit the timestamp, then load positions to evaluate this declared plan; automatic reads are paused."); });
+  byId("inventory-clear-site").addEventListener("click", () => { state.inventorySite = ""; renderInventory(); });
+  byId("policy-load").addEventListener("click", () => runAction("Loading immutable policy versions…", async () => {
+    const result = await api("/v1/policies"); if (!Array.isArray(result.entries) || !Array.isArray(result.source_catalog)) throw new Error("Unexpected policy catalog response.");
+    state.policyEntries = result.entries; state.policyCatalog = result.source_catalog;
+    const catalog = byId("policy-source-catalog"); catalog.replaceChildren(); result.source_catalog.forEach((source) => { const row = element("div", undefined, "feature-definition"); row.append(element("strong", source.source_id), element("p", (source.normalization || source.role || "scope not returned") + " / rights: " + (source.rights_status || "unknown") + " / " + (source.can_attempt_read ? "read eligible" : "read held"))); catalog.append(row); });
+    const select = byId("policy-select"); select.replaceChildren(element("option", result.entries.length ? "Choose a saved policy version" : "No saved versions / supply a policy JSON")); select.firstChild.value = "";
+    result.entries.forEach((entry) => { const option = element("option", entry.policy_id + " / " + entry.version); option.value = entry.revision; select.append(option); });
+    if (!result.entries.length) { text("policy-state", "No saved policy"); text("policy-feedback", "Supply a complete versioned policy JSON. No weights or risk parameters are inserted automatically."); }
+    notify("Loaded " + result.entries.length + " saved versions and " + result.source_catalog.length + " configured sources" + (result.truncated ? ". The policy catalog is bounded; earlier versions may be omitted." : ". Choose a version or supply a new policy packet."));
+  }));
+  byId("policy-select").addEventListener("change", () => runAction("Loading the selected saved policy…", async () => { const revision = byId("policy-select").value; state.policySaved = null; state.policyDirty = true; if (!revision) return; const entry = await api("/v1/policies/" + encodeURIComponent(revision)); displayPolicy(entry.document, entry); byId("policy-output").textContent = JSON.stringify(entry, null, 2); byId("policy-output").hidden = false; }));
+  byId("policy-template").addEventListener("click", () => runAction("Loading an explicitly unvalidated policy template…", async () => { const document = await request("/workbench/assets/synthetic-policy-document.json", {}, { authenticated: false }); displayPolicy(document); text("policy-state", "SYNTHETIC / unvalidated template"); notify("Loaded an invented, unvalidated policy template. Review every rule, assign a new policy ID/version, and validate before saving. No source permissions or factor price effects were granted."); }));
+  byId("policy-read-json").addEventListener("click", () => { try { displayPolicy(safeEditableJson(byId("policy-input").value)); notify("Read the policy JSON into editable controls. This is an unsaved, unvalidated draft."); } catch (error) { notify(error.message, true); } });
+  byId("policy-update-json").addEventListener("click", () => { try { byId("policy-input").value = JSON.stringify(policyControlsDocument(), null, 2); state.policyControlsDirty = false; policyEdited(); notify("Wrote explicit controls to the policy JSON. Review registry, critical fields and notes before saving."); } catch (error) { notify(error.message, true); } });
+  byId("policy-add-source").addEventListener("click", () => { if (!byId("policy-input").value.trim()) { notify("Supply a complete policy document first.", true); return; } sourceRule(); policyEdited(true); });
+  byId("policy-save").addEventListener("click", () => runAction("Validating and saving a new policy version…", async () => {
+    if (state.policyControlsDirty) throw new Error("Write controls to JSON before saving so the submitted version includes your control edits.");
+    const raw = byId("policy-input").value; const draft = JSON.parse(raw); if (!draft.policy?.policy_id) throw new Error("Policy ID is required.");
+    const validation = await api("/v1/policies/validate", { method: "POST", body: '{"document":' + raw + '}' });
+    const previous = state.policyEntries.find((entry) => entry.policy_id === draft.policy.policy_id);
+    const entry = await api("/v1/policies", { method: "POST", body: '{"expected_revision":' + JSON.stringify(previous?.revision || null) + ',"document":' + raw + '}' });
+    state.policyEntries = [entry, ...state.policyEntries.filter((candidate) => candidate.revision !== entry.revision)];
+    if (byId("policy-input").value === raw) displayPolicy(entry.document, entry); else { state.policySaved = entry; policyEdited(); text("policy-feedback", "Submitted version saved, but the current draft changed while saving. Reload its saved version before applying."); }
+    byId("policy-output").textContent = JSON.stringify({ validation, saved: entry }, null, 2); byId("policy-output").hidden = false;
+    const option = element("option", entry.policy_id + " / " + entry.version); option.value = entry.revision; byId("policy-select").append(option); byId("policy-select").value = entry.revision;
+    notify("Policy version saved. Source quality, recency and concentration settings remain declared assumptions; registry definitions do not activate unsupported price factors.");
+  }));
+  byId("policy-apply").addEventListener("click", () => runAction("Checking the original pricing draft before applying the saved policy…", async () => {
+    if (!state.policySaved || state.policyDirty) throw new Error("Save or load an immutable policy version before applying."); const saved = state.policySaved; const raw = byId("pricing-input").value; safeEditableJson(raw);
+    const parsed = await api("/v1/requests/parse", { method: "POST", body: raw }); if (byId("pricing-input").value !== raw) throw new Error("Pricing draft changed while it was being checked. Retry the explicit apply action on the current draft."); if (state.policySaved !== saved || state.policyDirty) throw new Error("Policy draft changed during the check. Save or reload the intended version before applying.");
+    const draft = parsed.request; if (!draft?.market || typeof draft.market !== "object" || Array.isArray(draft.market)) throw new Error("Supply a pricing request with a market packet first."); const document = saved.document; draft.market.policy = structuredClone(document.policy); draft.extensions = { ...(draft.extensions || {}), policy_registry_document: { revision: saved.revision, feature_definitions: document.feature_definitions, notes: document.notes } }; byId("pricing-input").value = JSON.stringify(draft, null, 2); inputChanged("pricing"); text("pricing-mode", "Saved policy applied / evaluate this draft"); showView("pricing"); notify("Applied saved policy " + document.policy.policy_id + " / " + document.policy.version + " to the draft. Evaluate explicitly; registered features remain subject to model activation gates.");
+  }));
+  [...POLICY_FIELDS, ...BENCHMARK_FIELDS].forEach(([, id]) => byId(id).addEventListener("input", () => policyEdited(true))); byId("policy-input").addEventListener("input", () => policyEdited());
+  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
   byId("session-form").addEventListener("submit", async (event) => {
     event.preventDefault(); const key = byId("api-key").value;
@@ -410,6 +625,12 @@
   ["pricing", "inference", "cash"].forEach((kind) => { byId("evaluate-" + kind).addEventListener("click", () => evaluate(kind)); byId(kind + "-input").addEventListener("input", () => inputChanged(kind)); });
   byId("live-model").addEventListener("change", renderLiveTerms); byId("live-terms").addEventListener("change", () => setBusy(state.busy)); byId("evaluate-live-reference").addEventListener("click", liveReference);
   window.addEventListener("pagehide", () => clearSession(""));
-  setInterval(() => { if (state.key && !state.busy) { renderRows(); selection(byId("live-model"), aggregateRows().map((row) => row.hardware.model), "Choose an admitted aggregate model"); renderLiveTerms(); } }, 60000);
+  setInterval(() => {
+    if (state.key && !state.busy) {
+      renderRows(); selection(byId("live-model"), aggregateRows().map((row) => row.hardware.model), "Choose an admitted aggregate model"); renderLiveTerms();
+      if (state.inventory && !state.inventoryDemo && !byId("inventory-view").hidden && byId("inventory-live").checked && byId("inventory-input").value === JSON.stringify(state.inventory.state, null, 2)) return runAction("Reading current local inventory…", () => readInventory(true));
+    }
+  }, 60000);
   setBusy(false);
+  renderInventory();
 })();

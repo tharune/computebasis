@@ -149,6 +149,17 @@ class APIHardeningTests(unittest.TestCase):
         entered = threading.Barrier(MAX_CONCURRENT_COLLECTIONS + 1, timeout=5)
         release, finished = threading.Event(), threading.Event()
         calls, completed, guard = [], [], threading.Lock()
+        persisted, persisted_calls = threading.Event(), []
+        original_put = self.app.state.store.put
+
+        def durable_put(*args, **kwargs):
+            result = original_put(*args, **kwargs)
+            if kwargs.get("kind") == "market_collection":
+                with guard:
+                    persisted_calls.append(result)
+                    if len(persisted_calls) >= MAX_CONCURRENT_COLLECTIONS:
+                        persisted.set()
+            return result
 
         def blocked(source, *args, **kwargs):
             with guard:
@@ -187,9 +198,13 @@ class APIHardeningTests(unittest.TestCase):
                 release.set()
                 await asyncio.gather(*tasks[1:], return_exceptions=True)
                 self.assertTrue(await asyncio.to_thread(finished.wait, 5))
+                # Mock-source completion precedes the real snapshot write. A
+                # cancelled route retains its worker through that durable write;
+                # wait for it before removing the temporary database in teardown.
+                self.assertTrue(await asyncio.to_thread(persisted.wait, 5))
             self.assertIn("snapshot_id", await endpoint("getdeploying", request()))
 
-        with patch("compute_pricing.control.api.app.collect_source", side_effect=blocked):
+        with patch("compute_pricing.control.api.app.collect_source", side_effect=blocked), patch.object(self.app.state.store, "put", side_effect=durable_put):
             asyncio.run(scenario())
 
     def test_direct_store_rejects_unpaired_unicode_and_bad_configuration_is_explicit(self):

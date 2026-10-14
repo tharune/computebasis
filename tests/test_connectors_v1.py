@@ -42,7 +42,7 @@ def public_resolver(*args, **kwargs):
 class AdmissionTests(unittest.TestCase):
     def test_example_approved_public_sources_enabled(self):
         policies = load_policies(Path(__file__).resolve().parents[1] / "examples/source-admission.json")
-        self.assertEqual({key for key, p in policies.items() if p.enabled}, {"getdeploying", "azure", "ecb", "huggingface"})
+        self.assertEqual({key for key, p in policies.items() if p.enabled}, {"getdeploying", "azure", "ecb", "huggingface", "aws_public_pricing", "openrouter"})
         self.assertTrue(all(p.permissions.get("execution") == "FAIL" for p in policies.values()))
         self.assertEqual(policies["getdeploying"].permissions["execution"], "FAIL")
         statuses = {item["source_id"]: item for item in source_status(policies, NOW)}
@@ -153,11 +153,15 @@ class ParserTests(unittest.TestCase):
             with self.subTest(body=body), self.assertRaises(ConnectorError):
                 parse_openrouter(raw("openrouter", body), policy("openrouter"))
 
-    def test_large_exponents_fail_and_high_precision_conversion_is_exact(self):
+    def test_large_exponents_are_unpriced_and_high_precision_conversion_is_exact(self):
         for value in ("1e1000000000", "1e-1000000000"):
             body = json.dumps({"data": [{"id": "synthetic/model", "pricing": {"prompt": value}}]})
-            with self.subTest(value=value), self.assertRaisesRegex(ConnectorError, "numeric_precision_limit"):
-                parse_openrouter(raw("openrouter", body), policy("openrouter"))
+            with self.subTest(value=value):
+                batch = parse_openrouter(raw("openrouter", body), policy("openrouter"))
+                self.assertEqual(batch.observations, ())
+                self.assertFalse(batch.catalog_records[0]["price_eligible"])
+                self.assertIsNone(batch.catalog_records[0]["metadata"]["pricing"])
+                self.assertEqual(batch.catalog_records[0]["invalid_dimensions"], [{"dimension": "prompt", "code": "numeric_precision_limit"}])
         body = json.dumps({"data": [{"id": "synthetic/model", "pricing": {"prompt": "0.1234567890123456789012345678901234"}}]})
         with localcontext() as context:
             context.prec = 3

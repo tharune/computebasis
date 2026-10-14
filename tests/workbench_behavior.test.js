@@ -29,8 +29,9 @@ class Node {
   replaceChildren(...nodes) { this.children.forEach((node) => { node.parentNode = null; }); this.children = []; this._text = ""; if (this.tagName === "select") this._value = null; this.append(...nodes); }
   setAttribute(key, value) { this.attributes[key] = String(value); }
   removeAttribute(key) { delete this.attributes[key]; }
+  remove() { if (this.parentNode) { this.parentNode.children = this.parentNode.children.filter((child) => child !== this); this.parentNode = null; } }
   addEventListener(name, action) { this.listeners.set(name, [...(this.listeners.get(name) || []), action]); }
-  async emit(name) { if (this.disabled && name === "click") return; await Promise.all((this.listeners.get(name) || []).map((action) => action({ preventDefault() {}, target: this }))); }
+  async emit(name, extra = {}) { if (this.disabled && name === "click") return; await Promise.all((this.listeners.get(name) || []).map((action) => action({ preventDefault() {}, target: this, ...extra }))); }
   focus() { this.focused = true; }
   scrollIntoView() { this.scrolled = true; }
 }
@@ -40,7 +41,7 @@ function harness() {
   for (const tag of html.matchAll(/<([a-z][a-z0-9]*)\b([^>]*)>/g)) {
     const attributes = Object.fromEntries([...tag[2].matchAll(/([a-z-]+)="([^"]*)"/g)].map((match) => [match[1], match[2]]));
     if (!attributes.id) continue;
-    const node = new Node(tag[1], { ...attributes, ...( /\bhidden\b/.test(tag[2]) ? { hidden: "" } : {}), ...(/\bdisabled\b/.test(tag[2]) ? { disabled: "" } : {}) }); node.root = true;
+    const node = new Node(tag[1], { ...attributes, ...( /\bhidden\b/.test(tag[2]) ? { hidden: "" } : {}), ...(/\bdisabled\b/.test(tag[2]) ? { disabled: "" } : {}) }); node.root = true; node.checked = /\bchecked\b/.test(tag[2]);
     nodes.set(attributes.id, node);
   }
   for (const match of html.matchAll(/<select\b[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/select>/g)) {
@@ -50,7 +51,7 @@ function harness() {
   const nav = [...html.matchAll(/data-view="([^"]+)"/g)].map((match) => { const node = new Node("button"); node.dataset.view = match[1]; node.root = true; return node; });
   const window = new Node("window"); const calls = []; const responses = []; const timers = new Map(); const intervals = []; let timerId = 0;
   const fetch = (url, options) => { calls.push({ url, options }); const response = responses.shift(); assert.ok(response, "Unexpected request: " + url); return response(options); };
-  const context = vm.createContext({ document: { getElementById: (id) => { assert.ok(nodes.has(id), "Missing DOM element " + id); return nodes.get(id); }, createElement: (tag) => new Node(tag), querySelectorAll: () => nav }, window, fetch, AbortController, crypto: { randomUUID }, setTimeout: (fn, delay) => { timers.set(++timerId, { fn, delay }); return timerId; }, clearTimeout: (id) => timers.delete(id), setInterval: (fn) => intervals.push(fn), console });
+  const context = vm.createContext({ document: { getElementById: (id) => { assert.ok(nodes.has(id), "Missing DOM element " + id); return nodes.get(id); }, createElement: (tag) => new Node(tag), createElementNS: (_, tag) => new Node(tag), querySelectorAll: () => nav }, window, fetch, AbortController, structuredClone, crypto: { randomUUID }, setTimeout: (fn, delay) => { timers.set(++timerId, { fn, delay }); return timerId; }, clearTimeout: (id) => timers.delete(id), setInterval: (fn) => intervals.push(fn), console });
   vm.runInContext(script, context, { filename: "workbench.js" });
   function reply(body, status = 200) { responses.push(async () => ({ ok: status >= 200 && status < 300, status, json: async () => structuredClone(body), text: async () => typeof body === "string" ? body : JSON.stringify(body) })); }
   function pending(ignoreAbort = false) {
@@ -160,4 +161,108 @@ test("live reference uses only current eligible exact currency/billing cohorts w
   assert.equal(h.calls.length, 3, h.node("notice").textContent + " / " + h.node("live-reference-state").textContent);
   const packet = JSON.parse(h.calls[2].options.body); assert.equal(packet.target.currency, "EUR"); assert.deepEqual(packet.target.aggregate_terms, { billing_type: "reserved", reservation_months: 6 }); assert.equal(packet.market.observations.length, 1); assert.equal(packet.commercial, null); assert.equal(packet.market.policy.parameters.benchmark.source_rules["feed:prices"].quality, "1");
   assert.match(h.node("pricing-mode").textContent, /unvalidated exploration/); assert.match(h.node("pricing-summary").textContent, /4\.01 EUR/); assert.equal(h.node("pricing-view").hidden, false);
+});
+
+function inventoryFixture() {
+  const sites = [{ site_id: "invented:east", name: "Invented East", latitude: "40.5", longitude: "-70.1", country_code: "US" }, { site_id: "invented:unknown", name: "Invented location withheld", latitude: null, longitude: null }];
+  const lots = [{ lot_id: "invented:gpus", site_id: sites[0].site_id, unit_kind: "gpu", unit_ids: ["g1", "g2"], hardware_model: "Invented accelerator", start_at: "2026-01-01T00:00:00Z", end_at: "2026-02-01T00:00:00Z" }, { lot_id: "invented:node", site_id: sites[1].site_id, unit_kind: "node", unit_ids: ["n1"], start_at: "2026-01-01T00:00:00Z", end_at: "2026-02-01T00:00:00Z" }];
+  const position = { position_id: "invented:sale", lot_id: lots[0].lot_id, unit_ids: ["g1"], status: "sold", start_at: "2026-01-05T00:00:00Z", end_at: "2026-01-20T00:00:00Z", sale_value: { amount: "12.3456789012345678901", currency: "EUR", unit: "position_total" } };
+  const counts = { total: 2, available: 1, reserved: 0, sold: 1, maintenance: 0, unavailable: 0, unsold: 1 }; const nodeCounts = { total: 1, available: 1, reserved: 0, sold: 0, maintenance: 0, unavailable: 0, unsold: 1 };
+  return { revision: 1, persisted: true, as_of: "2026-01-10T00:00:00Z", state: { schema_version: "paper-inventory/1.0", sites, lots, positions: [position] }, sites: [{ ...sites[0], by_unit_kind: { gpu: counts } }, { ...sites[1], by_unit_kind: { node: nodeCounts } }], lots: [{ ...lots[0], active: true, counts, positions: [position] }, { ...lots[1], active: true, counts: nodeCounts, positions: [] }], summary: { by_unit_kind: { gpu: counts, node: nodeCounts } }, timeline: [{ kind: "availability", lot_id: lots[0].lot_id, unit_ids: ["g1", "g2"], start_at: lots[0].start_at, end_at: lots[0].end_at, active_at_as_of: true }, { kind: "sold", ...position, active_at_as_of: true }], audit: { recent: [], truncated: false } };
+}
+const landFixture = { type: "FeatureCollection", features: [{ geometry: { type: "Polygon", coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] } }] };
+function policyFixture() { return { policy: { schema_version: "1.0.0", policy_id: "invented:policy", version: "0.1.0", model_version: "inverse-linear/1.0.0", registry_version: "1.0.0", effective_at: "2026-01-01T00:00:00Z", expires_at: null, critical_market_fields: [], critical_feature_ids: [], parameters: { benchmark: { estimator: "weighted_median", max_source_share: "0.8", max_provider_share: "0.7", min_observations: 2, min_sources: 1, min_provider_groups: 1, source_rules: { "feed:prices": { enabled: true, quality: "0.123456789012345678901", max_age_hours: "2", half_life_hours: "1" } } } }, extensions: {} }, feature_definitions: [], notes: "Invented policy; not calibrated" }; }
+async function loadSavedPolicy(h) { const document = policyFixture(); const entry = { revision: "b".repeat(64), policy_id: document.policy.policy_id, version: document.policy.version, document }; h.reply({ entries: [entry], source_catalog: [] }); await h.node("policy-load").emit("click"); h.reply(entry); h.node("policy-select").value = entry.revision; await h.node("policy-select").emit("change"); return entry; }
+
+test("native cloud meter tariffs are displayed exactly and cannot enter GPU benchmark cohorts", async () => {
+  const h = harness(); await h.connect(indexFixture({ observations: [], catalog_records: [{ id: "native-meter", source_id: "feed:tariffs", kind: "cloud_meter_tariff", provider_region: "invented-east-1", native_price: { amount: "14.000000000000000001", currency: "EUR", unit: "node_hour" }, gpu_hour_benchmark_eligible: false }] }));
+  assert.deepEqual(renderedPrices(h), ["14.000000000000000001 EUR"]); assert.match(h.node("records-body").textContent, /node_hour/); assert.match(h.node("records-body").textContent, /invented-east-1/); assert.equal(h.node("evaluate-live-reference").disabled, true);
+});
+
+test("published model rate catalogs remain distinct from metadata-only model discovery and measured qualification", async () => {
+  const h = harness(); await h.connect(indexFixture({ observations: [], catalog_records: [{ kind: "model_price_catalog", model_id: "invented/routed-model", conditional_pricing_present: true, metadata: { pricing: { prompt: "0.00000001", overrides: [{ min_prompt_tokens: 50 }] } } }, { kind: "model_metadata", model_id: "invented/metadata-only", price_eligible: false }] }));
+  assert.equal(h.node("metric-observations").textContent, "0"); assert.match(h.node("model-record-count").textContent, /1 advertised rate catalogs \/ 0 unpriced model catalogs \/ 1 metadata only/); assert.match(h.node("model-records").textContent, /conditional pricing retained, unapplied/); assert.match(h.node("model-records").textContent, /No measured runtime qualification/);
+});
+
+test("quarantined and missing token rates remain explicitly unpriced while retrieval and pricing coverage stay distinct", async () => {
+  const h = harness(); const index = indexFixture({ observations: [], catalog_records: [{ kind: "model_price_catalog", model_id: "invented/invalid-rate", price_eligible: false, price_status: "unpriced_invalid_advertised_dimensions", metadata: { pricing: null } }, { kind: "model_price_catalog", model_id: "invented/missing-rates", price_eligible: false, price_status: "unpriced_missing_token_rates", metadata: { pricing: {} } }, { kind: "model_price_catalog", model_id: "invented/partial-rates", price_status: "partial_token_rates", metadata: { pricing: { prompt: "0" } } }] }); index.sources[0].scopes[0].coverage = { complete: true, price_coverage_complete: false }; await h.connect(index);
+  assert.equal(h.node("metric-observations").textContent, "0"); assert.match(h.node("model-record-count").textContent, /1 advertised rate catalogs \/ 2 unpriced model catalogs/); assert.match(h.node("model-records").textContent, /UNPRICED \/ invalid advertised dimensions quarantined/); assert.match(h.node("model-records").textContent, /UNPRICED \/ input\/output token rates not published/); assert.match(h.node("model-records").textContent, /Partial current-default token rates/); assert.match(h.node("sources-grid").textContent, /Pricing coverage is partial/);
+});
+
+test("inventory starts empty and map/table selection retains typed unit counts without geocoding", async () => {
+  const h = harness(); assert.match(h.node("inventory-totals").textContent, /No declared capacity/); await h.connect(); h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click");
+  assert.match(h.node("inventory-totals").textContent, /gpu \/ declared units/); assert.match(h.node("inventory-totals").textContent, /node \/ declared units/); assert.match(h.node("inventory-map-state").textContent, /1 located sites \/ 1 unmapped/);
+  const markers = h.node("inventory-map").children.filter((node) => node.attributes.role === "button"); assert.equal(markers.length, 1); assert.equal(markers[0].attributes.tabindex, "0");
+  assert.equal(markers[0].children.filter((node) => node.attributes.role === "button").length, 0); assert.equal(markers[0].children.filter((node) => node.attributes.class === "map-hit-target").length, 1);
+  const css = fs.readFileSync(path.join(assets, "workbench.css"), "utf8"); assert.match(css, /stroke-width: 44px; vector-effect: non-scaling-stroke; pointer-events: all/);
+  await markers[0].emit("keydown", { key: "Enter" }); assert.match(h.node("inventory-count").textContent, /1 lots \/ 2 declared/); assert.match(h.node("lot-detail").textContent, /12\.3456789012345678901 EUR/); assert.match(h.node("lot-detail").textContent, /2026-01-05T00:00:00Z/);
+  await h.node("inventory-clear-site").emit("click"); assert.match(h.node("inventory-count").textContent, /2 lots/); assert.equal(h.calls.length, 3);
+});
+
+test("fixed UTC inventory requests encode the timestamp and reject impossible dates without a fetch", async () => {
+  const h = harness(); await h.connect(); h.node("inventory-live").checked = false; await h.node("inventory-live").emit("change"); h.node("inventory-at").value = "2026-02-30T00:00:00Z"; await h.node("inventory-load").emit("click"); assert.equal(h.calls.length, 1); assert.match(h.node("notice").textContent, /valid UTC instant/);
+  h.node("inventory-at").value = "2026-01-10T00:00:00Z"; h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click"); assert.equal(h.calls[1].url, "/v1/inventory?as_of=2026-01-10T00%3A00%3A00Z");
+});
+
+test("unsold uses backend counts and includes reserved capacity while available remains distinct", async () => {
+  const h = harness(); await h.connect(); const report = inventoryFixture();
+  const reserved = { position_id: "invented:reserved", lot_id: report.lots[0].lot_id, unit_ids: ["g1", "g2"], status: "reserved", start_at: "2026-01-05T00:00:00Z", end_at: "2026-01-20T00:00:00Z" };
+  const counts = { total: 2, available: 0, reserved: 2, sold: 0, maintenance: 0, unavailable: 0, unsold: 2 };
+  report.state.positions = [reserved]; report.lots[0].counts = counts; report.lots[0].positions = [reserved]; report.summary.by_unit_kind.gpu = counts; report.sites[0].by_unit_kind.gpu = counts;
+  report.timeline = report.timeline.filter((row) => row.kind === "availability").concat({ ...reserved, kind: "reserved", active_at_as_of: true });
+  h.reply(report); h.reply(landFixture); await h.node("inventory-load").emit("click");
+  const gpuTotals = h.node("inventory-totals").children[0].children[1].children;
+  assert.equal(gpuTotals.find((pair) => pair.children[0].textContent === "unsold").children[1].textContent, "2");
+  assert.equal(gpuTotals.find((pair) => pair.children[0].textContent === "available").children[1].textContent, "0");
+  h.node("inventory-query").value = "Invented accelerator"; h.node("inventory-status").value = "unsold"; await h.node("inventory-status").emit("input"); assert.match(h.node("inventory-count").textContent, /1 lots \/ 2 declared/); assert.match(h.node("inventory-body").textContent, /2 gpu/);
+  h.node("inventory-status").value = "available"; await h.node("inventory-status").emit("input"); assert.match(h.node("inventory-count").textContent, /0 lots \/ 2 declared/); assert.match(html, /Unsold includes available, reserved and maintenance units within active supply/);
+});
+
+test("inventory demo uses pure validation and cannot be persisted by its save button", async () => {
+  const h = harness(); await h.connect(); const report = inventoryFixture(); report.revision = null; report.persisted = false; h.reply(report); h.reply(landFixture); await h.node("inventory-demo").emit("click");
+  assert.equal(h.calls[1].url, "/v1/inventory/evaluate"); assert.equal(h.calls[1].options.method, "POST"); assert.match(h.calls[1].options.body, /independently_invented_synthetic_ui_demo/); assert.match(h.node("inventory-mode").textContent, /SYNTHETIC/); assert.equal(h.node("inventory-save").disabled, true);
+  const packet = JSON.parse(h.calls[1].options.body); assert.deepEqual(Object.keys(packet.state).sort(), ["lots", "positions", "schema_version", "sites"]);
+  await h.node("inventory-save").emit("click"); assert.equal(h.calls.length, 3); await h.node("inventory-demo").emit("click"); assert.equal(h.node("inventory-input").value, ""); assert.equal(h.node("inventory-mode").textContent, "No inventory loaded");
+});
+
+test("inventory revision conflict preserves duplicate-key draft bytes and displays reload action", async () => {
+  const h = harness(); await h.connect(); h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click"); const raw = '{"schema_version":"paper-inventory/1.0","sites":[],"lots":[],"positions":[],"positions":[]}'; h.node("inventory-input").value = raw; await h.node("inventory-input").emit("input");
+  h.reply({ detail: { code: "inventory_revision_conflict", current_revision: 2 } }, 409); await h.node("inventory-save").emit("click"); assert.equal(h.calls[3].options.body, '{"expected_revision":1,"state":' + raw + '}'); assert.equal(h.node("inventory-input").value, raw); assert.match(h.node("notice").textContent, /Reload current versions/);
+});
+
+test("new inventory response and geometry are discarded together on logout", async () => {
+  const h = harness(); await h.connect(); h.reply(inventoryFixture()); const delayed = h.pending(true); const loading = h.node("inventory-load").emit("click"); await tick(); await h.node("disconnect").emit("click"); delayed.resolve(landFixture); await loading;
+  assert.equal(h.node("inventory-output").textContent, ""); assert.equal(h.node("inventory-input").value, ""); assert.match(h.node("notice").textContent, /Session ended/); assert.equal(h.node("inventory-map").children.some((node) => node.attributes.role === "button"), false);
+});
+
+test("local inventory polling pauses for fixed time, hidden pane, demo, or edited draft", async () => {
+  const h = harness(); await h.connect(); h.reply(inventoryFixture()); h.reply(landFixture); await h.node("inventory-load").emit("click"); const nav = h.nav.find((node) => node.dataset.view === "inventory"); await nav.emit("click");
+  h.reply(inventoryFixture()); await h.intervals[0](); assert.equal(h.calls[3].url, "/v1/inventory"); h.node("inventory-input").value = "{}"; await h.intervals[0](); assert.equal(h.calls.length, 4);
+  h.node("inventory-input").value = JSON.stringify(inventoryFixture().state, null, 2); h.node("inventory-live").checked = false; await h.intervals[0](); assert.equal(h.calls.length, 4);
+});
+
+test("policy controls preserve decimal strings and require explicit JSON write before saving", async () => {
+  const h = harness(); await h.connect(); const entry = await loadSavedPolicy(h); assert.equal(h.node("policy-apply").disabled, false);
+  assert.match(h.node("policy-feedback").textContent, new RegExp(entry.revision));
+  assert.match(fs.readFileSync(path.join(assets, "workbench.css"), "utf8"), /\.field-help\s*\{[^}]*overflow-wrap:\s*anywhere/);
+  h.node("policy-source-cap").value = "0.3333333333333333333333333"; await h.node("policy-source-cap").emit("input"); assert.equal(h.node("policy-apply").disabled, true); await h.node("policy-save").emit("click"); assert.equal(h.calls.length, 3); assert.match(h.node("notice").textContent, /Write controls to JSON/);
+  await h.node("policy-update-json").emit("click"); const draft = JSON.parse(h.node("policy-input").value); assert.equal(draft.policy.parameters.benchmark.max_source_share, "0.3333333333333333333333333"); assert.equal(draft.policy.parameters.benchmark.source_rules["feed:prices"].quality, "0.123456789012345678901");
+});
+
+test("policy validation receives duplicate JSON bytes and registry conflicts explain the successor action", async () => {
+  const h = harness(); await h.connect(); const raw = '{"policy":{"policy_id":"invented:policy","version":"0.2.0","version":"0.3.0"},"feature_definitions":[],"notes":"test"}'; h.node("policy-input").value = raw; await h.node("policy-input").emit("input"); h.reply({ detail: "duplicate_json_key" }, 422); await h.node("policy-save").emit("click"); assert.equal(h.calls[1].options.body, '{"document":' + raw + '}'); assert.equal(h.node("policy-input").value, raw);
+  h.node("policy-input").value = JSON.stringify(policyFixture()); await h.node("policy-input").emit("input"); h.reply({ document: policyFixture(), calibration_state: "unvalidated" }); h.reply({ detail: "feature_changes_require_successor_registry_version" }, 409); await h.node("policy-save").emit("click"); assert.match(h.node("notice").textContent, /Increase the feature registry version/);
+});
+
+test("explicit policy apply validates original draft then changes only policy and declared registry provenance", async () => {
+  const h = harness(); await h.connect(); const entry = await loadSavedPolicy(h); const draft = { market: { request_id: "invented:request", policy: { old: true } }, commercial: null, extensions: { existing: "kept" } }; const raw = JSON.stringify(draft); h.node("pricing-input").value = raw; h.reply({ request: draft, boundary_validation: "json_only", execution_enabled: false }); await h.node("policy-apply").emit("click"); assert.equal(h.calls[3].url, "/v1/requests/parse"); assert.equal(h.calls[3].options.body, raw);
+  const applied = JSON.parse(h.node("pricing-input").value); assert.equal(applied.market.policy.version, entry.document.policy.version); assert.equal(applied.extensions.existing, "kept"); assert.equal(applied.extensions.policy_registry_document.revision, entry.revision); assert.equal(applied.commercial, null); assert.equal(h.calls.length, 4); assert.match(h.node("notice").textContent, /Evaluate explicitly/);
+});
+
+test("policy transformations reject duplicate keys and unsafe numeric literals without changing pricing bytes", async () => {
+  const h = harness(); await h.connect(); await loadSavedPolicy(h); for (const raw of ['{"market":{},"amount":1,"amount":2}', '{"market":{},"amount":123456789012345678901}']) { h.node("pricing-input").value = raw; await h.node("policy-apply").emit("click"); assert.equal(h.node("pricing-input").value, raw); assert.equal(h.calls.length, 3); }
+});
+
+test("policy apply cannot overwrite a draft edited during the strict boundary check", async () => {
+  const h = harness(); await h.connect(); await loadSavedPolicy(h); h.node("pricing-input").value = '{"market":{}}'; const delayed = h.pending(true); const applying = h.node("policy-apply").emit("click"); await tick(); h.node("pricing-input").value = '{"market":{"edited":true}}'; delayed.resolve({ request: { market: {} } }); await applying; assert.equal(h.node("pricing-input").value, '{"market":{"edited":true}}'); assert.match(h.node("notice").textContent, /draft changed/);
 });

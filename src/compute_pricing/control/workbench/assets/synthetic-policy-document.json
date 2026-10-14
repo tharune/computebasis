@@ -1,0 +1,30 @@
+{
+  "policy": {
+    "policy_id": "policy:invented-workspace",
+    "version": "1.0.0",
+    "model_version": "inverse-linear/1.0.0",
+    "registry_version": "1.0.0",
+    "effective_at": "2026-01-01T00:00:00Z",
+    "expires_at": null,
+    "critical_market_fields": [],
+    "critical_feature_ids": [],
+    "parameters": {
+      "benchmark": {
+        "estimator": "weighted_median",
+        "max_source_share": "1",
+        "max_provider_share": "1",
+        "min_observations": 1,
+        "min_sources": 1,
+        "min_provider_groups": 1,
+        "source_rules": {
+          "source:invented": {"enabled": true, "quality": "1", "max_age_hours": "24", "half_life_hours": "24"}
+        }
+      }
+    }
+  },
+  "feature_definitions": [
+    {"feature_id": "availability:declared", "value_type": "decimal", "unit": "fraction", "owning_path": "loss", "owner_model": "model:declared-risk", "required": false, "minimum": "0", "maximum": "1"},
+    {"feature_id": "privacy:qualified", "value_type": "boolean", "owning_path": "constraint", "owner_model": "model:privacy-review", "required": false}
+  ],
+  "notes": "Independently invented uncalibrated configuration. Feature definitions do not activate monetary effects. Source rules do not admit live data access."
+}

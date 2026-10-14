@@ -1,5 +1,4 @@
 """Offline native-unit cloud/FX contracts; no external requests in tests."""
-from copy import deepcopy
 import datetime as dt
 import json
 from pathlib import Path
@@ -10,9 +9,9 @@ import unittest
 import urllib.parse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from compute_pricing.control.connectors import ADAPTERS, ConnectorError, ReadOnlyTransport, SourcePolicy, collect_source, load_policies
+from compute_pricing.control.connectors import ConnectorError, ReadOnlyTransport, SourcePolicy, collect_source, load_policies
 from compute_pricing.control.connectors.adapters import azure_request, parse_azure, parse_ecb
-from compute_pricing.control.connectors.transport import RawResponse, ReadRequest, SOURCE_SPECS, _PinnedHTTPSConnection
+from compute_pricing.control.connectors.transport import RawResponse, _PinnedHTTPSConnection
 from compute_pricing.control.domain import parse_market_observation
 
 NOW = dt.datetime(2026, 10, 14, 12, tzinfo=dt.timezone.utc)
@@ -41,10 +40,10 @@ def azure_raw(items, next_page=None):
 class LiveSourceV2Tests(unittest.TestCase):
     def test_admission_keeps_pending_feeds_disabled(self):
         config = load_policies(Path(__file__).resolve().parents[1] / "examples/source-admission.json")
-        self.assertEqual({name for name, p in config.items() if p.enabled}, {"azure", "ecb", "getdeploying", "huggingface"})
-        for name in ("azure", "ecb", "getdeploying", "huggingface"):
+        self.assertEqual({name for name, p in config.items() if p.enabled}, {"azure", "ecb", "getdeploying", "huggingface", "aws_public_pricing", "openrouter"})
+        for name in ("azure", "ecb", "getdeploying", "huggingface", "aws_public_pricing", "openrouter"):
             self.assertEqual(config[name].permissions["execution"], "FAIL")
-        self.assertFalse(config["openrouter"].enabled)
+        self.assertFalse(config["oracle"].enabled)
         self.assertFalse(config["scaleway"].enabled)
 
     def test_tls_ca_supplement_keeps_certificate_and_hostname_verification(self):
@@ -194,10 +193,10 @@ class LiveSourceV2Tests(unittest.TestCase):
         raw = RawResponse("ecb","2026-11-14T12:00:00Z","/synthetic",200,{},XML)
         self.assertEqual(parse_ecb(raw,policy("ecb")).catalog_records[0]["status"],"stale")
 
-    def test_pending_scaleway_and_openrouter_never_contact_network(self):
+    def test_pending_scaleway_and_oracle_never_contact_network(self):
         policies=load_policies(Path(__file__).resolve().parents[1]/"examples/source-admission.json")
         client=self.transport([])
-        for name in ("scaleway","openrouter"):
+        for name in ("scaleway","oracle"):
             with self.subTest(name=name),self.assertRaisesRegex(ConnectorError,"admission_blocked"):
                 collect_source(name,policies,transport=client)
         self.assertEqual(self.calls,[])

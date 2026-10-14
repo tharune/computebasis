@@ -1,5 +1,17 @@
 # Third-party notices
 
+## Local land geometry
+
+The map packages simplified land geometry from Natural Earth 1:110m data.
+Natural Earth places its vector and raster datasets in the public domain and
+permits commercial use and modification under its [terms of use](https://www.naturalearthdata.com/about/terms-of-use/).
+Only land geometry is retained; no live position, source price, site identifier
+or user record is part of that asset. It is served locally without external tiles.
+
+Made with Natural Earth. [Dataset repository](https://github.com/nvkelso/natural-earth-vector).
+
+## Number-format and date compatibility
+
 The read-only OOXML reader's built-in number formats and Excel serial-date
 compatibility behavior follow openpyxl 3.1.5. The following notice accompanies
 those portions. The bounded archive, lineage and schema-neutral extraction

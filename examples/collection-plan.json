@@ -36,5 +36,42 @@
       "limit": 50,
       "full": true
     }
+  },
+  {
+    "source_id": "azure",
+    "filters": {
+      "region": "eastus",
+      "sku_prefix": "Standard_D",
+      "max_pages": 1
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonLightsail",
+      "region": "us-east-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonECS",
+      "region": "us-east-1"
+    }
+  },
+  {
+    "source_id": "aws_public_pricing",
+    "filters": {
+      "service": "AmazonBedrock",
+      "region": "us-east-1"
+    }
+  },
+  {
+    "source_id": "openrouter",
+    "filters": {
+      "q": "liquid",
+      "limit": 50,
+      "max_pages": 1
+    }
   }
 ]
