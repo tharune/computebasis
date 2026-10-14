@@ -402,7 +402,7 @@
       US.states.forEach((state) => {
         const path = stateNodes.get(state.abbr), region = model.regions.get("state:" + state.abbr), gpus = region ? region.gpus : 0, live = !!region;
         const tint = tintOf(model.scale, gpus);
-        const cls = "cmap-state c" + tint + (live ? " is-live" : "") + (region && region.positions.length ? " has-pos" : "");
+        const cls = "cmap-state c" + tint + (live ? " is-live" : "");
         setAttr(path, "class", cls);
         setAttr(path, "tabindex", live ? "0" : null); setAttr(path, "role", live ? "button" : null);
         setAttr(path, "aria-label", live ? state.name + ". " + summaryLine(region) : null); setAttr(path, "aria-hidden", live ? null : "true");
@@ -433,7 +433,7 @@
         const r = n.r * unit, p = mark.parts, half = (n.r + (site.bids.length ? 7.5 : 5.5)) * unit;
         setAttr(mark.group, "transform", "translate(" + fix(n.x * unit) + " " + fix(n.y * unit) + ")");
         setAttr(mark.group, "aria-label", [site.provider + (site.grade === "U" ? ", not rated" : ", grade " + site.grade), site.place, int(site.gpus) + " GPUs quoted", holdings(site)].filter(Boolean).join(". ") + ".");
-        setAttr(p.hit, "r", fix(Math.max(r + 8 * unit, 14 * unit)));
+        setAttr(p.hit, "r", fix(Math.max(r + 8 * unit, (w < 560 ? 18 : 14) * unit)));  // at least 28 px across, 36 on a phone
         setAttr(p.dot, "r", fix(r)); setAttr(p.dot, "stroke-width", fix(1.5 * unit)); setAttr(p.focus, "r", fix(r + 5 * unit)); setAttr(p.focus, "stroke-width", fix(2 * unit));
         const ringR = r + 3 * unit, dots = Math.max(8, Math.round((2 * Math.PI * ringR) / (3.8 * unit)));
         setAttr(p.bidring, "r", fix(ringR)); setAttr(p.bidring, "stroke-width", fix(1.8 * unit)); setAttr(p.bidring, "stroke-dasharray", fix(0.1 * unit) + " " + fix((2 * Math.PI * ringR) / dots - 0.1 * unit)); toggle(p.bidring, "is-off", !site.bids.length);
