@@ -412,7 +412,8 @@ def create_app(*, api_key: str | None = None, store_path: Path,
         except SnapshotStoreError:
             raise HTTPException(503, detail="retained_market_unavailable") from None
         etag = '"' + view.revision + '"'
-        headers = {"ETag": etag, "Cache-Control": "private, no-cache", "Vary": "Cookie, Authorization"}
+        headers = {"ETag": etag, "Cache-Control": "private, no-cache", "Vary": "Cookie, Authorization",
+                   "X-Index-As-Of": view.as_of}
         if request.headers.get("if-none-match") == etag:
             return Response(status_code=304, headers=headers)
         return Response(view.body, media_type="application/json", headers=headers)
@@ -651,5 +652,9 @@ def create_app(*, api_key: str | None = None, store_path: Path,
     from .book_deal import attach_book_deals
     attach_book_deals(app, get_book=get_book, authenticated=authenticated, json_body=_json_body,
                       evaluator=bound_pricing, save=save)
+    from .pricing_demo import attach_pricing_demo
+    from .live_market import configured_market
+    attach_pricing_demo(app, authenticated=authenticated, json_body=_json_body, save=save,
+        market_reader=lambda: configured_market(store, policies, plan, row_limit=10000), store=store)
     add_workbench(app)
     return app
