@@ -1,1 +1,242 @@
-/* Quotes: the ranked quote table, cost breakdown and quote detail. Owned by the Quotes page; shared rules stay in workbench.css. */
+/* Quotes: headline, quote ladder, eligibility breakdown, ranked table and quote detail. Owned by the Quotes page.
+   Everything is scoped to #quotes-view and named qx-*, so none of the shared panel, callout or detail rules in workbench.css apply here.
+   Colour comes only from the tokens in workbench.css, so both themes follow. Two colours carry meaning: the accent is an eligible quote and the
+   neutral is a quote that is not eligible; a solid dot against a ring says the same thing without colour. Grade is shown by letter and by position. */
+
+/* Grade chips: an unrated seller is never given a grade colour. */
+#quotes-view .g-u { --gc: var(--faint); }
+/* The shared "Simulate" label is a tracked-caps eyebrow; on this page it reads as a plain word. */
+#quotes-view .sim-label { font-size: 12px; letter-spacing: 0; text-transform: none; }
+
+/* ---- 12-column grid: every block starts on a column line, so left edges and the right-hand column line up top to bottom ---- */
+#quotes-view .qx-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 32px; row-gap: 44px; align-items: start; --qx-pane: clamp(540px, calc(100vh - 124px), 840px); }
+#quotes-view .qx-headline { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 32px; align-items: start; }
+#quotes-view .qx-say { grid-column: 1 / span 8; min-width: 0; }
+#quotes-view .qx-figures { grid-column: 9 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; min-width: 0; }
+#quotes-view .qx-ladder-panel, #quotes-view .qx-table-panel { grid-column: 1 / span 8; }
+#quotes-view .qx-reasons-panel, #quotes-view .qx-detail { grid-column: 9 / -1; }
+#quotes-view .qx-panel { min-width: 0; padding-top: 16px; border-top: 1px solid var(--border); }
+#quotes-view .qx-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; min-height: 34px; margin-bottom: 16px; }
+#quotes-view .qx-head h2 { font-size: 14px; font-weight: 600; letter-spacing: -.005em; line-height: 1.4; }
+#quotes-view .qx-head p { flex: 1 0 100%; margin: -2px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+#quotes-view .qx-head.row { margin-bottom: 14px; }
+#quotes-view .qx-caption { max-width: 56ch; margin: 14px 0 0; font-size: 12px; line-height: 1.55; color: var(--muted); }
+#quotes-view .segmented.wide { margin-bottom: 30px; }
+
+/* ---- headline ---- */
+#quotes-view .qx-say h2 { max-width: 34ch; font-size: 22px; font-weight: 600; letter-spacing: -.02em; line-height: 1.28; text-wrap: balance; }
+#quotes-view .qx-lede { max-width: 66ch; margin: 12px 0 0; font-size: 13px; line-height: 1.6; color: var(--muted); }
+#quotes-view .qx-figure { min-width: 0; padding-top: 10px; border-top: 2px solid var(--muted); }
+#quotes-view .qx-figure.best { border-top-color: var(--accent); }
+#quotes-view .qx-figure.none { border-top-color: var(--border); }
+#quotes-view .qx-figure p { margin: 0; }
+#quotes-view .qx-figure p + p { margin-top: 0; }
+#quotes-view .qx-figure-label { font-size: 12px; color: var(--muted); }
+#quotes-view .qx-figure .qx-figure-value { margin-top: 4px; font-size: 26px; font-weight: 600; letter-spacing: -.025em; line-height: 1.15; }
+#quotes-view .qx-figure-value small { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+#quotes-view .qx-figure .qx-figure-who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 12px; font-size: 12.5px; }
+#quotes-view .qx-figure-who > span:last-child { min-width: 0; overflow-wrap: anywhere; color: var(--ink-soft); }
+#quotes-view .qx-figure .qx-figure-note { margin-top: 6px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+#quotes-view .qx-ref-link { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 600; text-decoration: underline; text-decoration-color: var(--control-border); text-underline-offset: 3px; }
+#quotes-view .qx-ref-link:hover { text-decoration-color: var(--accent); }
+
+/* ---- charts: shared chart text, then the ladder ---- */
+/* The hidden data tables must not inherit the shared table minimum width, or they widen the page. */
+#quotes-view table.qx-twin { min-width: 0; }
+#quotes-view .qx-ladder-chart, #quotes-view .qx-reasons-chart { position: relative; }
+#quotes-view .chart { overflow: visible; }
+#quotes-view .qx-ladder .qx-q { cursor: pointer; outline: none; }
+#quotes-view .qx-q .qx-hit { fill: none; stroke: transparent; stroke-width: 18; stroke-linecap: round; }
+#quotes-view .qx-q .qx-ring { fill: transparent; stroke: none; }
+#quotes-view .qx-q .qx-span, #quotes-view .qx-q .qx-cap { stroke-width: 2; stroke-linecap: round; }
+#quotes-view .qx-q.elig .qx-span, #quotes-view .qx-q.elig .qx-cap { stroke: var(--accent); }
+#quotes-view .qx-q.inel .qx-span, #quotes-view .qx-q.inel .qx-cap { stroke: var(--faint); }
+#quotes-view .qx-q.elig .qx-dot { fill: var(--accent); stroke: var(--canvas); stroke-width: 2; }
+#quotes-view .qx-q.inel .qx-dot { fill: var(--canvas); stroke: var(--faint); stroke-width: 1.75; }
+#quotes-view .qx-q.unpriced .qx-dot { stroke-dasharray: 3 2.4; }
+#quotes-view .qx-q:hover .qx-ring { stroke: var(--faint); stroke-width: 1.5; }
+#quotes-view .qx-q.is-selected .qx-ring { stroke: var(--ink); stroke-width: 1.75; }
+#quotes-view .qx-q:focus-visible .qx-ring { stroke: var(--focus); stroke-width: 2.25; }
+#quotes-view .qx-ref { stroke-width: 1; }
+#quotes-view .qx-ref-low { stroke: var(--muted); }
+#quotes-view .qx-ref-best { stroke: var(--accent); }
+#quotes-view .chart .qx-ref-name { font-size: 11.5px; font-weight: 600; fill: var(--ink); }
+#quotes-view .qx-band { fill: var(--accent); fill-opacity: .07; }
+#quotes-view .chart .qx-band-text { font-size: 11px; font-weight: 600; fill: var(--ink-soft); font-variant-numeric: tabular-nums; }
+#quotes-view .chart .qx-band-count { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+#quotes-view .chart .qx-band-none { font-size: 11px; fill: var(--faint); }
+#quotes-view .qx-tip { display: none; pointer-events: none; }
+#quotes-view .qx-tip.is-on { display: block; }
+#quotes-view .qx-tip-box { fill: var(--canvas); stroke: var(--control-border); stroke-width: 1; }
+#quotes-view .chart .qx-tip-head { font-size: 12px; font-weight: 600; fill: var(--ink); }
+#quotes-view .chart .qx-tip-line { font-size: 11.5px; fill: var(--ink-soft); font-variant-numeric: tabular-nums; }
+#quotes-view .chart .qx-tip-note { font-size: 11.5px; fill: var(--muted); }
+#quotes-view .qx-key { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 18px 0 0; padding: 0; list-style: none; font-size: 12px; line-height: 1.4; color: var(--muted); }
+#quotes-view .qx-key li { display: inline-flex; align-items: center; gap: 8px; }
+#quotes-view .qx-glyph { position: relative; display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; }
+#quotes-view .qx-glyph.elig { background: var(--accent); }
+#quotes-view .qx-glyph.inel, #quotes-view .qx-glyph.lone { background: var(--canvas); box-shadow: inset 0 0 0 1.75px var(--faint); }
+#quotes-view .qx-glyph.lone { background: var(--canvas); box-shadow: none; border: 1.75px dashed var(--faint); box-sizing: border-box; }
+#quotes-view .qx-glyph.span { width: 26px; border-radius: 0; background: none; }
+#quotes-view .qx-glyph.span::before { content: ""; position: absolute; left: 0; top: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--ink-soft); }
+#quotes-view .qx-glyph.span::after { content: ""; position: absolute; left: 10px; right: 1px; top: 4px; height: 2px; background: var(--ink-soft); border-right: 2px solid var(--ink-soft); box-sizing: content-box; }
+
+/* ---- eligibility breakdown ---- */
+#quotes-view .chart .qx-reason-name { font-size: 12.5px; fill: var(--ink); }
+#quotes-view .chart .qx-reason-tag { font-size: 11.5px; font-weight: 600; fill: var(--ink-soft); }
+#quotes-view .chart .qx-reason-count { font-size: 12px; font-weight: 600; fill: var(--ink-soft); font-variant-numeric: tabular-nums; }
+#quotes-view .qx-track { fill: var(--surface); }
+#quotes-view .qx-bar.elig { fill: var(--accent); }
+#quotes-view .qx-bar.inel { fill: var(--faint); }
+
+/* ---- first draw: one short reveal when a model is first shown, never on a refresh of the same book ---- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes qx-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes qx-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  #quotes-view .qx-enter .qx-q { animation: qx-in 380ms var(--ease) backwards; }
+  #quotes-view .qx-enter .qx-bar { transform-box: fill-box; transform-origin: left center; animation: qx-grow 520ms var(--ease) backwards; }
+  #quotes-view .qx-enter .d0 { animation-delay: 0ms; } #quotes-view .qx-enter .d1 { animation-delay: 40ms; } #quotes-view .qx-enter .d2 { animation-delay: 80ms; } #quotes-view .qx-enter .d3 { animation-delay: 120ms; } #quotes-view .qx-enter .d4 { animation-delay: 160ms; }
+  #quotes-view .qx-enter .d5 { animation-delay: 200ms; } #quotes-view .qx-enter .d6 { animation-delay: 240ms; } #quotes-view .qx-enter .d7 { animation-delay: 280ms; } #quotes-view .qx-enter .d8 { animation-delay: 320ms; } #quotes-view .qx-enter .d9 { animation-delay: 360ms; }
+}
+
+/* ---- ranked table ---- */
+#quotes-view .qx-table-panel, #quotes-view .qx-detail { display: flex; flex-direction: column; }
+#quotes-view .qx-scroll-box { position: relative; flex: 1 1 auto; min-height: 0; height: 520px; border-bottom: 1px solid var(--border); }
+#quotes-view .qx-scroll { position: absolute; inset: 0; overflow: auto; overscroll-behavior: contain; }
+/* Where a scroll region ends mid-row, the last 20px fade, so a cut row reads as "more below" and not as a drawing error. The content ends 20px
+   above the edge, so at the very end of the scroll nothing is faded. */
+#quotes-view .qx-scroll, #quotes-view .qx-detail-body { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent); }
+#quotes-view .qx-table { margin-bottom: 20px; }
+#quotes-view .qx-scroll:focus-visible { outline-offset: -2px; }
+#quotes-view .qx-table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 12.5px; font-variant-numeric: tabular-nums; text-align: left; }
+#quotes-view .qx-table th, #quotes-view .qx-table td { position: static; height: 38px; padding: 0 8px; border-top: 1px solid var(--border); background: none; color: var(--ink); font-size: 12.5px; font-weight: 400; letter-spacing: 0; text-transform: none; line-height: 1.3; vertical-align: middle; white-space: nowrap; overflow-wrap: normal; }
+#quotes-view .qx-table thead th { position: sticky; top: 0; z-index: 2; height: 34px; border-top: 0; border-bottom: 1px solid var(--control-border); background: var(--canvas); color: var(--muted); font-size: 12px; font-weight: 500; }
+#quotes-view .qx-table th.qx-num, #quotes-view .qx-table td.qx-num { text-align: right; }
+#quotes-view .qx-table tbody th.c-quote { font-weight: 600; }
+#quotes-view .qx-table col.c-rank { width: 44px; } #quotes-view .qx-table col.c-quote { width: 134px; } #quotes-view .qx-table col.c-quoted { width: 70px; } #quotes-view .qx-table col.c-allin { width: 70px; }
+#quotes-view .qx-table col.c-vs { width: 70px; } #quotes-view .qx-table col.c-term { width: 56px; } #quotes-view .qx-table col.c-down { width: 52px; } #quotes-view .qx-table col.c-standing { width: 156px; }
+#quotes-view .qx-table td.c-seller, #quotes-view .qx-table td.c-standing { overflow: hidden; text-overflow: ellipsis; }
+#quotes-view .qx-table tbody tr:hover td, #quotes-view .qx-table tbody tr:hover th { background: var(--surface); }
+#quotes-view .qx-table tbody tr.selected td, #quotes-view .qx-table tbody tr.selected th { background: var(--accent-soft); }
+#quotes-view .qx-table tbody tr.selected td.c-rank { box-shadow: inset 2px 0 var(--accent); }
+#quotes-view .qx-table tbody tr.ineligible td.qx-num, #quotes-view .qx-table tbody tr.ineligible .qx-name { color: var(--ink-soft); }
+#quotes-view .qx-table td.strong { font-weight: 600; }
+#quotes-view .qx-table tr.qx-group th { height: 30px; padding: 0 8px; border-top: 1px solid var(--border); background: var(--surface); color: var(--ink); font-size: 12px; font-weight: 600; text-align: left; }
+#quotes-view .qx-table tr.qx-group th span { margin-left: 8px; font-weight: 400; color: var(--muted); }
+#quotes-view .qx-table tbody:first-of-type tr.qx-group th { border-top: 0; }
+#quotes-view .qx-seller { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#quotes-view .qx-seller .grade { flex: none; }
+#quotes-view .qx-seller-text { display: block; min-width: 0; }
+#quotes-view .qx-name { display: block; overflow: hidden; text-overflow: ellipsis; }
+#quotes-view .qx-sub { display: none; overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; color: var(--muted); }
+#quotes-view .row-link { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-weight: 600; text-decoration: underline; text-decoration-color: var(--control-border); text-underline-offset: 3px; }
+#quotes-view .row-link:hover { text-decoration-color: var(--accent); }
+#quotes-view .row-link:focus-visible { outline-offset: 3px; }
+#quotes-view .qx-tag { margin-left: 8px; padding: 0 5px; border: 1px solid var(--border); border-radius: 3px; color: var(--muted); font-size: 10.5px; font-weight: 500; line-height: 16px; }
+#quotes-view .qx-tag.best { border-color: var(--accent); color: var(--ink); }
+#quotes-view .qx-ok, #quotes-view .qx-no { display: inline-flex; align-items: center; gap: 8px; }
+#quotes-view .qx-ok::before, #quotes-view .qx-no::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; }
+#quotes-view .qx-ok { color: var(--ink); font-weight: 500; }
+#quotes-view .qx-ok::before { background: var(--accent); }
+#quotes-view .qx-no { color: var(--muted); }
+#quotes-view .qx-no::before { background: var(--canvas); box-shadow: inset 0 0 0 1.75px var(--faint); }
+#quotes-view .qx-foot { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+/* A narrow table (page-quotes.js leaves out the columns that do not fit and sets qx-compact) puts each reason under the seller's name. */
+#quotes-view .qx-table.qx-compact col.c-quote { width: 80px; } #quotes-view .qx-table.qx-compact col.c-quoted, #quotes-view .qx-table.qx-compact col.c-allin { width: 62px; }
+#quotes-view .qx-table.qx-compact tbody tr.selected th.c-quote { box-shadow: inset 2px 0 var(--accent); }
+#quotes-view .qx-table.qx-compact th, #quotes-view .qx-table.qx-compact td { height: 52px; padding: 0 6px; }
+#quotes-view .qx-table.qx-compact thead th { height: 34px; }
+#quotes-view .qx-table.qx-compact .qx-sub { display: block; }
+#quotes-view .qx-table.qx-compact .qx-tag { display: table; margin: 3px 0 0; padding: 0 4px; font-size: 10px; white-space: nowrap; }
+
+/* ---- detail panel ---- */
+#quotes-view .qx-detail-head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; min-height: 34px; padding-bottom: 14px; }
+#quotes-view .qx-detail-id { min-width: 0; }
+#quotes-view .qx-detail-id h2 { font-size: 22px; font-weight: 600; letter-spacing: -.02em; line-height: 1.2; }
+#quotes-view .qx-detail-seller { margin: 4px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-soft); }
+#quotes-view .qx-detail-seller span { display: block; font-size: 12px; color: var(--muted); }
+#quotes-view .qx-detail-grade { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding-top: 3px; }
+#quotes-view .qx-detail-grade small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#quotes-view .qx-detail-body { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 12px 20px 0; border-top: 1px solid var(--border); }
+#quotes-view .qx-detail-body:focus-visible { outline-offset: -2px; }
+#quotes-view .qx-sec { padding: 18px 0 20px; border-top: 1px solid var(--border); }
+#quotes-view .qx-sec:first-child { border-top: 0; }
+#quotes-view .qx-sec h3 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: -.005em; color: var(--ink); }
+#quotes-view .qx-standing { margin: 0; font-size: 14px; font-weight: 600; }
+#quotes-view .qx-standing.ok::before, #quotes-view .qx-standing.no::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 9px; border-radius: 50%; }
+#quotes-view .qx-standing.ok::before { background: var(--accent); }
+#quotes-view .qx-standing.no::before { background: var(--canvas); box-shadow: inset 0 0 0 1.75px var(--faint); }
+#quotes-view .qx-standing-note { margin: 8px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+#quotes-view .qx-why { margin: 10px 0 0; padding: 0; list-style: none; font-size: 12.5px; line-height: 1.55; color: var(--ink-soft); }
+#quotes-view .qx-why li { padding: 6px 0; border-top: 1px solid var(--border); }
+#quotes-view .qx-why li:first-child { border-top: 0; padding-top: 0; }
+#quotes-view .qx-cost-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 0 0 12px; font-size: 22px; font-weight: 600; letter-spacing: -.02em; line-height: 1.2; font-variant-numeric: tabular-nums; }
+#quotes-view .qx-cost-total small { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+#quotes-view .qx-cost-total.none { font-size: 14px; letter-spacing: 0; color: var(--ink-soft); }
+#quotes-view .qx-cost-over { flex: 1 0 100%; font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+#quotes-view .qx-costbar { display: block; width: 100%; height: 14px; margin: 0 0 14px; }
+#quotes-view .qx-cost-parts { margin: 0; padding: 0; list-style: none; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+#quotes-view .qx-cost-parts li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto 52px; align-items: center; column-gap: 10px; padding: 5px 0; }
+#quotes-view .qx-cost-parts .swatch { margin: 0; }
+#quotes-view .qx-cost-part-name { color: var(--ink-soft); }
+#quotes-view .qx-cost-parts strong { font-weight: 600; text-align: right; }
+#quotes-view .qx-cost-part-share { text-align: right; color: var(--muted); }
+#quotes-view .qx-alt { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; line-height: 1.55; color: var(--muted); }
+#quotes-view .qx-scorecard { width: 100%; min-width: 0; border-collapse: collapse; font-size: 12.5px; }
+#quotes-view .qx-scorecard th, #quotes-view .qx-scorecard td { position: static; padding: 4px 8px 4px 0; background: none; border: 0; text-align: left; font-size: 12.5px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-soft); white-space: nowrap; }
+#quotes-view .qx-scorecard td.qx-num { text-align: right; font-variant-numeric: tabular-nums; }
+#quotes-view .qx-scorecard td.weight { padding-right: 14px; color: var(--muted); }
+#quotes-view .qx-scorecard td.tier { padding-right: 0; min-width: 44px; color: var(--ink); }
+#quotes-view .qx-scorecard th { width: 100%; }
+#quotes-view .pip { width: 13px; }
+#quotes-view .qx-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; margin: 0; }
+#quotes-view .qx-facts dt { font-size: 12px; line-height: 1.4; color: var(--muted); }
+#quotes-view .qx-facts dd { margin: 2px 0 0; font-size: 13px; font-weight: 500; line-height: 1.4; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+#quotes-view .qx-facts .unstated { font-weight: 400; color: var(--muted); }
+#quotes-view .qx-notes { margin: 0; }
+#quotes-view .qx-notes summary { font-size: 13px; font-weight: 600; }
+#quotes-view .qx-notes ul { margin: 12px 0 0; padding: 0; list-style: none; font-size: 12.5px; line-height: 1.55; color: var(--ink-soft); }
+#quotes-view .qx-notes li { padding: 6px 0; border-top: 1px solid var(--border); }
+#quotes-view .qx-notes li:first-child { border-top: 0; }
+#quotes-view .qx-detail-foot { flex: none; padding-top: 14px; border-top: 1px solid var(--border); }
+#quotes-view .qx-detail-foot .primary-button { width: 100%; }
+#quotes-view .qx-detail-foot p { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
+
+/* ---- widths ---- */
+@media (min-width: 1180px) {
+  #quotes-view .qx-table-panel, #quotes-view .qx-detail { height: var(--qx-pane); }
+}
+@media (max-width: 1179px) {
+  /* Every block spans the page below this width, so the twelve columns (whose gaps alone are 352px) give way to one. */
+  #quotes-view .qx-grid, #quotes-view .qx-headline { grid-template-columns: minmax(0, 1fr); column-gap: 0; }
+  #quotes-view .qx-say, #quotes-view .qx-figures, #quotes-view .qx-ladder-panel, #quotes-view .qx-table-panel, #quotes-view .qx-reasons-panel, #quotes-view .qx-detail { grid-column: 1 / -1; }
+  #quotes-view .qx-figures { grid-template-columns: repeat(2, minmax(0, 260px)); margin-top: 24px; }
+  #quotes-view .qx-detail-body { overflow: visible; padding: 0; -webkit-mask-image: none; mask-image: none; }
+  #quotes-view .qx-detail-body { column-count: 2; column-gap: 40px; }
+  #quotes-view .qx-sec { break-inside: avoid; border-top: 0; }
+  #quotes-view .qx-detail-foot { display: flex; align-items: center; gap: 20px; }
+  #quotes-view .qx-detail-foot .primary-button { width: auto; min-width: 200px; flex: none; }
+  #quotes-view .qx-detail-foot p { margin: 0; }
+}
+@media (max-width: 760px) {
+  #quotes-view .qx-grid { row-gap: 36px; }
+  #quotes-view .qx-say h2 { font-size: 20px; }
+  #quotes-view .qx-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+  #quotes-view .qx-figure-value { font-size: 22px; }
+  #quotes-view .qx-scroll-box { height: 480px; }
+  #quotes-view .qx-detail-body { column-count: 1; }
+  #quotes-view .qx-sec + .qx-sec { border-top: 1px solid var(--border); }
+  #quotes-view .qx-detail-foot { display: block; }
+  #quotes-view .qx-detail-foot .primary-button { width: 100%; }
+  #quotes-view .qx-detail-foot p { margin-top: 10px; }
+  #quotes-view .qx-key { gap: 8px 16px; }
+}
+@media (max-width: 420px) {
+  #quotes-view .qx-figures { grid-template-columns: minmax(0, 1fr); row-gap: 20px; }
+}
+@media (forced-colors: active) {
+  #quotes-view .qx-q.elig .qx-dot { fill: Highlight; stroke: Canvas; }
+  #quotes-view .qx-q.inel .qx-dot { fill: Canvas; stroke: CanvasText; }
+  #quotes-view .qx-bar.elig { fill: Highlight; } #quotes-view .qx-bar.inel { fill: GrayText; }
+  #quotes-view .qx-glyph, #quotes-view .qx-ok::before, #quotes-view .qx-no::before { forced-color-adjust: none; border: 1px solid CanvasText; }
+}
