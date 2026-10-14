@@ -66,7 +66,6 @@ html[data-page="landing"][data-theme="dark"] { --border: rgba(231, 236, 240, .22
   @keyframes bf-rule { from { transform: scaleX(0); } }
   @keyframes bf-grow { from { transform: scaleX(0); } }
   @keyframes view-in { from { opacity: 0; transform: translateY(6px); } }
-  @keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } }
 
   .brief:not(.bf-entered) .bf-hero-copy h1 { animation: bf-rise 800ms var(--ease) backwards; }
   .brief:not(.bf-entered) .bf-hero-copy .bf-sub { animation: bf-rise 800ms var(--ease) 100ms backwards; }
@@ -96,7 +95,6 @@ html[data-page="landing"][data-theme="dark"] { --border: rgba(231, 236, 240, .22
 
   /* Between pages, and the menu. Opacity and a few pixels of travel; the Brief's own entrance replaces the page fade the first time. */
   .view:not(.brief):not([hidden]), .brief.bf-entered:not([hidden]) { animation: view-in 280ms var(--ease) backwards; }
-  .more[open] .more-panel { animation: menu-in 160ms var(--ease) backwards; }
   .tab { transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease); }
 }
 @media print { .brief.rv-on .rv:not(.rv-in), .brief.rv-on .rv-group:not(.rv-in) > * { opacity: 1; transform: none; } }

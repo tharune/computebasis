@@ -13,7 +13,7 @@ def stripped(name):
 
 CSS = stripped("landing.css")
 GLOBAL_CSS = stripped("workbench.css")  # the all-pages reduced-motion switch lives here
-ENTRANCE_KEYFRAMES = ("bf-rise", "bf-fade", "bf-rule", "bf-grow", "view-in", "menu-in")
+ENTRANCE_KEYFRAMES = ("bf-rise", "bf-fade", "bf-rule", "bf-grow", "view-in")
 
 
 def block_after(marker, css=None):

@@ -61,23 +61,9 @@
           <button class="nav-item" data-view="desk">Overview</button>
           <button class="nav-item" data-view="quotes">Quotes</button>
           <button class="nav-item" data-view="pricing">Pricing</button>
-          <details class="more" id="more-menu">
-            <summary class="nav-item" id="more-summary">More</summary>
-            <div class="more-panel">
-              <button class="menu-item" data-view="dashboard">Live feeds</button>
-              <button class="menu-item" data-view="market">Markets</button>
-              <button class="menu-item" data-view="inventory">Inventory</button>
-              <button class="menu-item" data-view="underwriting">Underwriting</button>
-              <button class="menu-item" data-view="inference">Inference</button>
-              <button class="menu-item" data-view="cash">Cash &amp; funding</button>
-              <button class="menu-item" data-view="portfolio">Portfolio</button>
-              <button class="menu-item" data-view="policy">Policies</button>
-              <hr class="menu-rule">
-              <button id="disconnect" class="menu-item" type="button" hidden>End session</button>
-            </div>
-          </details>
         </nav>
         <div class="header-utilities">
+          <button id="disconnect" class="quiet-button" type="button" hidden>End session</button>
           <span class="session-status"><span class="status-dot" id="session-dot"></span><span id="session-state">Connecting</span></span>
           <button id="theme-toggle" class="icon-button" type="button" aria-pressed="false" aria-label="Dark mode" title="Switch to dark theme"><svg class="icon icon-sun" aria-hidden="true" focusable="false"><use href="#icon-sun"/></svg><svg class="icon icon-moon" aria-hidden="true" focusable="false"><use href="#icon-moon"/></svg></button>
         </div>

@@ -20,8 +20,6 @@
   }
   applyTheme();
   THEME_TOGGLES.forEach((id) => byId(id).addEventListener("click", () => { darkMode = !darkMode; applyTheme(); }));
-  document.addEventListener("click", (event) => { const menu = byId("more-menu"); if (menu.open && !menu.contains(event.target)) menu.open = false; });
-  document.addEventListener("keydown", (event) => { const menu = byId("more-menu"); if (event.key === "Escape" && menu.open) { menu.open = false; byId("more-summary").focus(); } });
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -58,7 +56,6 @@
   }
   const viewListeners = [];
   const sessionListeners = [];
-  const MORE_VIEWS = ["dashboard", "market", "inventory", "underwriting", "inference", "cash", "portfolio", "policy"];
   /* The landing page lives at "/" and every app page at "/#name", so a refresh or the back button lands where the person was.
      route.js, which runs before first paint, keeps its own list of the app names. */
   const VIEWS = ["brief", "desk", "quotes", "dashboard", "market", "inventory", "underwriting", "pricing", "policy", "inference", "cash", "portfolio"];
@@ -74,7 +71,6 @@
     VIEWS.forEach((view) => { byId(view + "-view").hidden = view !== name; });
     document.documentElement.setAttribute("data-page", name === "brief" ? "landing" : "app"); writeRoute(name);
     document.title = name === "brief" ? LANDING_TITLE : String(byId(name + "-title").textContent || "").trim() + " · ComputeBasis";
-    byId("more-summary").classList.toggle("active", MORE_VIEWS.includes(name)); byId("more-menu").open = false;
     document.querySelectorAll("[data-view]").forEach((button) => {
       const selected = button.dataset.view === name;
       button.classList.toggle("active", selected);
