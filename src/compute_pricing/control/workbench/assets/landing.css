@@ -5,8 +5,9 @@
 .lp-link { padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; transition: color var(--fast) var(--ease); }
 .lp-link:hover { color: var(--ink); }
 .lp-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.lp-chip { padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 12px; font-weight: 500; white-space: nowrap; }
 @media (max-width: 860px) {
-  .lp-nav { display: none; }
+  .lp-nav, .lp-chip { display: none; }
   .lp-bar { gap: 12px; }
 }
 @media (max-width: 480px) {
