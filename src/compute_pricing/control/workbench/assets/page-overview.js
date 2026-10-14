@@ -63,11 +63,8 @@
   function renderCapacity() {
     const desk = state.desk; const host = byId("desk-map"); const note = byId("desk-map-note");
     if (!desk) {
-      host.hidden = true; note.hidden = false; note.textContent = state.deskError ? "Site capacity comes from the desk ledger, which the server did not provide. The market above is unaffected." : "Reading the desk ledger…";
-      text("desk-capacity-lede", "Where the book's GPUs sit, and where the desk is exposed."); return;
+      host.hidden = true; note.hidden = false; note.textContent = state.deskError ? "Site capacity comes from the desk ledger, which the server did not provide. The market above is unaffected." : "Reading the desk ledger…"; return;
     }
-    const s = desk.summary;
-    text("desk-capacity-lede", (Number.isFinite(s.us_supply_gpus) && Number.isFinite(s.supply_gpus) && s.supply_gpus > 0 ? int(s.us_supply_gpus) + " of " + int(s.supply_gpus) + " quoted GPUs (" + pct(s.us_supply_share === undefined || s.us_supply_share === null ? s.us_supply_gpus / s.supply_gpus : Number(s.us_supply_share), 0) + ") are at sites in the US. " : "") + "Positions and open bids mark where the desk is already exposed. Sites sit on illustrative metros, not on real vendor locations.");
     if (!window.ComputeMap) { host.hidden = true; note.hidden = false; note.textContent = "The capacity map is not available in this build."; return; }
     host.hidden = false; note.hidden = true;
     try {

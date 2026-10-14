@@ -15,6 +15,13 @@ const cellText = (row) => row.children.map((cell) => cell.textContent);
 const open = async (snapshot, options = {}) => { const page = makePage(snapshot, options); page.connect(); await settle(); page.host.showView("desk"); await settle(); return page; };
 const stubMap = () => { const log = { created: [], updates: [], options: [] }; const component = { create: (container, options) => { log.created.push(container); log.options.push(options); return { update: (input) => log.updates.push(input), destroy() {} }; } }; return { log, component }; };
 const clone = (value) => structuredClone(value);
+/* The page scripts load the real us-map.js, which would replace any stand-in assigned to the fake window. So the stand-in is installed as an
+   accessor on Object.prototype (the fake window is a host object, and the scripts' own `window.ComputeMap = ...` then hits the no-op setter)
+   for the length of one test. `undefined` means "no map component at all". */
+async function withMap(component, run) {
+  Object.defineProperty(Object.prototype, "ComputeMap", { configurable: true, get: () => component, set: () => {} });
+  try { return await run(); } finally { delete Object.prototype.ComputeMap; }
+}
 
 test("every section draws from a real book and the ledger, with nothing broken", async () => {
   const page = await open(base);
@@ -121,38 +128,59 @@ test("when the ledger cannot be read the market still draws and the desk section
   }
 });
 
-test("the capacity map is created once, given the normalised ledger on every render, and never overlaps a missing component", async () => {
-  const { log, component } = stubMap(); const page = await open(base, { browser: { ComputeMap: component } });
-  assert.equal(log.created.length, 1); assert.strictEqual(log.created[0], page.el("desk-map"));
-  assert.equal(page.el("desk-map").hidden, false); assert.equal(page.el("desk-map-note").hidden, true);
-  const first = log.updates.at(-1); assert.equal(first.sites.length, deskFixture.sites.length); assert.equal(first.positions.length, deskFixture.positions.length); assert.equal(first.bids.length, deskFixture.bids.length);
-  assert.ok(Number.isFinite(first.sites[0].lat) && first.sites[0].grade, "the inputs are the normalised desk objects");
-  const renders = log.updates.length; page.server.snapshot = war; page.server.tag = 'W/"two"'; page.poll(); await settle();
-  assert.ok(log.updates.length > renders, "every render updates the map");
-  assert.equal(log.created.length, 1, "the map is never rebuilt");
-  page.host.showView("quotes"); await settle(); page.host.showView("desk"); await settle();
-  assert.equal(log.created.length, 1, "leaving and returning keeps the same map");
-  assert.match(page.el("desk-capacity-lede").textContent, /illustrative metros/);
-  assert.match(page.el("desk-capacity-lede").textContent, new RegExp(grouped(String(deskFixture.summary.us_supply_gpus))));
+test("the capacity map is created once, given the normalised ledger on every render, and never rebuilt", async () => {
+  const { log, component } = stubMap();
+  await withMap(component, async () => {
+    const page = await open(base);
+    assert.equal(log.created.length, 1); assert.strictEqual(log.created[0], page.el("desk-map"));
+    assert.equal(page.el("desk-map").hidden, false); assert.equal(page.el("desk-map-note").hidden, true);
+    const first = log.updates.at(-1); assert.equal(first.sites.length, deskFixture.sites.length); assert.equal(first.positions.length, deskFixture.positions.length); assert.equal(first.bids.length, deskFixture.bids.length);
+    assert.ok(Number.isFinite(first.sites[0].lat) && first.sites[0].grade, "the inputs are the normalised desk objects");
+    assert.ok(first.positions.every((p) => typeof p.exact === "object" && Number.isFinite(p.gpus)), "positions and bids arrive as the adapter made them");
+    const renders = log.updates.length; page.server.snapshot = war; page.server.tag = 'W/"two"'; page.poll(); await settle();
+    assert.ok(log.updates.length > renders, "every render updates the map");
+    assert.equal(log.created.length, 1, "the map is never rebuilt");
+    page.host.showView("quotes"); await settle(); page.host.showView("desk"); await settle();
+    assert.equal(log.created.length, 1, "leaving and returning keeps the same map");
+    assert.match(/<p id="desk-capacity-lede">([^<]*)<\/p>/.exec(read("index.html"))[1], /Pick a model/, "the section's lede is ours; the component owns everything inside the container");
+  });
+});
+
+test("the real map component mounts in the section, once, and keeps its picture across polls", async () => {
+  const page = await open(base); const host = page.el("desk-map");
+  assert.equal(host.hidden, false); assert.ok(host.children.length > 0, "the map drew into its container");
+  const root = host.children[0]; assertClean(host, "desk-map");
+  page.server.snapshot = war; page.server.tag = 'W/"two"'; page.poll(); await settle();
+  assert.strictEqual(host.children[0], root, "an update does not rebuild the map");
+  assert.equal(page.el("desk-map-note").hidden, true);
 });
 
 test("without the map component, or when it throws, the page says so quietly and keeps drawing", async () => {
-  const none = await open(base);
-  assert.equal(none.el("desk-map").hidden, true); assert.match(none.el("desk-map-note").textContent, /not available in this build/);
-  assert.ok(none.el("desk-bids").children.length > 0);
-  const broken = await open(base, { browser: { ComputeMap: { create: () => { throw new Error("boom"); } } } });
-  assert.match(broken.el("desk-map-note").textContent, /could not be drawn/); assert.equal(broken.el("desk-map").hidden, true);
-  assert.ok(broken.el("desk-positions").children.length > 0, "a map failure does not stop the page");
-  const flaky = stubMap(); flaky.component.create = () => ({ update: () => { throw new Error("update failed"); }, destroy() {} });
-  const page = await open(base, { browser: { ComputeMap: flaky.component } }); assert.ok(page.el("desk-basis").children.length > 0);
+  await withMap(undefined, async () => {
+    const none = await open(base);
+    assert.equal(none.el("desk-map").hidden, true); assert.match(none.el("desk-map-note").textContent, /not available in this build/);
+    assert.ok(none.el("desk-bids").children.length > 0);
+  });
+  await withMap({ create: () => { throw new Error("boom"); } }, async () => {
+    const broken = await open(base);
+    assert.match(broken.el("desk-map-note").textContent, /could not be drawn/); assert.equal(broken.el("desk-map").hidden, true);
+    assert.ok(broken.el("desk-positions").children.length > 0, "a map failure does not stop the page");
+  });
+  await withMap({ create: () => ({ update: () => { throw new Error("update failed"); }, destroy() {} }) }, async () => {
+    const page = await open(base); assert.ok(page.el("desk-basis").children.length > 0);
+    assert.match(page.el("desk-map-note").textContent, /could not be drawn/);
+  });
 });
 
 test("the map is not touched while the ledger is missing, and appears when it arrives", async () => {
-  const { log, component } = stubMap(); const page = makePage(base, { browser: { ComputeMap: component } }); page.server.deskFailure = "down";
-  page.connect(); await settle(); page.host.showView("desk"); await settle();
-  assert.equal(log.created.length, 0); assert.equal(page.el("desk-map").hidden, true);
-  page.server.deskFailure = ""; page.host.showView("desk"); await settle();
-  assert.equal(log.created.length, 1); assert.equal(page.el("desk-map").hidden, false);
+  const { log, component } = stubMap();
+  await withMap(component, async () => {
+    const page = makePage(base); page.server.deskFailure = "down";
+    page.connect(); await settle(); page.host.showView("desk"); await settle();
+    assert.equal(log.created.length, 0); assert.equal(page.el("desk-map").hidden, true);
+    page.server.deskFailure = ""; page.host.showView("desk"); await settle();
+    assert.equal(log.created.length, 1); assert.equal(page.el("desk-map").hidden, false);
+  });
 });
 
 test("the basis bars carry the book's own numbers, and a model with no eligible seller says so", async () => {

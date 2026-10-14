@@ -49,7 +49,7 @@
       body.append(labelled(h("tr", "ov-r" + Math.min(index + 1, 8),
         h("th", "ov-first", h("span", "ov-model", p.model), h("span", "ov-id", p.id)),
         h("td", "", site ? h("div", "ov-two", h("span", "ov-place", place(site)), seller(site.provider, site.grade)) : h("span", "ov-unrated", "Site not in the ledger")),
-        h("td", "", h("div", "ov-two", h("span", "ov-state " + (p.status === "active" ? "is-active" : "is-upcoming"), h("i", "ov-pip"), p.status === "active" ? "Active" : "Upcoming"), h("span", "ov-dates", p.start + " to " + p.end))),
+        h("td", "", h("div", "ov-two", h("span", "ov-state " + (p.status === "active" ? "is-active" : "is-upcoming"), h("i", "ov-pip"), p.status === "active" ? "Active" : "Upcoming"), h("span", "ov-dates", (p.start || "—") + " to " + (p.end || "—")))),
         h("td", "ov-n", int(p.gpus)), h("td", "ov-n", printed(p, "price", 4)), h("td", "ov-n", p.mark === null ? h("span", "ov-unrated", "No mark") : printed(p, "mark", 4)),
         h("td", "ov-n ov-diff", gap, h("span", "ov-diff-value", unrealized))), POSITION_LABELS));
     });
