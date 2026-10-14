@@ -241,6 +241,8 @@ def create_app(*, api_key: str | None = None, store_path: Path,
         raise HTTPException(401, detail="unauthorized", headers={"WWW-Authenticate": "Bearer"})
 
     attach_sessions(app, sessions, json_body=_json_body)
+    from .quote_book import attach_quote_book
+    attach_quote_book(app, authenticated=authenticated, json_body=_json_body)
 
     def save(kind: str, payload: Mapping[str, Any], output: Mapping[str, Any]) -> dict[str, Any]:
         snapshot_versions = dict(versions)
