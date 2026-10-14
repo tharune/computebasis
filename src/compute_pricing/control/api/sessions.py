@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 
 COOKIE_NAME = "compute_workbench_session"
 CSRF_HEADER = "x-compute-csrf"
-SESSION_SCOPES = frozenset({"read", "evaluate", "inventory", "collection", "session"})
+SESSION_SCOPES = frozenset({"read", "evaluate", "inventory", "collection", "session", "book"})
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 TOKEN_PATTERN = re.compile(r"[0-9a-f]{64}")
 MAX_CSRF_TOKENS = 16
@@ -144,6 +144,8 @@ def request_scope(request: Request) -> str:
         return "read"
     if request.method == "PUT" and path == "/v1/inventory":
         return "inventory"
+    if request.method == "POST" and path == "/v1/book/control":
+        return "book"
     if request.method == "POST" and (path == "/v1/market/refresh" or path.startswith("/v1/sources/") and path.endswith("/collect")):
         return "collection"
     if request.method == "POST" and path in {

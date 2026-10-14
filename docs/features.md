@@ -56,3 +56,8 @@ contract multipliers and basis must stay separate from actual calendar capacity.
 API discovery is available at `/v1/demo/contract`, `/v1/cash/contract`, `/v1/curves/contract`,
 `/v1/power/contract` and `/v1/hedges/contract`. Evaluation routes store their
 registered model versions and never enable execution.
+
+The [independently generated quote book](quote-book.md) supplies a populated,
+reproducible demonstration with exact monetary strings, explicit missing terms,
+calendar-based contract costing and bounded simulation controls. Its ranking
+eligibility is a simulation rule; firm pricing and execution stay disabled.

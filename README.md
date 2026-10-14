@@ -111,3 +111,8 @@ The [interface design guide](docs/interface-design.md) records typography, actio
 The [underwriting coverage guide](docs/underwriting-assessment.md) describes the 112 neutral requirements, dynamic scopes and caller-qualified evidence checks. Missing evidence remains explicit; checklist coverage does not calibrate price factors or approve a transaction. The workspace now uses top navigation and light/dark themes.
 
 Current functionality and backend curve, power and hedge boundaries are listed in [capabilities](docs/features.md).
+
+A separate [simulated quote book](docs/quote-book.md) provides independently generated
+providers, offer terms and scenario changes through authenticated `/v1/book` routes.
+These invented records remain separate from live reference collection, retained
+market evidence and declared inventory.

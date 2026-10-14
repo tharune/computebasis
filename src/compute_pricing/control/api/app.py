@@ -627,9 +627,11 @@ def create_app(*, api_key: str | None = None, store_path: Path,
     from compute_pricing.control.policies.routes import attach_policies
     from compute_pricing.control.inventory import attach_inventory
     from compute_pricing.control.underwriting.routes import attach_underwriting
+    from compute_pricing.control.api.quote_book import attach_quote_book
     attach_policies(app, authenticated=authenticated, json_body=_json_body,
                     store_path=store.path, source_policies=policies)
     attach_inventory(app, authenticated=authenticated, json_body=_json_body, store_path=store.path)
     attach_underwriting(app, authenticated=authenticated, json_body=_json_body)
+    attach_quote_book(app, authenticated=authenticated, json_body=_json_body)
     add_workbench(app)
     return app

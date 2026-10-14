@@ -22,10 +22,11 @@ def main():
                 continue
             if not (path.parent / unquote(target.split("#", 1)[0])).resolve().exists():
                 raise ValueError("broken documentation link")
-    commands = [[sys.executable, "-m", "ruff", "check", "--no-cache", "src/compute_pricing/control", "scripts/serve.py", "scripts/validate.py"],
+    commands = [[sys.executable, "-m", "ruff", "check", "--no-cache", "src/compute_pricing/control", "scripts/serve.py", "scripts/validate.py", "scripts/gen_quote_book_seed.py"],
                 [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
                 [sys.executable, "-m", "compute_pricing.control.cli", "pricing", "examples/control-pricing.json"],
-                [sys.executable, "scripts/evaluate.py", "examples/request.json"]]
+                [sys.executable, "scripts/evaluate.py", "examples/request.json"],
+                [sys.executable, "scripts/gen_quote_book_seed.py", "--check"]]
     for command in commands:
         subprocess.run(command, cwd=ROOT, check=True)
     print("Offline public validation passed")
