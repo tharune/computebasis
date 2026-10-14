@@ -46,7 +46,8 @@ class El {
   removeAttribute(key) { delete this.attributes[key]; }
   addEventListener(name, action) { this.listeners.set(name, [...(this.listeners.get(name) || []), action]); }
   async click() { if (this.disabled) return; await Promise.all((this.listeners.get("click") || []).map((action) => action({ preventDefault() {}, target: this }))); }
-  get clientWidth() { return this.has("bf-chart-host") ? layout.width : undefined; }
+  get clientWidth() { return this._clientWidth !== undefined ? this._clientWidth : this.has("bf-chart-host") ? layout.width : undefined; }
+  set clientWidth(value) { this._clientWidth = value; }  // a suite can size an element, as the browser would
   matches() { return false; }  // :hover and :focus-within, which a suite turns on by assigning its own
   contains(node) { return node === this || this.children.some((child) => child.contains(node)); }
   removeChild(node) { this.children = this.children.filter((child) => child !== node); return node; }
