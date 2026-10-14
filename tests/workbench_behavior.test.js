@@ -50,7 +50,7 @@ function harness({ prefersDark = false } = {}) {
     for (const option of match[2].matchAll(/<option\b[^>]*value="([^"]*)"[^>]*>([^<]*)<\/option>/g)) { const node = new Node("option"); node.value = option[1]; node.textContent = option[2]; select.append(node); }
   }
   const nav = [...html.matchAll(/data-view="([^"]+)"/g)].map((match) => { const node = new Node("button"); node.dataset.view = match[1]; node.root = true; return node; });
-  const window = new Node("window"); window.matchMedia = () => ({ matches: prefersDark }); const documentElement = new Node("html"); const calls = []; const responses = []; const timers = new Map(); const intervals = []; let timerId = 0;
+  const window = new Node("window"); window.matchMedia = () => ({ matches: prefersDark }); window.scrolls = []; window.scrollTo = (options) => window.scrolls.push(options); const documentElement = new Node("html"); const calls = []; const responses = []; const timers = new Map(); const intervals = []; let timerId = 0;
   const allCalls = []; const sessionCalls = []; const logoutResponses = []; let booting = false;
   let clockNow = Date.now(); class ClockDate extends Date { static now() { return clockNow; } }
   const documentListeners = new Map(); const pageDocument = { hidden: false, addEventListener: (name, action) => documentListeners.set(name, [...(documentListeners.get(name) || []), action]) };
@@ -116,6 +116,16 @@ test("each workspace navigation action has one handler and updates current page"
   assert.equal(nav.listeners.get("click").length, 1); await nav.emit("click");
   assert.equal(h.node("inventory-view").hidden, false); assert.equal(h.node("market-view").hidden, true);
   assert.equal(nav.attributes["aria-current"], "page");
+});
+
+test("arriving on another view starts at the top; choosing the current view leaves the scroll position alone", async () => {
+  const h = harness(); const nav = (view) => h.nav.find((button) => button.dataset.view === view);
+  h.window.scrolls.length = 0;
+  await nav("inventory").emit("click");
+  assert.equal(h.window.scrolls.length, 1);
+  assert.equal(h.window.scrolls[0].top, 0); assert.equal(h.window.scrolls[0].behavior, "instant");
+  await nav("inventory").emit("click");
+  assert.equal(h.window.scrolls.length, 1, "the page does not jump when it is already showing");
 });
 
 test("actual ECB quote_per_base is exact, separate from prices and model metadata", async () => {

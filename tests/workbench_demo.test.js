@@ -133,10 +133,8 @@ test("charts survive empty, single-point and missing data without NaN or undefin
     charts.lineChart({ points: 3, series: [{ key: "a", name: "A", values: [null, null, null] }], description: "all missing" }),
     charts.lineChart({ points: 4, series: [{ key: "best", name: "Best", values: [5, null, 5.2, 5.1] }, { key: "low", name: "Low", values: [4, 4, 4, 4] }], gap: ["best", "low"], xLabel: (i) => "t" + i, markers: [{ index: 2, label: "Event" }, { index: 99, label: "off chart" }], description: "gappy" }),
     charts.lineChart({ points: 3, series: [{ key: "flat", name: "Flat", values: [2, 2, 2] }], description: "flat" }),
-    charts.dumbbell({ rows: [{ label: "X", sub: "none", cheap: { className: "g-d", title: "cheapest" }, best: null, value: "—", note: "No eligible seller" }], description: "no eligible seller" }),
     charts.stackedBars({ rows: [{ label: "A", parts: [{ value: 0, ...plain }] }], description: "zero" }),
     charts.columns({ cols: [{ label: "0", parts: [{ value: 0, ...plain }] }], description: "zero columns" }),
-    charts.scatter({ points: [], description: "none", yFormat: (value) => String(value) }),
     charts.bars({ rows: [{ label: "A", value: 0 }], description: "zero" }),
     charts.groupedBars({ rows: [{ label: "X", sub: "none", bars: [{ value: null, absent: "No eligible seller" }, { value: null }], trail: "—" }], description: "no values" }),
     charts.groupedBars({ rows: [{ label: "X", bars: [{ value: 4.6, grade: "D" }, { value: 5.5, grade: "A", text: "$5.500" }], trail: "+19%" }], format: (v) => "$" + v, description: "pair" }),
@@ -150,17 +148,9 @@ test("charts survive empty, single-point and missing data without NaN or undefin
   assert.equal(byTag(drawn[0], "path").length, 0);
   assert.equal(drawn[0].getAttribute("role"), null);
   assert.equal(drawn[8].getAttribute("role"), "img");
-  assert.match(drawn[8].getAttribute("aria-label"), /no eligible seller/);
+  assert.match(drawn[8].getAttribute("aria-label"), /zero/);
 });
 
-test("the dumbbell axis fits the gaps instead of stretching to reach them", () => {
-  const { charts } = makePage(base);
-  const row = (label, x) => ({ label, sub: "", cheap: { className: "g-d", title: "" }, best: { x, title: "" }, value: "" });
-  const chart = charts.dumbbell({ rows: [row("A", 9.5), row("B", 19.9)], description: "gaps" });
-  const labels = byClass(chart, "ch-tick").map((node) => node.textContent);
-  assert.deepEqual(labels, ["+0%", "+10%", "+20%"]);
-  assert.equal(byClass(chart, "dot-best").length, 2);
-});
 
 test("the first poll draws the Brief from the simulated book and marks the workspace live", async () => {
   const page = makePage(base);
@@ -171,7 +161,6 @@ test("the first poll draws the Brief from the simulated book and marks the works
   const live = page.el("brief-live");
   assert.equal(byTag(live, "svg").length >= 1, true);
   base.models.forEach((entry) => assert.match(live.textContent, new RegExp(entry.model)));
-  assert.equal(byClass(live, "ch-ref").length, 0, "reference diamonds stretch the axis and are not drawn");
   BRIEF_SLOTS.forEach((id) => { assertClean(page.el(id), id); assert.ok(page.el(id).children.length > 0, id + " is empty"); });
   assert.ok(page.el("brief-facts").textContent.length > 0);
 });
@@ -192,7 +181,6 @@ test("the Brief states the problem with figures from the book and draws clean ba
   assert.match(anatomy.textContent, /Quoted/); assert.match(anatomy.textContent, /All-in/);
   assert.match(page.el("brief-fact-cost").textContent, /^\+\d+%Quote Q\d+/);
   assert.equal(byClass(page.el("brief-weights"), "bf-bar").length, 6, "six scorecard weights");
-  ["dot-best", "dot-cheap", "ch-connect", "ch-ref", "ch-bubble"].forEach((name) => BRIEF_SLOTS.forEach((id) => assert.equal(byClass(page.el(id), name).length, 0, id + " must not draw " + name)));
 });
 
 test("the Brief copes with a book that has no eligible seller and no priced quote", async () => {
@@ -243,7 +231,6 @@ test("a changed book redraws the Overview and highlights only what moved", async
   assert.equal(byClass(kpis, "flash").length, 0, "nothing flashes on first paint");
   assert.match(kpis.textContent, new RegExp((base.kpis.basis * 100).toFixed(1) + "%"));
   assert.equal(byClass(page.el("desk-basis"), "ch-part").length, base.models.reduce((count, entry) => count + 1 + (entry.best ? 1 : 0), 0), "a bar for each model's lowest quote and one for its best eligible quote");
-  ["dot-best", "dot-cheap", "ch-bubble", "ch-connect"].forEach((name) => ["desk-basis", "desk-grades"].forEach((id) => assert.equal(byClass(page.el(id), name).length, 0, name + " marks are no longer drawn in " + id)));
   ["desk-kpis", "desk-basis", "desk-trend", "desk-supply", "desk-completeness", "desk-grades", "desk-providers", "desk-activity", "desk-expiry"].forEach((id) => { assertClean(page.el(id), id); assert.ok(page.el(id).children.length > 0, id + " is empty"); });
   page.server.snapshot = war; page.server.tag = 'W/"two"';
   page.poll(); await settle();
@@ -278,6 +265,16 @@ test("the Overview price chart flags each scenario and names the market a flag b
   const faint = byClass(page.el("desk-trend"), "ch-marker-label").filter((node) => classes(node).includes("dim"));
   assert.ok(faint.some((node) => /Price war · B300/.test(node.textContent)), "a flag for another model is faint and names that model");
   assert.equal(page.el("desk-model-tabs").children.length, base.models.length);
+});
+
+test("a reset removes the scenario flags it leaves behind on the Overview price chart", async () => {
+  const page = makePage(war); page.connect(); await settle(); page.host.showView("desk"); await settle();
+  const flags = () => byClass(page.el("desk-trend"), "ch-marker-label").filter((node) => /^Price war/.test(node.textContent));
+  assert.ok(flags().length > 0, "the price war is flagged before the reset");
+  // The reset book keeps the earlier clock ticks on its axis, so only the epoch change can clear the flag.
+  const sameAxis = { ...reset, series: { ...reset.series, ticks: war.series.ticks }, meta: { ...reset.meta } };
+  page.server.snapshot = sameAxis; page.server.tag = 'W/"reset"'; page.poll(); await settle();
+  assert.equal(flags().length, 0, "a flag from before the reset must not outlive it");
 });
 
 test("the Quotes cost bars print every component and the all-in total straight from the quote", async () => {

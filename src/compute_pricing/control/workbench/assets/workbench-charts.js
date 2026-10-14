@@ -170,31 +170,6 @@
     return chart;
   }
 
-  /* Rows of "lowest quote -> best eligible all-in cost", on one axis of percent above the lowest quote.
-     No longer drawn by the workbench; kept until the last caller is gone. */
-  function dumbbell({ rows, width = 640, description, axisMax }) {
-    const margin = { left: 118, right: 118, top: 22, bottom: 8 }; const rowHeight = 40; const height = margin.top + rows.length * rowHeight + margin.bottom;
-    const chart = root(width, height, description, "chart chart-dumbbell");
-    const reach = axisMax || Math.max(10, ...rows.map((r) => r.best?.x).filter(finite)) * 1.25;
-    const x = linear([0, reach], [margin.left, width - margin.right]);
-    ticks(0, reach, 4).forEach((value) => chart.append(svg("line", { x1: round(x(value)), x2: round(x(value)), y1: margin.top - 6, y2: height - margin.bottom, class: "ch-grid" }), label("+" + value + "%", x(value), 8, "ch-tick", "middle", "0")));
-    rows.forEach((row, index) => {
-      const cy = margin.top + index * rowHeight + rowHeight / 2;
-      chart.append(label(row.label, 0, cy - 5, "ch-row-label"), label(row.sub, 0, cy + 9, "ch-row-sub"));
-      chart.append(svg("line", { x1: x(0), x2: width - margin.right, y1: cy, y2: cy, class: "ch-track" }));
-      if (finite(row.ref?.x)) chart.append(tip(svg("path", { d: "M" + round(x(row.ref.x)) + " " + (cy - 6) + "l4.5 6l-4.5 6l-4.5 -6z", class: "ch-ref" }), row.ref.title));
-      if (row.best) {
-        chart.append(svg("line", { x1: x(0), x2: round(x(row.best.x)), y1: cy, y2: cy, class: "ch-connect" }));
-        chart.append(label("+" + row.best.x.toFixed(1) + "%", (x(0) + x(row.best.x)) / 2, cy - 11, "ch-gap-label", "middle"));
-        chart.append(tip(svg("circle", { cx: round(x(row.best.x)), cy, r: 6, class: "dot-best" }), row.best.title));
-      }
-      chart.append(tip(svg("circle", { cx: round(x(0)), cy, r: 5.5, class: "dot-cheap " + (row.cheap.className || "") }), row.cheap.title));
-      chart.append(label(row.value, width - margin.right + 14, cy - (row.note ? 5 : 0), "ch-value"));
-      if (row.note) chart.append(label(row.note, width - margin.right + 14, cy + 10, "ch-row-sub"));
-    });
-    return chart;
-  }
-
   /* Horizontal stacked rows. normalize: each row fills the width; otherwise rows share one scale (set `max`).
      `inside(part, share, total)` may return a label drawn in the segment when it is wide enough to hold it. */
   function stackedBars({ rows, width = 520, description, normalize = false, max, labelWidth = 76, valueWidth = 64, rowHeight = 26, barHeight = 14, inside, valueText = (row, total) => String(total) }) {
@@ -244,23 +219,6 @@
     return chart;
   }
 
-  /* Seller quality (x) against price relative to the model's median (y); bubble area is GPU supply.
-     No longer drawn by the workbench; kept until the last caller is gone. */
-  function scatter({ points, bands, width = 520, height = 280, description, xDomain = [0, 100], yDomain = [-0.25, 0.15], yFormat }) {
-    const margin = { left: 44, right: 10, top: 22, bottom: 34 }; const chart = root(width, height, description, "chart chart-scatter");
-    const x = linear(xDomain, [margin.left, width - margin.right]); const y = linear(yDomain, [height - margin.bottom, margin.top]);
-    ticks(yDomain[0], yDomain[1], 4).forEach((value) => chart.append(svg("line", { x1: margin.left, x2: width - margin.right, y1: round(y(value)), y2: round(y(value)), class: value === 0 ? "ch-zero" : "ch-grid" }), label(yFormat(value), margin.left - 6, y(value), "ch-tick", "end")));
-    (bands || []).forEach((band) => {
-      chart.append(svg("line", { x1: round(x(band.at)), x2: round(x(band.at)), y1: margin.top - 4, y2: height - margin.bottom, class: "ch-marker" }));
-      chart.append(label(band.label, x(band.at) + (band.side === "left" ? -6 : 6), margin.top - 10, "ch-marker-label", band.side === "left" ? "end" : "start", "0"));
-    });
-    const radius = linear([0, Math.max(1, ...points.map((p) => p.size))], [0, 13]);
-    points.slice().sort((a, b) => b.size - a.size).forEach((p) => chart.append(tip(svg("circle", { cx: round(x(p.x)), cy: round(y(Math.max(yDomain[0], Math.min(yDomain[1], p.y)))), r: round(Math.max(3, Math.sqrt(radius(p.size) * 13))), class: "ch-bubble " + p.className }), p.title)));
-    chart.append(label("Seller quality score", margin.left + (width - margin.left - margin.right) / 2, height - 4, "ch-axis-title", "middle", "0"));
-    [0, 25, 50, 75, 100].forEach((value) => chart.append(label(String(value), x(value), height - 20, "ch-tick", "middle")));
-    return chart;
-  }
-
   /* Single-series horizontal bars. A row may carry its own `text` for the value label. */
   function bars({ rows, width = 520, description, labelWidth = 104, valueWidth = 30, rowHeight = 24 }) {
     const chart = root(width, rows.length * rowHeight + 4, description, "chart chart-bars"); const top = Math.max(1, ...rows.map((r) => r.value));
@@ -282,5 +240,5 @@
     return list;
   }
 
-  window.ComputeCharts = Object.freeze({ svg, sparkline, lineChart, dumbbell, stackedBars, columns, scatter, bars, legend, ticks, groupedBars, groupedColumns, zeroAxis });
+  window.ComputeCharts = Object.freeze({ svg, sparkline, lineChart, stackedBars, columns, bars, legend, ticks, groupedBars, groupedColumns, zeroAxis });
 })();

@@ -57,6 +57,7 @@
   const sessionListeners = [];
   const MORE_VIEWS = ["dashboard", "market", "inventory", "underwriting", "inference", "cash", "portfolio", "policy"];
   function showView(name, focus = true) {
+    const arriving = byId(name + "-view").hidden;
     ["brief", "desk", "quotes", "dashboard", "market", "inventory", "underwriting", "pricing", "policy", "inference", "cash", "portfolio"].forEach((view) => { byId(view + "-view").hidden = view !== name; });
     byId("more-summary").classList.toggle("active", MORE_VIEWS.includes(name)); byId("more-menu").open = false;
     document.querySelectorAll("[data-view]").forEach((button) => {
@@ -64,6 +65,7 @@
       button.classList.toggle("active", selected);
       if (selected) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     });
+    if (arriving) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     if (focus) byId(name + "-title").focus({ preventScroll: true });
     viewListeners.forEach((listener) => listener(name));
   }
@@ -375,7 +377,7 @@
       const term = { billing_type: record.extensions.billing_type, reservation_months: record.extensions.reservation_months, currency: record.price.currency };
       terms.set(JSON.stringify(term), term);
     });
-    terms.forEach((term, value) => { const option = element("option", term.currency + " / " + term.billing_type + (term.reservation_months === null ? " / no reserved tenor" : " / " + term.reservation_months + " reserved months")); option.value = value; select.append(option); });
+    terms.forEach((term, value) => { const option = element("option", term.currency + " / " + term.billing_type + (term.reservation_months === null ? " / unspecified term" : " / " + term.reservation_months + " reserved months")); option.value = value; select.append(option); });
     if (!terms.size) { const option = element("option", model ? "No current eligible terms" : "Choose a model first"); option.value = ""; select.append(option); }
     if (terms.has(previous)) select.value = previous;
     text("live-reference-state", !state.session ? "Connect to see eligible current aggregate cohorts." : !aggregateRows().length ? "No current aggregate cohort passes the source rights and expiry gates. Inspect admission and refresh coverage." : model ? terms.size + " currency / billing cohorts available. Exploration weights remain unvalidated." : "Select a model to choose exact currency and billing terms.");
@@ -486,7 +488,7 @@
       const row = element("tr"); const price = currencyPrice(record); const months = record.extensions.reservation_months;
       const rate = element("td", undefined, "price-cell"); rate.append(amountNode(price.amount), element("span", " " + price.currency + " / GPU-hour", "num-unit"));
       const billing = record.extensions.billing_type.replaceAll("_", " ").toLowerCase(); const terms = element("td");
-      terms.append(element("span", billing.charAt(0).toUpperCase() + billing.slice(1), "term-type"), element("span", " · " + (months === null ? "no reserved tenor" : months + (months === 1 ? " month" : " months")), "term-tenor"));
+      terms.append(element("span", billing.charAt(0).toUpperCase() + billing.slice(1), "term-type"), element("span", " · " + (months === null ? "unspecified term" : months + (months === 1 ? " month" : " months")), "term-tenor"));
       const source = element("td", sourceName(record.source_id), "source-cell"); source.setAttribute("title", record.source_id);
       row.append(element("td", modelOf(record), "hardware-cell"), rate, terms, source); pulse.append(row);
     });

@@ -1,41 +1,62 @@
 # Interface design
 
-The workspace serves analysts comparing evidence, contract economics and capacity.
-Use readable working text, aligned figures and clear action hierarchy. Data and
-decision states should carry the visual weight.
+The workspace serves someone comparing GPU quotes. It should answer one question
+quickly: what does each quote cost all-in, and which sellers are worth pricing?
+Figures and decision states carry the visual weight; chrome stays out of the way.
 
-Use a neutral canvas, top navigation and thin section rules.
-Keep tables and editors as clear working surfaces. Avoid nesting boxed cards,
-adding decorative badges or using oversized full-width actions on desktop.
-Color explains selected capacity, held decisions and errors.
+## Flow
 
-Filled buttons identify the principal action, such as evaluation, validation
-or saving. Outlined buttons
-identify loading or applying a configuration. Quiet text buttons identify examples,
-filter resets and other utilities. Each treatment has visible hover, pressed,
-disabled and keyboard-focus states. Do not add decorative gradients, glow, shadow
-or motion to controls.
+Four primary pages in one top navigation: **Brief**, **Overview**, **Quotes**,
+**Pricing**. The Brief states the problem in the book's own numbers. Overview shows
+scale, eligibility, basis and provider health, and holds the scenario controls.
+Quotes ranks every quote for one model and opens its cost breakdown. **Price this
+quote** carries the selected ask to Pricing, which loads the labelled example in
+the editor only; nothing is evaluated or saved until the person presses Evaluate.
+Policies, inference, cash, portfolio and the other earlier tools stay under **More**.
 
-Working text and labels use 12–14px desktop type; auxiliary timestamps and
-attribution may be smaller. Mobile buttons and labelled form controls have a 44px minimum touch height. Mobile
-inputs use 16px text to keep editing readable without automatic focus zoom.
-Keep table overflow inside its own scroll region, and wrap long identifiers and
-revision feedback without hiding page overflow.
+Changing page starts at the top of the new page. Choosing the page already showing
+leaves the scroll position alone.
 
-Keep synthetic and held states explicit. Static explanatory labels use plain
-metadata rather than status badges. Pricing precision, unit labels, source rights,
-auth behavior and disabled execution remain governed by their existing contracts.
+## Type, colour and charts
 
-Review a completed synthetic scenario, the empty workspace, policy controls and
-inventory on desktop and mobile. Check readable disabled controls, visible focus,
-touch targets, long values and source-specific native units. Existing behavior and
-security tests cover handlers; visual review covers the presentation.
+System font stack at 13px, with a monospace face only for identifiers, timestamps
+and the all-in formula. Figures are tabular. Headings are sentence case. Labels sit
+beside what they describe; do not add an eyebrow above a heading that already says
+the same thing, and do not number items that are not a sequence.
 
-Light and dark themes share the same information hierarchy. Start from the
-system color preference; the top-bar toggle changes the current page without
-reading a feed, clearing a draft or changing a pricing policy. The preference
-stays in page memory. CSRF tokens and workspace data stay in page memory; session cookies are short-lived and HttpOnly.
-Dark theme applies to tables, editors, notices, source states and local map
-geometry, with separately reviewed text, control-border and focus contrast.
-Keep the navigation horizontally scrollable within its own region at narrow
-widths; the page itself must not overflow.
+Teal is the single accent. Seller grades A to D have fixed colours, and a grade is
+never shown by colour alone: badges carry the letter and charts carry a legend.
+Expected loss uses the warm warning colour, financing
+the accent, and the quoted price a neutral grey. Light and dark themes share the
+same hierarchy; the toggle follows the system setting until it is used.
+
+Charts are SVG built by `workbench-charts.js`. Colour arrives only through CSS
+classes, so the content security policy needs no inline styles. Each chart states its
+unit and its finding in the text beside it, not only in the marks.
+
+## Actions
+
+Filled buttons mark the principal action on a page: **Launch the overview**,
+**Price this quote**, **Evaluate scenario**. Outlined buttons start a scenario or
+open a related page. Quiet text buttons are utilities such as Pause and Reset. Each
+has visible hover, pressed, disabled and keyboard-focus states. Controls carry no
+decorative gradient, glow, shadow or motion.
+
+## Honesty about the data
+
+The book is simulated locally, and the only disclosure is the footer line. Prices
+keep their native units and exact digits. Held and indicative states stay explicit,
+and nothing on screen implies an executed trade. A hold is explained, not hidden.
+
+## Checks
+
+Working text is 12–14px on desktop. On mobile, buttons, tabs and form fields outside
+tables are at least 44px tall and inputs use 16px text; table rows stay compact, and
+the disclosure rows in the advanced editors are smaller than 44px. Tables and editors
+scroll inside their own region, and the page never scrolls sideways.
+
+Tests enforce the structural rules: no inline style or script, no `innerHTML`, no
+`localStorage`, every `byId` id present in `index.html`, and light, dark and
+system-mirror tokens in parity. Visual review covers the rest: each page in light and
+dark, at desktop width and at 390px, with the book moving (Price war, Supply shock,
+Provider downgrade, Reset) and with long values and missing data.
