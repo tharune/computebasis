@@ -24,6 +24,8 @@
   <script src="/workbench/assets/us-map.js" defer></script>
   <script src="/workbench/assets/page-overview.js" defer></script>
   <script src="/workbench/assets/page-quotes.js" defer></script>
+  <script src="/workbench/assets/page-quotes-ladder.js" defer></script>
+  <script src="/workbench/assets/page-quotes-reasons.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#workspace">Skip to main content</a>
@@ -182,12 +184,25 @@
         </div>
       </section>
       <section id="quotes-view" class="view quotes" aria-labelledby="quotes-title" hidden>
-        <div class="page-heading"><div><h1 id="quotes-title" tabindex="-1">Quotes</h1><p id="quotes-lede">Every live quote, ranked by what it costs all-in.</p></div><div id="quotes-controls" class="sim-slot"></div></div>
+        <div class="page-heading"><div><h1 id="quotes-title" tabindex="-1">Quotes</h1><p id="quotes-lede">Simulated quotes, one GPU model at a time. Costs are US dollars per GPU-hour; all-in adds financing and expected loss to the quoted price.</p></div><div id="quotes-controls" class="sim-slot"></div></div>
         <div id="quotes-models" class="segmented wide" role="group" aria-label="GPU model"></div>
-        <div id="quotes-callout" class="callout"></div>
-        <div class="quotes-layout">
-          <section class="panel"><div class="panel-head row"><h2>Ranked quotes</h2><div class="segmented" role="group" aria-label="Order"><button id="sort-allin" class="tab" type="button" aria-pressed="true">By all-in cost</button><button id="sort-price" class="tab" type="button" aria-pressed="false">By quoted price</button></div></div><div class="table-wrap quotes-scroll" tabindex="0" role="region" aria-label="Ranked quotes; scroll to see all"><table id="quotes-table" class="data-table"></table></div></section>
-          <aside id="quotes-detail" class="panel detail" aria-label="Selected quote"></aside>
+        <div class="qx-grid">
+          <div id="quotes-callout" class="qx-headline"></div>
+          <section class="qx-panel qx-ladder-panel" aria-labelledby="qx-ladder-title">
+            <div class="qx-head"><h2 id="qx-ladder-title">Quote ladder</h2><p>Every quote for this model on one price scale, grouped by seller grade.</p></div>
+            <div id="quotes-ladder"></div>
+          </section>
+          <section class="qx-panel qx-reasons-panel" aria-labelledby="qx-reasons-title">
+            <div class="qx-head"><h2 id="qx-reasons-title">Why quotes are not eligible</h2><p>Quotes that pass or fail each check.</p></div>
+            <div id="quotes-reasons"></div>
+            <p id="quotes-reasons-note" class="qx-caption"></p>
+          </section>
+          <section class="qx-panel qx-table-panel" aria-labelledby="qx-table-title">
+            <div class="qx-head row"><h2 id="qx-table-title">Ranked quotes</h2><div class="segmented" role="group" aria-label="Order"><button id="sort-allin" class="tab" type="button" aria-pressed="true">By all-in cost</button><button id="sort-price" class="tab" type="button" aria-pressed="false">By quoted price</button></div></div>
+            <div class="qx-scroll-box"><div id="quotes-scroll" class="qx-scroll" tabindex="0" role="region" aria-label="Ranked quotes; scroll to see all"><table id="quotes-table" class="qx-table"></table></div></div>
+            <p id="quotes-foot" class="qx-foot"></p>
+          </section>
+          <aside id="quotes-detail" class="qx-panel qx-detail" aria-label="Selected quote"></aside>
         </div>
       </section>
       <section id="dashboard-view" class="view" aria-labelledby="dashboard-title" hidden>
