@@ -13,7 +13,7 @@ def stripped(name):
 
 CSS = stripped("landing.css")
 GLOBAL_CSS = stripped("workbench.css")  # the all-pages reduced-motion switch lives here
-ENTRANCE_KEYFRAMES = ("bf-rise", "bf-fade", "bf-rule", "bf-grow", "view-in", "menu-in")
+ENTRANCE_KEYFRAMES = ("bf-rise", "bf-fade", "bf-rule", "bf-grow", "view-in")
 
 
 def block_after(marker, css=None):
@@ -53,6 +53,19 @@ class MotionRulesTests(unittest.TestCase):
             body, _ = block_after("@keyframes " + name)
             properties = set(re.findall(r"([a-z-]+)\s*:", body))
             self.assertLessEqual(properties, {"opacity", "transform"}, name + " animates " + ", ".join(sorted(properties)))
+
+    def test_live_chart_transitions_move_only_geometry_and_only_where_motion_is_allowed(self):
+        """A poll slides a bar (its path, `d`), its label (`transform`) and fades the tooltip; nothing else about a chart is animated."""
+        body, offset = block_after("@media (prefers-reduced-motion: no-preference) {\n  @keyframes bf-rise")
+        rules = [match for match in re.finditer(r"([^{}]+)\{([^{}]*\btransition\s*:[^{}]*)\}", CSS) if re.search(r"\.bf-(bar|value|note|chip|seg-label|tip)\b", match.group(1))]
+        self.assertTrue(rules, "the chart's live-update transitions exist")
+        moved = set()
+        for match in rules:
+            self.assertTrue(offset <= match.start() < offset + len(body), "a chart transition outside no-preference: " + match.group(1).strip())
+            for item in re.search(r"transition\s*:([^;]+)", match.group(2)).group(1).split(","):
+                moved.add(item.split()[0])
+        self.assertLessEqual(moved, {"d", "transform", "opacity"}, "chart transitions animate " + ", ".join(sorted(moved)))
+        self.assertIn("d", moved, "a bar slides to its new length")
 
     def test_reduced_motion_still_stops_everything_else(self):
         body, _ = block_after("@media (prefers-reduced-motion: reduce)", GLOBAL_CSS)

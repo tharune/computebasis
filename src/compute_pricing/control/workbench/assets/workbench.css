@@ -183,16 +183,6 @@ html[data-page="app"] #brief-view { display: none; }
 .status-dot.live { background: var(--good); animation: pulse 2.4s var(--ease) infinite; }
 .status-dot.paused { background: var(--warn); animation: none; }
 .navigation { display: flex; align-items: stretch; gap: 6px; height: 56px; }
-.more { position: relative; display: flex; }
-.more > summary { list-style: none; cursor: pointer; }
-.more > summary::-webkit-details-marker { display: none; }
-.more > summary::before { content: ""; order: 2; width: 5px; height: 5px; margin: -2px 0 0 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); }
-.more[open] > summary { color: var(--ink); }
-.more-panel { position: absolute; z-index: 60; top: calc(100% - 6px); left: -14px; display: flex; flex-direction: column; min-width: 208px; padding: 6px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--canvas); box-shadow: var(--shadow-pop); }
-.menu-item { width: 100%; padding: 8px 12px; border: 0; border-radius: var(--r-sm); background: none; color: var(--ink-soft); font-size: 13px; text-align: left; }
-.menu-item:hover { background: var(--surface); color: var(--ink); }
-.menu-item.active { color: var(--ink); font-weight: 600; }
-.menu-rule { margin: 6px 0; border: 0; border-top: 1px solid var(--border); }
 .nav-item { position: relative; display: inline-flex; flex: none; align-items: center; padding: 0 10px; border: 0; border-radius: 0; background: none; color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap; transition: color var(--fast) var(--ease); }
 .nav-item::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 2px 2px 0 0; background: transparent; transition: background-color var(--fast) var(--ease); }
 .nav-item:hover { color: var(--ink); }
@@ -549,7 +539,6 @@ pre { max-height: 600px; margin: 0; padding: 14px; overflow: auto; border: 1px s
   .header-utilities { margin-left: auto; gap: 10px; }
   .navigation { order: 3; width: 100%; height: 44px; overflow-x: auto; overflow-y: visible; }
   .navigation { gap: 4px; }
-  .more-panel { position: fixed; top: auto; left: 16px; right: 16px; bottom: 16px; }
   .nav-item { min-height: 44px; }
   .page-heading { margin-top: 28px; }
   h1 { font-size: 24px; }
@@ -565,7 +554,7 @@ pre { max-height: 600px; margin: 0; padding: 14px; overflow: auto; border: 1px s
   .activity-bar { left: var(--gutter); width: auto; bottom: 12px; }
   .primary-button, .secondary-button, .quiet-button, input, select { min-height: 44px; }
   .icon-button { width: 44px; height: 44px; }
-  .link-button, .menu-item { min-height: 44px; }
+  .link-button { min-height: 44px; }
   input, select, textarea { font-size: 16px; }
   .filters { gap: 10px; }
   .filters input, .filters select { width: 100%; }

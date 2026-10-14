@@ -115,32 +115,32 @@ test("theme starts from system preference and toggles without fetch or session r
 });
 
 test("each workspace navigation action has one handler and updates current page", async () => {
-  const h = harness(); const nav = h.nav.find((button) => button.dataset.view === "inventory");
+  const h = harness(); const nav = h.nav.find((button) => button.dataset.view === "quotes");
   assert.equal(nav.listeners.get("click").length, 1); await nav.emit("click");
-  assert.equal(h.node("inventory-view").hidden, false); assert.equal(h.node("market-view").hidden, true);
+  assert.equal(h.node("quotes-view").hidden, false); assert.equal(h.node("desk-view").hidden, true);
   assert.equal(nav.attributes["aria-current"], "page");
 });
 
 test("arriving on another view starts at the top; choosing the current view leaves the scroll position alone", async () => {
   const h = harness(); const nav = (view) => h.nav.find((button) => button.dataset.view === view);
   h.window.scrolls.length = 0;
-  await nav("inventory").emit("click");
+  await nav("quotes").emit("click");
   assert.equal(h.window.scrolls.length, 1);
   assert.equal(h.window.scrolls[0].top, 0); assert.equal(h.window.scrolls[0].behavior, "instant");
-  await nav("inventory").emit("click");
+  await nav("quotes").emit("click");
   assert.equal(h.window.scrolls.length, 1, "the page does not jump when it is already showing");
 });
 
 test("the landing page is a page of its own: choosing a view writes its address, and the landing address is plain", async () => {
   const h = harness(); const nav = (view) => h.nav.find((button) => button.dataset.view === view);
   assert.equal(h.documentElement.attributes["data-page"] ?? "landing", "landing");
-  await nav("inventory").emit("click");
-  assert.deepEqual([...h.window.pushed], ["#inventory"]);
+  await nav("quotes").emit("click");
+  assert.deepEqual([...h.window.pushed], ["#quotes"]);
   assert.equal(h.documentElement.attributes["data-page"], "app");
-  await nav("inventory").emit("click");
+  await nav("quotes").emit("click");
   assert.equal(h.window.pushed.length, 1, "choosing the page already showing adds no history entry");
   await nav("brief").emit("click");
-  assert.deepEqual([...h.window.pushed], ["#inventory", "/"]);
+  assert.deepEqual([...h.window.pushed], ["#quotes", "/"]);
   assert.equal(h.documentElement.attributes["data-page"], "landing");
 });
 
@@ -156,8 +156,8 @@ test("back and forward restore the page without writing history again", async ()
 });
 
 test("opening on an app address shows that page, and an unknown address shows the landing page", async () => {
-  const deep = harness({ hash: "#inventory" }); await deep.window.emit("load");
-  assert.equal(deep.node("inventory-view").hidden, false); assert.equal(deep.node("brief-view").hidden, true);
+  const deep = harness({ hash: "#quotes" }); await deep.window.emit("load");
+  assert.equal(deep.node("quotes-view").hidden, false); assert.equal(deep.node("brief-view").hidden, true);
   assert.equal(deep.window.pushed.length, 0, "opening a link does not add a history entry");
   const odd = harness({ hash: "#not-a-page" }); await odd.window.emit("load");
   assert.equal(odd.node("brief-view").hidden, false);
@@ -167,7 +167,7 @@ test("opening on an app address shows that page, and an unknown address shows th
 
 test("every page has its own tab title", async () => {
   const h = harness(); const nav = (view) => h.nav.find((button) => button.dataset.view === view);
-  await nav("inventory").emit("click"); assert.match(h.page.title, / · ComputeBasis$/);
+  await nav("quotes").emit("click"); assert.match(h.page.title, / · ComputeBasis$/);
   await nav("brief").emit("click"); assert.equal(h.page.title, "ComputeBasis: GPU quotes priced all-in");
 });
 

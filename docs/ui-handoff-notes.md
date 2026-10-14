@@ -46,8 +46,13 @@ Frontend, `src/compute_pricing/control/workbench/assets/`:
   when the tab is hidden), sends scenario controls, paints the status pill, keeps flags for recent scenario alerts
   in an in-memory client store.
 - `workbench-charts.js`: SVG primitives built with `createElementNS` (sparkline, line chart, stacked bars, columns,
-  bars, legend, ticks). The Brief draws its own `briefBars` inside `page-brief.js`. Colour only arrives through
-  CSS classes (`--gc`).
+  bars, legend, ticks). Colour only arrives through CSS classes (`--gc`). The Overview and Quotes use these.
+- `landing-charts.js`: the landing page's own chart engine, `window.LandingCharts` (`bars`, `release`, `sparkline`,
+  `money`, `printed`), used by `page-brief.js`. Each chart is drawn at the width of its slot (a `ResizeObserver`
+  redraws it), keeps the same `<svg>` across polls, patches changed numbers in place, and is never rebuilt under the
+  pointer or the keyboard focus. It draws a picture (`role="img"`, short label), an overlay of focusable rows with one
+  SVG tooltip, and a visually hidden data table. Its series colours (`--bf-quoted`, `--bf-financing`) live in
+  `landing.css`, under `.brief`.
 - `workbench-drafts.js`: the structural request editors used by the advanced pages (unchanged behaviour).
 - `workbench.css`, `favicon.svg`.
 

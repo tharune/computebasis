@@ -653,5 +653,7 @@ def create_app(*, api_key: str | None = None, store_path: Path,
     from .book_deal import attach_book_deals
     attach_book_deals(app, get_book=get_book, authenticated=authenticated, json_body=_json_body,
                       evaluator=bound_pricing, save=save)
+    from .book_desk import attach_book_desk
+    attach_book_desk(app, get_book=get_book, authenticated=authenticated)
     add_workbench(app)
     return app
