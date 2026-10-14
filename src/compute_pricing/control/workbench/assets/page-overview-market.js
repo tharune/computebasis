@@ -8,6 +8,7 @@
   const reasonText = (code) => (window.BookAdapter && window.BookAdapter.reasonText ? window.BookAdapter.reasonText(code) : String(code));
   const plural = (n, one, many) => n + " " + (n === 1 ? one : many);
   const join = (items) => (items.length < 3 ? items.join(" and ") : items.slice(0, -1).join(", ") + " and " + items[items.length - 1]);
+  const labelled = (row, names) => { Array.from(row.children).forEach((cell, i) => { if (names[i]) cell.setAttribute("data-label", names[i]); }); return row; };
   const th = (label, className = "") => { const cell = h("th", className, label); cell.scope = "col"; return cell; };
   const GRADE_CLASS = { A: "og-a", B: "og-b", C: "og-c", D: "og-d", U: "og-u" };
 
@@ -128,15 +129,15 @@
     data.quotes.forEach((q) => { const row = byProvider.get(q.provider_id) || { eligible: 0, reasons: new Map() }; if (q.eligible) row.eligible += 1; else q.reasons.forEach((reason) => row.reasons.set(reason, (row.reasons.get(reason) || 0) + 1)); byProvider.set(q.provider_id, row); });
     const rows = data.providers.slice().sort((a, b) => b.gpus - a.gpus || String(a.name).localeCompare(String(b.name))); const shown = state.showAll ? rows : rows.slice(0, 10); const body = h("tbody");
     shown.forEach((p) => {
-      const stat = byProvider.get(p.id) || { eligible: 0, reasons: new Map() }; const top = [...stat.reasons].sort((a, b) => b[1] - a[1])[0]; const recent = p.changed_tick !== null && p.changed_tick !== undefined && data.meta.tick - p.changed_tick <= 6;
+      const stat = byProvider.get(p.id) || { eligible: 0, reasons: new Map() }; const top = [...stat.reasons].sort((a, b) => b[1] - a[1])[0]; const recent = Number.isFinite(p.changed_tick) && p.changed_tick >= 0 && data.meta.tick - p.changed_tick <= 6;
       const link = h("button", "row-link", p.name); link.type = "button";
       link.addEventListener("click", () => { const first = data.quotes.find((q) => q.provider_id === p.id); if (first) { state.model = first.gpu; state.selected = first.id; D.host.showView("quotes"); } });
       const live = p.quotes > 0;
-      body.append(h("tr", recent ? "recent" : "", h("th", "ov-first", link), h("td", "", p.grade !== "U" ? [chip(p.grade), h("span", "ov-kind", p.kind === "Reseller" ? "Broker" : "Owner")] : [h("span", "ov-unrated", "Not rated"), h("span", "ov-kind", p.kind === "Reseller" ? "Broker" : "Owner")]),
+      body.append(labelled(h("tr", recent ? "recent" : "", h("th", "ov-first", link), h("td", "", p.grade !== "U" ? [chip(p.grade), h("span", "ov-kind", p.kind === "Reseller" ? "Broker" : "Owner")] : [h("span", "ov-unrated", "Not rated"), h("span", "ov-kind", p.kind === "Reseller" ? "Broker" : "Owner")]),
         h("td", "ov-n", p.score === null ? "—" : p.score.toFixed(0)), h("td", "ov-n", int(p.quotes)), h("td", "ov-n", int(p.gpus)),
-        h("td", "ov-n", live ? stat.eligible + " of " + p.quotes : h("span", "ov-unrated", "No live quotes")), h("td", "ov-why", !live ? "" : top ? top[0] : stat.eligible ? "None held" : "")));
+        h("td", "ov-n", live ? stat.eligible + " of " + p.quotes : h("span", "ov-unrated", "No live quotes")), h("td", "ov-why", !live ? "" : top ? top[0] : stat.eligible ? "None held" : "")), ["", "Grade", "Score", "Live quotes", "GPUs on offer", "Eligible quotes", "Most common hold"]));
     });
-    const table = h("table", "ov-table ov-sellers", h("caption", "sr-only", "Sellers by GPUs on offer, with grade, score, live quotes, eligible quotes and the reason most of their other quotes are held"),
+    const table = h("table", "ov-table ov-card ov-sellers", h("caption", "sr-only", "Sellers by GPUs on offer, with grade, score, live quotes, eligible quotes and the reason most of their other quotes are held"),
       h("thead", "", h("tr", "", th("Seller", "ov-first"), th("Grade"), th("Score", "ov-n"), th("Live quotes", "ov-n"), th("GPUs on offer", "ov-n"), th("Eligible quotes", "ov-n"), th("Most common hold"))), body);
     const toggle = h("button", "link-button ov-toggle", state.showAll ? "Show top 10" : "Show all " + rows.length); toggle.type = "button"; toggle.addEventListener("click", () => { state.showAll = !state.showAll; renderProviders(); });
     const box = h("div", "ov-scroll", table); box.tabIndex = 0; box.setAttribute("role", "region"); box.setAttribute("aria-label", "Sellers; scroll to see every column");

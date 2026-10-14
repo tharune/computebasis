@@ -86,16 +86,16 @@
 
   /* ---- Single-series horizontal bars with a value at the end of each. Narrow widths put the label above its bar. ---- */
   function hbars({ rows, width, description, enter = false, labelWidth = 170, valueWidth = 76, barHeight = 10, rowHeight = 34, className = "ov-one", stack = width < 420 }) {
-    const stacked = stack; const height = rows.length * (stacked ? 46 : rowHeight);
-    const chart = root(width, Math.max(height, 4), description, "ov-hbars" + (enter ? " ov-in" : ""));
-    const left = stacked ? 0 : labelWidth; const peak = Math.max(1, ...rows.map((row) => row.value).filter(finite)); const x = linear([0, peak], [left, width - valueWidth]);
-    chart.append(svg("line", { x1: left, x2: left, y1: 0, y2: height, class: "ov-axis" }));
+    /* Stacked: the label and its value share a line and the bar runs the full width beneath; otherwise label | bar | value on one line. */
+    const slot = stack ? 46 : rowHeight; const height = rows.length * slot; const chart = root(width, Math.max(height, 4), description, "ov-hbars" + (enter ? " ov-in" : ""));
+    const left = stack ? 0 : labelWidth; const right = stack ? width : width - valueWidth; const peak = Math.max(1, ...rows.map((row) => row.value).filter(finite)); const x = linear([0, peak], [left, right]);
+    if (!stack) chart.append(svg("line", { x1: left, x2: left, y1: 0, y2: height, class: "ov-axis" }));
     rows.forEach((row, index) => {
-      const slot = stacked ? 46 : rowHeight; const top = index * slot; const cy = stacked ? top + 31 : top + slot / 2;
-      chart.append(label(row.label, 0, stacked ? top + 11 : cy, "ov-lab ov-lab-light"));
+      const top = index * slot; const cy = stack ? top + 31 : top + slot / 2;
+      chart.append(label(row.label, 0, stack ? top + 11 : cy, "ov-lab ov-lab-light"));
       const w = finite(row.value) && row.value > 0 ? Math.max(3, x(row.value) - left) : 0;
       if (w) { const shape = bar(left, cy - barHeight / 2, w, barHeight, { className: (row.className || className), hollow: row.hollow, title: row.title, rank: index + 1 }); if (shape) chart.append(shape); }
-      chart.append(label(row.text, left + w + (w ? 10 : 8), cy, "ov-val"));
+      if (stack) chart.append(label(row.text, width, top + 11, "ov-val", "end")); else chart.append(label(row.text, left + w + (w ? 10 : 8), cy, "ov-val"));
     });
     return chart;
   }

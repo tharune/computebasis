@@ -42,7 +42,7 @@
       { key: "basis", label: "Market basis", value: k.basis === null ? "—" : pct(k.basis, 1, true), sub: "best eligible all-in over lowest quote", change: change(s.basis || [], "pp") },
     ];
     const tiles = items.map((item) => {
-      const changed = state.kpi.has(item.key) && state.kpi.get(item.key) !== item.value; state.kpi.set(item.key, item.value);
+      const before = state.kpi.get(item.key); const changed = before !== undefined && before !== "—" && before !== item.value; state.kpi.set(item.key, item.value);  // a figure that was only a placeholder is not a change
       const value = h("strong", "ov-kpi-value" + (changed ? " flash" : ""), item.value); if (item.title) value.setAttribute("title", item.title);
       return h("div", "ov-kpi", h("span", "ov-kpi-label", item.label), value, h("span", "ov-kpi-sub", item.sub), item.change ? h("span", "ov-kpi-change", item.change) : null);
     });

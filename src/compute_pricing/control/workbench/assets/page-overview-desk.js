@@ -20,6 +20,8 @@
   const place = (site) => (site ? site.place + (site.country && site.country !== "US" ? ", " + site.country : "") : "");
   const th = (label, className = "", unit = "") => { const cell = h("th", className, label, unit ? h("span", "ov-unit", unit) : null); cell.scope = "col"; return cell; };
   const scroller = (label, table) => { const box = h("div", "ov-scroll", table); box.tabIndex = 0; box.setAttribute("role", "region"); box.setAttribute("aria-label", label); return box; };
+  /* Below the table breakpoint a row becomes a small card; each cell then names itself through data-label (see overview.css). */
+  const labelled = (row, names) => { Array.from(row.children).forEach((cell, i) => { if (names[i]) cell.setAttribute("data-label", names[i]); }); return row; };
   const seller = (name, grade) => h("span", "ov-seller", grade && grade !== "U" ? chip(grade) : h("span", "ov-unrated", "Not rated"), h("span", "ov-seller-name", name || "Unknown seller"));
 
   /* Why there is nothing to show: still reading, or the server could not give the ledger. The market is unaffected either way. */
@@ -28,6 +30,9 @@
       ? h("div", "ov-absent", h("strong", "", "The desk ledger is unavailable"), h("p", "", what + " come from the desk ledger, which the server did not provide. The market below is unaffected."), h("p", "ov-absent-why", state.deskError))
       : h("div", "ov-absent", h("p", "", "Reading the desk ledger…"));
   }
+
+  const POSITION_LABELS = ["", "Held at", "Term", "GPUs", "Contract", "Mark", "Unrealized difference"];
+  const BID_LABELS = ["", "Seller", "GPUs", "Ask", "Bid", "Quote now", "Outcome", "Position"];
 
   /* ---- Positions ---- */
   function renderPositions(ctx) {
@@ -41,16 +46,16 @@
     desk.positions.forEach((p, index) => {
       const site = sites.get(p.site_id); const unrealized = printed(p, "unrealized_usd", 2, { sign: true });
       const gap = C.finite(p.unrealized_usd) ? C.signedBar({ value: p.unrealized_usd, low, high, width: 132, title: unrealized + " unrealized, " + p.id }) : null;
-      body.append(h("tr", "ov-r" + Math.min(index + 1, 8),
+      body.append(labelled(h("tr", "ov-r" + Math.min(index + 1, 8),
         h("th", "ov-first", h("span", "ov-model", p.model), h("span", "ov-id", p.id)),
-        h("td", "", site ? [h("span", "ov-place", place(site)), seller(site.provider, site.grade)] : h("span", "ov-unrated", "Site not in the ledger")),
-        h("td", "", h("span", "ov-state " + (p.status === "active" ? "is-active" : "is-upcoming"), h("i", "ov-pip"), p.status === "active" ? "Active" : "Upcoming"), h("span", "ov-dates", p.start + " to " + p.end)),
+        h("td", "", site ? h("div", "ov-two", h("span", "ov-place", place(site)), seller(site.provider, site.grade)) : h("span", "ov-unrated", "Site not in the ledger")),
+        h("td", "", h("div", "ov-two", h("span", "ov-state " + (p.status === "active" ? "is-active" : "is-upcoming"), h("i", "ov-pip"), p.status === "active" ? "Active" : "Upcoming"), h("span", "ov-dates", p.start + " to " + p.end))),
         h("td", "ov-n", int(p.gpus)), h("td", "ov-n", printed(p, "price", 4)), h("td", "ov-n", p.mark === null ? h("span", "ov-unrated", "No mark") : printed(p, "mark", 4)),
-        h("td", "ov-n ov-diff", gap, h("span", "ov-diff-value", unrealized))));
+        h("td", "ov-n ov-diff", gap, h("span", "ov-diff-value", unrealized))), POSITION_LABELS));
     });
     const s = desk.summary; const total = s.unrealized_usd === null ? "—" : money(s.exact.unrealized_usd, { sign: true });
-    const foot = h("tfoot", "", h("tr", "", h("th", "ov-first", "All positions", h("span", "ov-id", String(desk.positions.length))), h("td", ""), h("td", ""), h("td", "ov-n", int(s.position_gpus)), h("td", ""), h("td", ""), h("td", "ov-n ov-diff", h("span", "ov-diff-value", total))));
-    const table = h("table", "ov-table ov-positions" + (ctx.enter("positions") ? " ov-in" : ""), h("caption", "sr-only", "Positions the desk holds, with contract price, mark and unrealized difference"),
+    const foot = h("tfoot", "", labelled(h("tr", "", h("th", "ov-first", "All positions", h("span", "ov-id", String(desk.positions.length))), h("td", ""), h("td", ""), h("td", "ov-n", int(s.position_gpus)), h("td", ""), h("td", ""), h("td", "ov-n ov-diff", h("span", "ov-diff-value", total))), POSITION_LABELS));
+    const table = h("table", "ov-table ov-card ov-positions" + (ctx.enter("positions") ? " ov-in" : ""), h("caption", "sr-only", "Positions the desk holds, with contract price, mark and unrealized difference"),
       h("thead", "", h("tr", "", th("Position", "ov-first"), th("Held at"), th("Term"), th("GPUs", "ov-n"), th("Contract", "ov-n", "$ per GPU-hour"), th("Mark", "ov-n", "$ per GPU-hour"), th("Unrealized difference", "ov-n ov-diff", "$"))), body, foot);
     replace("desk-positions", scroller("Positions; scroll to see every column", table),
       h("p", "ov-footnote", "Notional " + money(s.exact.position_notional_usd) + " is contract price × GPUs × contract hours. The mark is the book's current best eligible all-in cost for the model. Unrealized difference is the server's figure, (mark − contract price) × GPUs × remaining contract hours" + (s.unrealized_usd === null ? "; it is blank while any model has no mark." : ".")));
@@ -70,7 +75,7 @@
       h("p", "ov-figure-note", by("open").length ? by("open").length + " open " + (by("open").length === 1 ? "bid is" : "bids are") + " not counted until " + (by("open").length === 1 ? "it is" : "they are") + " decided." : "No bids are open."));
     const rows = STATUS.map(([key, name, className, hollow]) => { const list = by(key); return { label: name, value: list.length, className, hollow, text: list.length + (list.length === 1 ? " bid, " : " bids, ") + int(sumGpus(list)) + " GPUs", title: name + ": " + list.length + " bids, " + int(sumGpus(list)) + " GPUs" }; });
     const width = D.fit(chart, 520);
-    replace(chart, C.hbars({ rows, width, enter: ctx.enter("bid-status"), labelWidth: 88, valueWidth: width < 420 ? 0 : 150, rowHeight: 34, description: "Bids by outcome: " + rows.map((r) => r.label + " " + r.text).join("; ") + "." }),
+    replace(chart, C.hbars({ rows, width, enter: ctx.enter("bid-status"), labelWidth: 88, valueWidth: 150, rowHeight: 34, description: "Bids by outcome: " + rows.map((r) => r.label + " " + r.text).join("; ") + "." }),
       C.twin("Bids by outcome", ["Outcome", "Bids", "GPUs"], STATUS.map(([key, name]) => [name, by(key).length, sumGpus(by(key))])));
   }
 
@@ -85,15 +90,15 @@
     ordered.forEach((bid, index) => {
       const site = sites.get(bid.site_id); const quote = quotes.get(bid.quote_id); const known = STATUS.find(([key]) => key === bid.status);
       const name = (site && site.provider) || (quote && quote.provider) || ""; const grade = site ? site.grade : quote ? quote.grade : "U";
-      const row = h("tr", "ov-r" + Math.min(index + 1, 8), h("th", "ov-first", h("span", "ov-model", bid.model), h("span", "ov-id", bid.id)),
+      const row = labelled(h("tr", "ov-r" + Math.min(index + 1, 8), h("th", "ov-first", h("span", "ov-model", bid.model), h("span", "ov-id", bid.id)),
         h("td", "", seller(name, grade)), h("td", "ov-n", int(bid.gpus)), h("td", "ov-n", printed(bid, "ask", 4)), h("td", "ov-n ov-strong", printed(bid, "bid", 4)),
         h("td", "ov-n", quote ? (C.finite(quote.price) ? C.money(quote.price, 4) : "—") : h("span", "ov-unrated", "Not in book")),
         h("td", "", h("span", "ov-state is-" + bid.status, h("i", "ov-pip"), known ? known[1] : String(bid.status)), h("span", "ov-dates", bid.decided ? day(bid.decided) : "since " + day(bid.placed))),
-        h("td", "", bid.position_id ? h("span", "ov-link-id", bid.position_id) : h("span", "ov-unrated", "—")));
+        h("td", "", bid.position_id ? h("span", "ov-link-id", bid.position_id) : h("span", "ov-unrated", "—"))), BID_LABELS);
       row.setAttribute("title", bid.id + (site ? " at " + place(site) : "") + (quote ? ", quote " + quote.ref : ", quote no longer in the book"));
       body.append(row);
     });
-    const table = h("table", "ov-table ov-bids" + (ctx.enter("bids") ? " ov-in" : ""), h("caption", "sr-only", "Bids the desk brokered, newest first, with ask, bid, the quote's price now, outcome and the position a filled bid became"),
+    const table = h("table", "ov-table ov-card ov-bids" + (ctx.enter("bids") ? " ov-in" : ""), h("caption", "sr-only", "Bids the desk brokered, newest first, with ask, bid, the quote's price now, outcome and the position a filled bid became"),
       h("thead", "", h("tr", "", th("Bid", "ov-first"), th("Seller"), th("GPUs", "ov-n"), th("Ask", "ov-n", "$ per GPU-hour"), th("Bid", "ov-n", "$ per GPU-hour"), th("Quote now", "ov-n", "$ per GPU-hour"), th("Outcome"), th("Position"))), body);
     replace("desk-bids", scroller("Bids, newest first; scroll to see every column", table));
   }
