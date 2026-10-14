@@ -69,7 +69,7 @@ test("the first poll draws the Brief from the simulated book and marks the works
   assert.ok(page.el("brief-facts").textContent.length > 0);
 });
 
-const BRIEF_SLOTS = ["brief-live", "brief-facts", "brief-fact-gaps", "brief-gaps", "brief-fact-cost", "brief-anatomy", "brief-fact-grades", "brief-grades", "brief-weights", "brief-eligible", "brief-basis-live"];
+const BRIEF_SLOTS = ["brief-live", "brief-facts", "brief-fact-gaps", "brief-gaps", "brief-fact-cost", "brief-anatomy", "brief-fact-grades", "brief-grades", "brief-weights", "brief-odds", "brief-eligible", "brief-basis-live"];
 
 test("the Brief states the problem with figures from the book and draws clean bars, not dumbbells", async () => {
   const page = makePage(base); page.connect(); await settle();
@@ -78,11 +78,13 @@ test("the Brief states the problem with figures from the book and draws clean ba
   assert.equal(byClass(page.el("brief-facts"), "bf-number").length, 4);
   assert.match(page.el("brief-facts").textContent, new RegExp(String(base.kpis.live_quotes)));
   assert.match(page.el("brief-fact-grades").textContent, new RegExp("of " + book.base.models.length));
-  assert.equal(byClass(page.el("brief-gaps"), "bf-bar").length, 5, "the five most often omitted terms");
+  const blankTerms = Object.entries(base.field_gaps).filter(([field, count]) => count > 0 && field !== "grade").length;
+  assert.equal(byClass(page.el("brief-gaps"), "bf-bar").length, Math.min(5, blankTerms), "up to the five terms quotes most often leave blank, never a seller's missing grade");
+  assert.equal(byClass(page.el("brief-odds"), "bf-bar").length, 4, "one yearly failure rate per grade");
   const anatomy = page.el("brief-anatomy"); const stack = byClass(anatomy, "bf-bar-group")[1];
   assert.equal(byClass(stack, "bf-bar").length, 3, "the all-in bar stacks price, financing and expected loss");
   assert.match(anatomy.textContent, /Quoted/); assert.match(anatomy.textContent, /All-in/);
-  assert.match(page.el("brief-fact-cost").textContent, /^\+\d+%Quote Q\d+/);
+  assert.match(page.el("brief-fact-cost").textContent, /^\+\d+(\.\d)?%Quote Q\d+/);
   assert.equal(byClass(page.el("brief-weights"), "bf-bar").length, 6, "six scorecard weights");
 });
 
@@ -96,7 +98,8 @@ test("the Brief copes with a book that has no eligible seller and no priced quot
   assert.equal(byClass(page.el("brief-live"), "bf-bar").length, 0);
   assert.match(page.el("brief-live").textContent, /No eligible seller/);
   assert.match(page.el("brief-anatomy").textContent, /No comparison available/);
-  assert.equal(page.el("brief-basis-live").children.length, 0);
+  assert.match(page.el("brief-basis-live").textContent, /no basis to explain/, "the basis band says why it has no chart");
+  assert.match(page.el("brief-eligible").textContent, /^0 of \d+live quotes pass every check/);
 });
 
 test("Brief buttons open the Overview and Quotes, and See the problem scrolls to the problem section", async () => {
@@ -247,7 +250,10 @@ test("the basis breakdown adds up to the basis and to the server's own figure", 
     const parts = basisBreakdown(snapshot);
     assert.ok(parts, name + " has a breakdown");
     assert.ok(Math.abs(parts.screen + parts.costing - parts.basis) < 1e-12, name + ": screen and costing add up to the basis");
-    assert.ok(Math.abs(parts.basis - snapshot.kpis.basis) < 6e-4, name + ": " + parts.basis + " matches the server's " + snapshot.kpis.basis);
+    assert.ok(Math.abs(parts.basis - snapshot.kpis.basis) < 1e-9, name + ": " + parts.basis + " matches the server's " + snapshot.kpis.basis);
+    assert.ok(Math.abs(parts.screen + parts.price + parts.financing + parts.loss - parts.basis) < 1e-12, name + ": screen, price, financing and expected loss add up to the basis");
+    assert.ok(Math.abs(parts.price + parts.financing + parts.loss - parts.costing) < 1e-12, name + ": costing is the three of them");
+    [parts.price, parts.financing, parts.loss].forEach((part) => assert.ok(Number.isFinite(part) && part >= -1e-12, name + ": each part is a non-negative number"));
     assert.ok(parts.screen >= 0 && parts.costing >= 0, name + ": both sources are non-negative");
     assert.ok(parts.models >= 1 && parts.models <= parts.modelsTotal);
     [parts.basis, parts.screen, parts.costing, parts.gpus].forEach((value) => assert.ok(Number.isFinite(value)));
@@ -264,6 +270,7 @@ test("the basis breakdown says nothing when no model has an eligible, priced quo
   const one = { models: [{ model: "X", gpus: 8, best: { risk_adjusted: 6 } }], quotes: [{ gpu: "X", price: "4", eligible: false }, { gpu: "X", price: "5", eligible: true }] };
   const parts = basisBreakdown(one);
   assert.ok(Math.abs(parts.basis - 0.5) < 1e-12 && Math.abs(parts.screen - 0.25) < 1e-12 && Math.abs(parts.costing - 0.25) < 1e-12);
+  assert.equal(parts.financing, null, "without the best quote's own financing there is no finer split, and none is invented");
 });
 
 test("the sources keep to the content security policy", () => {
