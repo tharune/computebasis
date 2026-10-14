@@ -23,6 +23,9 @@
   <script src="/workbench/assets/us-states.js" defer></script>
   <script src="/workbench/assets/us-map.js" defer></script>
   <script src="/workbench/assets/page-overview.js" defer></script>
+  <script src="/workbench/assets/page-overview-charts.js" defer></script>
+  <script src="/workbench/assets/page-overview-desk.js" defer></script>
+  <script src="/workbench/assets/page-overview-market.js" defer></script>
   <script src="/workbench/assets/page-quotes.js" defer></script>
 </head>
 <body>
@@ -168,18 +171,40 @@
           <div class="bf-actions"><button id="brief-open-desk-end" class="primary-button bf-button" type="button">Open the overview</button><button id="brief-open-quotes" class="secondary-button bf-button" type="button">Browse the quotes</button></div>
         </section>
       </section>
-      <section id="desk-view" class="view desk" aria-labelledby="desk-title" hidden>
-        <div class="page-heading"><div><h1 id="desk-title" tabindex="-1">Overview</h1><p id="desk-lede">Opening the simulated book…</p></div><div id="desk-controls" class="sim-slot"></div></div>
-        <div id="desk-kpis" class="kpi-strip"></div>
-        <div class="desk-grid">
-          <section class="panel span-7"><div class="panel-head"><h2>Basis by GPU model</h2><p>Lowest quote against best eligible all-in cost, in dollars per GPU-hour; basis is the premium between them</p></div><div id="desk-basis"></div></section>
-          <section class="panel span-5"><div class="panel-head"><h2 id="desk-trend-title">Price history</h2><div id="desk-model-tabs" class="segmented" role="group" aria-label="GPU model"></div><p>Lowest quote and best eligible all-in cost for one model, with scenarios marked</p></div><div id="desk-trend"></div></section>
-          <section class="panel span-4"><div class="panel-head"><h2>Supply by seller grade</h2><p>Share of each model's GPUs on offer, with the total on the right</p></div><div id="desk-supply"></div></section>
-          <section class="panel span-4"><div class="panel-head"><h2>Quote completeness</h2><p>Live quotes by number of key terms left blank, split by seller grade</p></div><div id="desk-completeness"></div></section>
-          <section class="panel span-4"><div class="panel-head"><h2>Cost by seller grade</h2><p>Median premium over each model's lowest quote, quoted and all-in</p></div><div id="desk-grades"></div></section>
-          <section class="panel span-7"><div class="panel-head"><h2>Provider health</h2><p>Largest suppliers first; open one to see its quotes</p></div><div id="desk-providers"></div></section>
-          <section class="panel span-5"><div class="panel-head"><h2>Activity</h2><p>Price moves, withdrawals and scenarios as they happen</p></div><div id="desk-activity"></div><div class="panel-head sub"><h2>Time to expiry</h2><p>Live quotes by days until they lapse; amber is under two weeks</p></div><div id="desk-expiry"></div></section>
+      <section id="desk-view" class="view desk ov" aria-labelledby="desk-title" hidden>
+        <div class="ov-head">
+          <div class="ov-head-copy"><h1 id="desk-title" tabindex="-1">Overview</h1><p id="desk-lede">Simulated data: every position, bid and quote here is invented, and nothing here executes a trade.</p></div>
+          <div id="desk-controls" class="sim-slot ov-controls"></div>
         </div>
+        <div id="desk-kpis" class="ov-kpis" role="group" aria-label="Key figures"></div>
+        <section class="ov-section" aria-labelledby="desk-positions-title">
+          <header class="ov-section-head"><h2 id="desk-positions-title">Positions</h2><p id="desk-positions-lede">Capacity the desk holds under contract, set against the market.</p></header>
+          <div id="desk-positions" class="ov-slot"></div>
+        </section>
+        <section class="ov-section" aria-labelledby="desk-bids-title">
+          <header class="ov-section-head"><h2 id="desk-bids-title">Bids we brokered</h2><p id="desk-bids-lede">Bids the desk placed with sellers on behalf of buyers.</p></header>
+          <div class="ov-cols ov-bid-top">
+            <div class="ov-c4 ov-panel"><div class="ov-ph"><h3>Fill rate</h3></div><div id="desk-bid-fill" class="ov-slot"></div></div>
+            <div class="ov-c8 ov-panel"><div class="ov-ph"><h3>Bids by outcome</h3></div><div id="desk-bid-status" class="ov-slot"></div></div>
+          </div>
+          <div id="desk-bids" class="ov-slot ov-bids-slot"></div>
+        </section>
+        <section class="ov-section" aria-labelledby="desk-market-title">
+          <header class="ov-section-head"><h2 id="desk-market-title">State of the market</h2><p id="desk-market-lede">The simulated quote book, priced all-in.</p></header>
+          <div class="ov-cols">
+            <div class="ov-c6 ov-panel"><div class="ov-ph"><h3>Basis by GPU model</h3><p>How far the best eligible all-in cost sits above the lowest quote.</p></div><div id="desk-basis" class="ov-slot"></div></div>
+            <div class="ov-c6 ov-panel"><div class="ov-ph ov-ph-tabs"><div><h3 id="desk-trend-title">Price history</h3><p>One model at a time; scenarios are flagged.</p></div><div id="desk-model-tabs" class="segmented" role="group" aria-label="GPU model"></div></div><div id="desk-trend" class="ov-slot"></div></div>
+            <div class="ov-c4 ov-panel"><div class="ov-ph"><h3>Eligible supply by seller grade</h3><p>GPUs in eligible quotes, split by the seller's grade.</p></div><div id="desk-supply" class="ov-slot"></div></div>
+            <div class="ov-c4 ov-panel"><div class="ov-ph"><h3>Why quotes are held back</h3><p>Quotes that cannot be ranked, by reason.</p></div><div id="desk-reasons" class="ov-slot"></div></div>
+            <div class="ov-c4 ov-panel"><div class="ov-ph"><h3>Market events</h3><p>Price moves, withdrawals and scenarios.</p></div><div id="desk-activity" class="ov-slot"></div></div>
+            <div class="ov-c12 ov-panel"><div class="ov-ph"><h3>Seller health</h3><p>Largest sellers first; open one to see its quotes.</p></div><div id="desk-providers" class="ov-slot"></div></div>
+          </div>
+        </section>
+        <section id="desk-capacity" class="ov-section ov-last" aria-labelledby="desk-capacity-title">
+          <header class="ov-section-head"><h2 id="desk-capacity-title">Where we can access capacity</h2><p id="desk-capacity-lede">Where the book's GPUs sit, and where the desk is exposed.</p></header>
+          <p id="desk-map-note" class="ov-note ov-map-note" hidden></p>
+          <div id="desk-map" class="ov-map"></div>
+        </section>
       </section>
       <section id="quotes-view" class="view quotes" aria-labelledby="quotes-title" hidden>
         <div class="page-heading"><div><h1 id="quotes-title" tabindex="-1">Quotes</h1><p id="quotes-lede">Every live quote, ranked by what it costs all-in.</p></div><div id="quotes-controls" class="sim-slot"></div></div>
