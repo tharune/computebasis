@@ -102,20 +102,20 @@
             <ul class="bf-problems">
               <li id="brief-problem-1" class="bf-problem bf-cols rv-group">
                 <div class="bf-problem-copy">
-                  <h3 class="bf-h3">Many quotes leave key terms blank</h3>
-                  <p>Many quotes leave out terms a buyer needs to compare them like for like, and a quote with a blank key term is not eligible.</p>
+                  <h3 class="bf-h3">Some quotes leave key terms blank</h3>
+                  <p>Some quotes leave out terms a buyer needs to compare like for like, such as the down payment or the expiry date.</p>
                   <div id="brief-fact-gaps" class="bf-stat"></div>
                 </div>
                 <figure class="bf-problem-figure bf-panel">
                   <figcaption class="bf-figure-head"><p class="bf-figure-title">The terms quotes most often leave blank</p></figcaption>
                   <div id="brief-gaps" class="bf-slot"></div>
-                  <p class="bf-caption">The ten key terms are location, country, minimum order, interconnect, cooling, lead time, contract length, down payment, payment terms and expiry.</p>
+                  <p class="bf-caption">A quote has 17 key terms: GPU model, GPUs per node, nodes, price, currency, price unit, contract length, down payment, start date, expiry, payment terms, minimum order, lead time, location, country, interconnect and cooling. Shares are of every quote in the book, live or not.</p>
                 </figure>
               </li>
               <li id="brief-problem-2" class="bf-problem bf-cols rv-group">
                 <div class="bf-problem-copy">
                   <h3 class="bf-h3">The quoted price leaves out financing and failure risk</h3>
-                  <p>Sellers ask for a down payment, and the buyer pays to finance it. If the seller fails, the buyer can lose part of that deposit and pay more to replace the capacity. Neither shows in the quoted price.</p>
+                  <p>Sellers ask for a down payment, and the buyer pays to finance it. If the seller fails, the buyer can lose part of that down payment and pay more to replace the capacity. Neither shows in the quoted price.</p>
                   <div id="brief-fact-cost" class="bf-stat"></div>
                 </div>
                 <figure class="bf-problem-figure bf-panel">
@@ -126,7 +126,7 @@
               <li id="brief-problem-3" class="bf-problem bf-cols rv-group">
                 <div class="bf-problem-copy">
                   <h3 class="bf-h3">The lowest price does not show the seller's record</h3>
-                  <p>A quote shows a price, not how reliably the seller delivers. The lowest quote for a GPU model can come from a seller graded C or D.</p>
+                  <p>A quote shows a price, not how reliably the seller delivers. The lowest quote for a model can come from a seller of any grade, or from one that fails the eligibility checks.</p>
                   <div id="brief-fact-grades" class="bf-stat"></div>
                 </div>
                 <figure class="bf-problem-figure bf-panel">
@@ -141,46 +141,39 @@
           <div class="bf-wrap">
             <header id="brief-how-head" class="bf-section-head bf-cols rv-group">
               <h2 id="brief-how-title" class="bf-h2" tabindex="-1">From quoted price to all-in cost</h2>
-              <p class="bf-intro">Four steps turn a quoted price into an all-in cost and decide which quotes can be ranked.</p>
+              <p class="bf-intro">Four steps. A quote that leaves out its contract length or down payment gets no all-in cost.</p>
             </header>
             <ol id="brief-steps" class="bf-pipeline bf-cols rv-group">
               <li class="bf-stage">
                 <div class="bf-stage-head"><span class="bf-stage-n" aria-hidden="true">1</span><h3 class="bf-h3">Grade the seller</h3></div>
-                <p>Six weighted ratings give each seller a score out of 100. The score sets the grade: A at 90 or more, B at 75, C at 60, and D below 60.</p>
+                <p>Six weighted ratings give each seller a score out of 100. The score sets the grade, A to D.</p>
                 <div class="bf-stage-visual"><div id="brief-weights" class="bf-slot"></div></div>
               </li>
               <li class="bf-stage">
                 <div class="bf-stage-head"><span class="bf-stage-n" aria-hidden="true">2</span><h3 class="bf-h3">Set the odds of failure</h3></div>
-                <p>Each grade carries a chance that the seller fails to deliver within a year.</p>
-                <div class="bf-stage-visual">
-                  <dl class="bf-odds" aria-label="Chance of failure within a year, by grade">
-                    <div class="g-a"><dt><span class="grade g-a" aria-hidden="true">A</span><span class="sr-only">Grade A</span></dt><dd><span class="bf-odds-bar" aria-hidden="true"><span class="bf-odds-fill"></span></span><span class="bf-odds-value">0.8%</span></dd></div>
-                    <div class="g-b"><dt><span class="grade g-b" aria-hidden="true">B</span><span class="sr-only">Grade B</span></dt><dd><span class="bf-odds-bar" aria-hidden="true"><span class="bf-odds-fill"></span></span><span class="bf-odds-value">2.4%</span></dd></div>
-                    <div class="g-c"><dt><span class="grade g-c" aria-hidden="true">C</span><span class="sr-only">Grade C</span></dt><dd><span class="bf-odds-bar" aria-hidden="true"><span class="bf-odds-fill"></span></span><span class="bf-odds-value">6.1%</span></dd></div>
-                    <div class="g-d"><dt><span class="grade g-d" aria-hidden="true">D</span><span class="sr-only">Grade D</span></dt><dd><span class="bf-odds-bar" aria-hidden="true"><span class="bf-odds-fill"></span></span><span class="bf-odds-value">17.3%</span></dd></div>
-                  </dl>
-                  <div id="brief-odds" class="bf-slot"></div>
+                <p>The grade sets the odds that a seller fails to deliver. Each grade has its own.</p>
+                <div class="bf-stage-visual"><div id="brief-odds" class="bf-slot"></div>
                 </div>
               </li>
               <li class="bf-stage">
                 <div class="bf-stage-head"><span class="bf-stage-n" aria-hidden="true">3</span><h3 class="bf-h3">Price the risk</h3></div>
-                <p>Financing costs 8.5% a year on the seller's down payment. Expected loss is the chance of failure times what a failure costs: the 65% of the deposit that is not recovered, plus any extra cost of replacing the GPUs at a reference price.</p>
+                <p>Financing costs 8.5% a year on the seller's down payment. Expected loss is the chance of failure times what a failure costs: the 65% of the down payment that is not recovered, plus any extra cost of replacing the GPUs at a reference price.</p>
                 <div class="bf-stage-visual"><ul class="bf-sum"><li>quoted price</li><li><span aria-hidden="true">+</span><span class="sr-only">plus </span>financing</li><li><span aria-hidden="true">+</span><span class="sr-only">plus </span>expected loss</li><li class="bf-sum-total"><span aria-hidden="true">=</span><span class="sr-only">equals </span>all-in cost</li></ul></div>
               </li>
               <li class="bf-stage">
                 <div class="bf-stage-head"><span class="bf-stage-n" aria-hidden="true">4</span><h3 class="bf-h3">Rank what is eligible</h3></div>
-                <p>A quote is eligible only when all of these hold. Eligible quotes are ranked by all-in cost.</p>
+                <p>A quote is eligible when it passes every check. Eligible quotes are ranked by all-in cost.</p>
                 <div class="bf-stage-visual">
-                  <ul class="bf-rules"><li>The seller is rated.</li><li>The contract start is not in the past.</li><li>The quote has not expired.</li><li>It states all ten key terms.</li></ul>
+                  <ul class="bf-rules"><li>Its seller has a grade (grade D passes).</li><li>Every key term is stated.</li><li>The quote has not expired.</li><li>The contract start has not passed.</li><li>The capacity covers the minimum order.</li></ul>
                   <div id="brief-eligible" class="bf-slot bf-stat"></div>
                 </div>
               </li>
             </ol>
             <div id="brief-basis" class="bf-basis bf-cols rv-group">
               <div class="bf-basis-copy"><h3 class="bf-h3">Market basis</h3><p>The gap between the lowest quoted price and the best all-in cost among eligible quotes.</p></div>
-              <p id="brief-basis-live" class="bf-basis-live"></p>
+              <div id="brief-basis-live" class="bf-basis-live bf-panel"></div>
             </div>
-            <p class="bf-fineprint">The scorecard also computes a grade premium. It is an alternative way to cost the same risk and is never added to the all-in cost.</p>
+            <div class="bf-fineprint"><p>Every figure here is simulated and invented independently: sellers, quotes, scorecard, failure odds, cost of capital and reference prices. None is calibrated to a real market, and nothing is inventory, a firm price or executable. Expected loss is the chance the seller fails during the contract times the cost of a failure: the unrecovered part of the down payment plus any extra cost of replacing the GPUs at the reference price.</p><p>The scorecard also computes a grade premium. It is an alternative way to cost the same risk and is never added to the all-in cost.</p></div>
           </div>
         </section>
         <section class="bf-band bf-band-close" aria-labelledby="brief-close-title">
@@ -292,7 +285,7 @@
     <footer id="lp-footer" class="lp-footer">
       <div class="lp-footer-inner">
         <span class="brand"><svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#logo-mark"/></svg><span class="brand-name">ComputeBasis</span></span>
-        <p class="lp-footer-note">All figures are simulated and independently invented. Nothing here is inventory, a firm price or executable.</p>
+        <button id="lp-top" class="lp-top" type="button">Back to top</button>
       </div>
     </footer>
     <footer class="app-footer"><div class="footer-inner"><span>ComputeBasis</span><span>Overview and Quotes run on a local simulation. Indicative only; nothing here executes a trade.</span></div></footer>

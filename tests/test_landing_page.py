@@ -116,7 +116,7 @@ class LandingCopyTests(unittest.TestCase):
 
     def test_the_rates_odds_and_bands_are_the_simulations_own(self):
         text = plain(BRIEF)
-        for fact in ("8.5% a year", "A at 90 or more, B at 75, C at 60, and D below 60", "0.8%", "2.4%", "6.1%", "17.3%", "65% of the deposit that is not recovered"):
+        for fact in ("8.5% a year", "65% of the down payment that is not recovered"):  # the odds, grade bands and weights are drawn from the book, not restated
             self.assertIn(fact, text)
         scoring = (ASSETS.parents[1] / "quote_book" / "scoring.py").read_text(encoding="utf-8")
         for source in ('"deposit_apr": "0.085"', '{"A": "0.008", "B": "0.024", "C": "0.061", "D": "0.173"}', '"recovery_fraction": "0.35"', 'GRADE_BANDS = {"A": "90", "B": "75", "C": "60", "D": "0"}'):
@@ -124,17 +124,21 @@ class LandingCopyTests(unittest.TestCase):
 
     def test_eligibility_rules_match_the_scorer(self):
         scoring = (ASSETS.parents[1] / "quote_book" / "scoring.py").read_text(encoding="utf-8")
-        for reason in ('"contract_start_precedes_as_of"', '"simulated_quote_expired"', 'reasons.update("missing_" + name for name in missing)', 'missing.add("grade")'):
+        for reason in ('"contract_start_precedes_as_of"', '"simulated_quote_expired"', 'reasons.update("missing_" + name for name in missing)', 'missing.add("grade")', '"available_nodes_below_minimum_order"'):
             self.assertIn(reason, scoring)
         rules = re.search(r'<ul class="bf-rules">(.*?)</ul>', BRIEF, re.S).group(1)
-        self.assertEqual(re.findall(r"<li>(.*?)</li>", rules), ["The seller is rated.", "The contract start is not in the past.", "The quote has not expired.", "It states all ten key terms."])
+        self.assertEqual(re.findall(r"<li>(.*?)</li>", rules), ["Its seller has a grade (grade D passes).", "Every key term is stated.", "The quote has not expired.", "The contract start has not passed.", "The capacity covers the minimum order."])
+        self.assertIn("A quote has 17 key terms", plain(BRIEF))
+        self.assertEqual(len(re.search(r'KEY_FIELDS = \((.*?)\)', scoring, re.S).group(1).replace("\n", " ").split(",")), 17)
 
     def test_nothing_stale_or_invented_is_said(self):
         text = plain(BRIEF + FOOTER + HEADER).lower()
         for banned in ("workbook", "placeholder", "mock provider", "12%", "by design", "built for teams", "seamless", "unlock", "ai-powered", "world-class"):
             self.assertNotIn(banned, text)
-        self.assertEqual(text.count("simulated and independently invented"), 1, "the page says it is simulated, once, plainly")
-        self.assertIn("nothing here is inventory, a firm price or executable", text)
+        self.assertEqual(text.count("is simulated and invented independently"), 1, "the page says it is simulated, once, plainly")
+        rest = text.replace("is simulated and invented independently", "").replace("the simulated market", "")
+        self.assertNotIn("simulated", rest, "no other sentence restates the disclosure")
+        self.assertIn("nothing is inventory, a firm price or executable", text)
 
     def test_the_grade_premium_is_an_alternative_not_an_addition(self):
         self.assertIn("alternative way to cost the same risk and is never added to the all-in cost", plain(BRIEF))

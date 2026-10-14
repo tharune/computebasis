@@ -308,6 +308,7 @@
   }
   [["brief-see-problem", "brief-problem", "brief-problem-title"], ["lp-go-problem", "brief-problem", "brief-problem-title"], ["lp-go-how", "brief-how", "brief-how-title"]]
     .forEach(([button, section, title]) => byId(button).addEventListener("click", () => goTo(section, title)));
+  byId("lp-top").addEventListener("click", () => { window.scrollTo?.({ top: 0, left: 0, behavior: reducedMotion() ? "auto" : "smooth" }); byId("brief-title").focus({ preventScroll: true }); });
   armReveal();
   D.register("brief", { render: renderBrief, resize: true });
 })();

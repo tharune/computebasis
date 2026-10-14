@@ -89,7 +89,7 @@ html[data-page="landing"] .session-card, html[data-page="landing"] .notice { wid
 .bf-hero-figure, .bf-problem-figure { min-width: 0; margin: 0; }
 .bf-figure-head p { margin: 0; color: var(--muted); font-size: var(--fs-small); line-height: 1.5; }
 .bf-figure-head .bf-figure-title { margin-bottom: 4px; color: var(--ink); font-size: clamp(17px, 14.6px + .4vw, 21px); font-weight: 600; letter-spacing: -.015em; line-height: 1.3; }
-.bf-live { display: flex; flex-direction: column; min-height: 528px; margin-top: clamp(16px, 1.6vw, 28px); }
+.bf-live { display: flex; flex-direction: column; min-height: 548px; margin-top: clamp(16px, 1.6vw, 28px); }
 .bf-live > .bf-caption { margin-top: auto; padding-top: 16px; }  /* the caption rests on the panel's floor; any spare height sits above it */
 .bf-caption { margin: 16px 0 0; color: var(--muted); font-size: var(--fs-small); line-height: 1.55; text-wrap: pretty; }
 
@@ -122,8 +122,7 @@ html[data-page="landing"] .session-card, html[data-page="landing"] .notice { wid
 .bf-nowrap { white-space: nowrap; }
 .bf-stat-text { max-width: 28em; margin-top: 12px; color: var(--muted); font-size: var(--fs-small); line-height: 1.5; text-wrap: pretty; }
 .bf-slot { min-width: 0; margin-top: clamp(16px, 1.6vw, 28px); }
-#brief-gaps { min-height: 236px; } #brief-anatomy { min-height: 300px; } #brief-grades { min-height: 364px; } #brief-weights { min-height: 240px; }  /* space for the chart, so it arriving moves nothing */
-#brief-odds:empty { display: none; }
+#brief-gaps { min-height: 196px; } #brief-anatomy { min-height: 340px; } #brief-grades { min-height: 360px; } #brief-weights { min-height: 240px; } #brief-odds { min-height: 254px; } #brief-eligible { min-height: 200px; }  /* space for the chart, so it arriving moves nothing */
 .bf-split { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 24px 0 0; padding-top: 16px; border-top: 1px solid var(--lp-rule); }
 .bf-split dt { display: flex; align-items: center; color: var(--muted); font-size: var(--fs-small); }
 .bf-split dd { margin: 6px 0 0; font-size: clamp(17px, 14.4px + .45vw, 21px); font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
@@ -150,23 +149,16 @@ html[data-page="landing"] .session-card, html[data-page="landing"] .notice { wid
 .bf-sum li > span { width: 1ch; color: var(--accent); }
 .bf-sum li:first-child { padding-left: calc(1ch + 12px); }
 .bf-sum-total { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--lp-rule-strong); font-weight: 600; }
-.bf-odds { display: grid; gap: 14px; margin: 0; }
-.bf-odds > div { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; column-gap: 14px; }
-.bf-odds dt { margin: 0; }
-.bf-odds dd { display: grid; grid-template-columns: minmax(0, 1fr) 3.6em; align-items: center; column-gap: 12px; margin: 0; }
-.bf-odds .grade { width: 28px; height: 28px; font-size: 14px; }
-.bf-odds-bar { display: block; height: 10px; border-radius: 5px; background: var(--lp-track); overflow: hidden; }
-.bf-odds-fill { display: block; height: 100%; border-radius: 5px; background: var(--gc); }
-.bf-odds .g-a .bf-odds-fill { width: 4.6%; min-width: 6px; } .bf-odds .g-b .bf-odds-fill { width: 13.9%; } .bf-odds .g-c .bf-odds-fill { width: 35.3%; } .bf-odds .g-d .bf-odds-fill { width: 100%; }
-.bf-odds-value { font-size: var(--fs-body-sm); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
 .bf-rules { margin: 0; padding: 0; list-style: none; font-size: var(--fs-body-sm); line-height: 1.4; }
 .bf-rules li { padding: 11px 0; border-top: 1px solid var(--lp-rule); }
 .bf-rules li:first-child { padding-top: 0; border-top: 0; }
 .bf-basis { align-items: start; margin-top: clamp(56px, 6vw, 104px); padding-top: clamp(32px, 3.4vw, 56px); border-top: 1px solid var(--lp-rule-strong); }
 .bf-basis-copy { grid-column: 1 / span 5; }
-.bf-basis-live { grid-column: 7 / span 6; min-height: 96px; margin: 0; color: var(--muted); font-size: var(--fs-body-sm); line-height: 1.55; }
-.bf-basis-live strong { display: block; margin: 0 0 10px -.04em; color: var(--ink); font-size: var(--fs-fig); font-weight: 500; letter-spacing: -.035em; line-height: 1; }
-.bf-fineprint { max-width: 56em; margin: clamp(32px, 3vw, 48px) 0 0; color: var(--muted); font-size: var(--fs-small); line-height: 1.6; text-wrap: pretty; }
+.bf-basis-live { grid-column: 7 / span 6; min-width: 0; min-height: 440px; }
+.bf-basis-live > .bf-caption { margin-top: 0; padding-top: 16px; }
+.bf-fineprint { max-width: 62em; margin: clamp(32px, 3vw, 48px) 0 0; color: var(--muted); font-size: var(--fs-small); line-height: 1.6; text-wrap: pretty; }
+.bf-fineprint p { margin: 0 0 12px; }
+.bf-fineprint p:last-child { margin-bottom: 0; }
 
 /* Closing band: the one deep surface on the page, with the footer continuing it. */
 .bf-band-close { background: var(--lp-deep); --canvas: var(--lp-deep); color: var(--lp-deep-ink); border: 0; }
@@ -184,8 +176,9 @@ html[data-page="landing"] .session-card, html[data-page="landing"] .notice { wid
 html[data-page="landing"] .lp-footer { display: block; background: var(--lp-deep); color: var(--lp-deep-muted); border-top: 1px solid var(--lp-deep-line); font-size: var(--fs-small); }
 .lp-footer-inner { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gap); align-items: center; width: min(100% - 2 * var(--gutter), var(--content)); margin-inline: auto; padding: clamp(24px, 2.4vw, 40px) 0; }
 .lp-footer .brand { grid-column: 1 / span 6; color: var(--lp-deep-ink); }
-.lp-footer .logo-ink { fill: var(--lp-deep-ink); }
-.lp-footer-note { grid-column: 7 / span 6; max-width: 40em; margin: 0; line-height: 1.55; }
+.lp-footer .brand { --ink: var(--lp-deep-ink); }  /* the mark's square reads --ink through the <use> shadow tree, so it is set on the brand, not on the path */
+.lp-top { grid-column: 7 / span 6; justify-self: start; min-height: 44px; padding: 0; border: 0; background: none; color: var(--lp-deep-muted); font: inherit; font-size: var(--fs-small); cursor: pointer; transition: color var(--fast) var(--ease); }
+.lp-top:hover { color: var(--lp-deep-ink); }
 
 /* Chart marks and text */
 /* The Brief's charts (landing-charts.js) draw at the size they are shown at, so every size below is the size on screen:
@@ -305,15 +298,16 @@ html[data-page="landing"] .lp-footer { display: block; background: var(--lp-deep
 /* Sizes the chart region sets (13px captions, legends and split names) are raised here on the scale, and the figures under a chart sit on the panel. */
 html[data-page="landing"] .brief .bf-caption, html[data-page="landing"] .brief .chart-legend, html[data-page="landing"] .brief .bf-split dt { font-size: var(--fs-small); }
 html[data-page="landing"] .brief .bf-split dd { font-size: clamp(17px, 14.4px + .45vw, 21px); }
+.bf-tone-loss { --gc: var(--warn); }  /* expected loss is the warning colour (the chart region maps it to the accent, which the basis total also uses) */
 html[data-page="landing"] .brief .bf-number-value, html[data-page="landing"] .brief .bf-stat-value, html[data-page="landing"] .brief .bf-basis-live strong { font-variant-numeric: normal; }
 
 /* A stage column narrower than about 370px makes the weights chart draw its stacked form, which is taller; the hero chart's height also
    varies a little with width. Both are reserved here so that the charts arriving moves nothing. */
-@media (min-width: 1101px) and (max-width: 1599px) { #brief-weights { min-height: 360px; } }
-@media (min-width: 1700px) { .bf-live { min-height: 504px; } }
+@media (min-width: 1101px) and (max-width: 1599px) { #brief-weights { min-height: 360px; } #brief-odds { min-height: 336px; } }
+@media (min-width: 1700px) { .bf-live { min-height: 530px; } }
 @media (max-width: 1100px) {
   html[data-page="landing"] { --gap: 20px; }
-  .bf-live { min-height: 548px; }
+  #brief-eligible { min-height: 165px; }
   .bf-stage { grid-column: span 6; }
   .bf-stage:not(:last-child) { margin-right: 0; padding-right: 0; }
   .bf-stage:nth-child(n + 3) { margin-top: 48px; }
@@ -333,12 +327,13 @@ html[data-page="landing"] .brief .bf-number-value, html[data-page="landing"] .br
   .bf-basis { row-gap: 24px; }
   .bf-basis-copy, .bf-basis-live { grid-column: 1 / -1; }
   .bf-basis-live { min-height: 0; }
-  .bf-close-copy, .bf-close .bf-actions, .lp-footer .brand, .lp-footer-note { grid-column: 1 / -1; }
+  .bf-close-copy, .bf-close .bf-actions, .lp-footer .brand, .lp-top { grid-column: 1 / -1; }
   .lp-footer-inner { row-gap: 12px; }
 }
-@media (min-width: 721px) and (max-width: 815px) { #brief-weights { min-height: 360px; } }
-@media (max-width: 410px) { #brief-weights { min-height: 360px; } }
-@media (min-width: 721px) and (max-width: 900px) { .bf-live { min-height: 500px; } }
+@media (min-width: 721px) and (max-width: 815px) { #brief-weights { min-height: 360px; } #brief-odds { min-height: 275px; } }
+@media (max-width: 480px) { #brief-anatomy { min-height: 400px; } .bf-basis-live { min-height: 520px; } }
+@media (max-width: 410px) { #brief-weights { min-height: 360px; } #brief-odds { min-height: 275px; } }
+@media (min-width: 721px) and (max-width: 900px) { .bf-live { min-height: 500px; } .bf-basis-live { min-height: 390px; } }
 @media (max-width: 720px) {
   .bf-live { min-height: 548px; }
   html[data-page="landing"] { --gap: 16px; }
