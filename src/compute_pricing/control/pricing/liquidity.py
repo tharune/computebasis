@@ -10,13 +10,15 @@ from decimal import Decimal, ROUND_FLOOR
 from .._numbers import number, text_number
 from ..domain import ValidationError
 from ..treasury import evaluate_cash_payload
+from ..treasury.cash import NATIVE_KINDS
 
 
 VARIABLE_KINDS = {"supplier_invoice", "supplier_payment", "supplier_prepayment", "prepaid_apply", "expense", "other_outflow"}
 
 
 def cash_price_limit(template, *, currency, as_of, delivery_end, maximum, tick,
-                     expected_purchase_coefficient, expected_fixed_outflows, expected_collections, supplied_ask):
+                     expected_purchase_coefficient, expected_fixed_outflows, expected_collections, supplied_ask,
+                     expected_billings=None):
     if not isinstance(template, dict) or set(template) != {"schedule", "purchase_coefficients", "minimum_cash", "deal_event_ids"}:
         raise ValidationError("cash_template: explicit schedule, coefficients and minimum cash required")
     schedule = template["schedule"]
@@ -52,13 +54,38 @@ def cash_price_limit(template, *, currency, as_of, delivery_end, maximum, tick,
         if event.get("kind", "").startswith("facility_"):
             raise ValidationError("cash_template: facility legs unsupported in cash-only inversion")
     deal = [event for event in events if event["event_id"] in deal_ids]
+    if any(event.get("kind") in NATIVE_KINDS for event in deal) and expected_billings is None:
+        raise ValidationError("cash_template: native settlement requires explicit net service billings")
+    if any(event.get("kind") == "deposit_forfeit" for event in deal):
+        raise ValidationError("cash_template: candidate forfeiture income requires a separate owned income model")
+    invoice_scopes, account_scopes = {}, {}
+    for field, category, registry in (("opening_receivables", "buyer", invoice_scopes), ("opening_payables", "supplier", invoice_scopes),
+                            ("opening_deposits", "buyer", account_scopes), ("opening_prepaids", "supplier", account_scopes),
+                            ("opening_advances", "buyer", account_scopes)):
+        for identity in schedule.get(field, {}):
+            registry.setdefault((category, identity), set()).add("baseline")
+    for event in events:
+        scope = "deal" if event["event_id"] in deal_ids else "baseline"
+        category = "supplier" if event.get("kind") in {"supplier_invoice", "supplier_payment", "supplier_prepayment", "prepaid_apply"} else "buyer"
+        for field, registry in (("invoice_id", invoice_scopes), ("advance_account", account_scopes)):
+            if event.get(field):
+                registry.setdefault((category, event[field]), set()).add(scope)
+    if any(len(scopes) != 1 for registry in (invoice_scopes, account_scopes) for scopes in registry.values()):
+        raise ValidationError("cash_template: invoice or advance cannot cross deal and baseline ownership")
     outflow_kinds = {"supplier_payment", "supplier_prepayment", "other_outflow"}
     coefficient_total = sum((parsed.get(event["event_id"], Decimal(0)) for event in deal if event.get("kind") in outflow_kinds), Decimal(0))
     fixed_total = sum((Decimal(event["amount"]) for event in deal if event.get("kind") in outflow_kinds), Decimal(0))
-    collections = sum((Decimal(event["amount"]) for event in deal if event.get("kind") in {"buyer_receipt", "deposit_apply"}), Decimal(0))
+    collections = sum((Decimal(event["amount"]) for event in deal if event.get("kind") in {"buyer_receipt", "deposit_apply", "advance_apply"}), Decimal(0))
     if (coefficient_total != expected_purchase_coefficient or fixed_total != expected_fixed_outflows
             or collections != expected_collections):
         raise ValidationError("cash_template: deal collections and purchase/cost legs must reconcile to economics")
+    if expected_billings is not None:
+        billings = sum((Decimal(event["amount"]) for event in deal if event.get("kind") == "buyer_invoice"), Decimal(0))
+        billings -= sum((Decimal(event["amount"]) for event in deal if event.get("kind") == "buyer_credit_note"), Decimal(0))
+        earnings = sum((Decimal(event["amount"]) for event in deal if event.get("kind") == "revenue"), Decimal(0))
+        earnings -= sum((number(event.get("revenue_reversal_amount"), "credit reversal") for event in deal if event.get("kind") == "buyer_credit_note"), Decimal(0))
+        if billings != expected_billings or earnings != expected_billings:
+            raise ValidationError("cash_template: net issued and earned service billings must reconcile to economics")
 
     evaluations = 0
 
@@ -83,7 +110,7 @@ def cash_price_limit(template, *, currency, as_of, delivery_end, maximum, tick,
     if zero.minimum_free_cash < floor:
         return {"status": "infeasible_at_zero", "maximum_purchase_tick": None,
                 "binding_date": zero.minimum_free_cash_date, "evaluations": evaluations,
-                "minimum_cash": text_number(floor), "model": "full-ledger-monotone-tick/1.0.1"}
+                "minimum_cash": text_number(floor), "model": "full-ledger-monotone-tick/1.0.2"}
     upper = max(0, int((maximum / tick).to_integral_value(rounding=ROUND_FLOOR)))
     upper_result = run(Decimal(upper) * tick)
     low, high = 0, upper
@@ -111,7 +138,8 @@ def cash_price_limit(template, *, currency, as_of, delivery_end, maximum, tick,
             "minimum_cash": text_number(floor), "evaluations": evaluations,
             "start_date": schedule["start_date"], "end_date": schedule["end_date"],
             "legal_entity_id": schedule["legal_entity_id"], "cash_account_id": schedule["cash_account_id"],
-            "model": "full-ledger-monotone-tick/1.0.1",
+            "model": "full-ledger-monotone-tick/1.0.2",
+            "service_billing_basis": "net_contractual_credits_separate_from_nonservice_income" if expected_billings is not None else "legacy_direct_call_billings_not_assessed",
             "evidence_status": "caller_supplied_complete_settlement_scenario",
             "supplied_ask_cash_feasible": ask_schedule.minimum_free_cash >= floor,
             "supplied_ask_required_extra_cash": text_number(max(Decimal(0), floor - ask_schedule.minimum_free_cash)),

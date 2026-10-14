@@ -29,7 +29,8 @@ class CashScenario:
         if any(not set(loss.cash_event_ids) <= event_ids for loss in self.losses):
             raise ValueError("scenario loss refers to a missing cash event")
         by_id = {event.event_id: event for event in self.events}
-        cash_kinds = {"buyer_receipt", "buyer_deposit", "deposit_refund", "supplier_prepayment", "supplier_payment", "other_inflow", "other_outflow", "facility_interest"}
+        cash_kinds = {"buyer_receipt", "buyer_deposit", "deposit_refund", "supplier_prepayment", "supplier_payment", "other_inflow", "other_outflow", "facility_interest",
+                      "buyer_advance", "advance_refund", "deposit_forfeit"}
         if any(by_id[key].currency != loss.currency or by_id[key].kind not in cash_kinds for loss in self.losses for key in loss.cash_event_ids):
             raise ValueError("loss cash-event ownership must reference a cash effect in its currency")
 

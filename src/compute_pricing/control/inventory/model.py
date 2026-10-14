@@ -272,5 +272,7 @@ def evaluate_inventory(value: Any, *, as_of: str | None = None) -> dict:
         "execution_enabled": False, "paper_only": True, "asset_verification": "caller_declared_unverified", "warnings": [
             "sold_and_signed_status_do_not_authorize_external_execution", "unit_kinds_are_not_interchangeable",
             "declared_values_are_not_cash_flows_revenue_or_current_market_marks", "extensions_preserved_but_unpriced",
+            "provenance_declarations_do_not_verify_assets_or_contracts",
             *(["synthetic_inventory_is_preview_only"] if provenance == "synthetic" else []),
+            *(["inventory_provenance_declaration_required_for_new_writes"] if provenance == "unspecified" else []),
             *(["sold_positions_without_contract_reference"] if missing_contracts else [])]}

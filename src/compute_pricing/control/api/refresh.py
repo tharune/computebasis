@@ -20,7 +20,7 @@ from fastapi import HTTPException
 from compute_pricing.control.connectors.transport import ConnectorError, SOURCE_SPECS, SourcePolicy
 
 PUBLIC_AUTO_SOURCES = frozenset({"getdeploying", "azure", "aws_public_pricing", "openrouter",
-                                 "ecb", "huggingface", "huggingface_catalog"})
+                                 "ecb", "huggingface", "huggingface_catalog", "energinet_day_ahead"})
 
 
 def scope_key(source_id: str, filters: dict) -> str:

@@ -25,12 +25,12 @@ from compute_pricing.control.underwriting import assess_underwriting, underwriti
 from .exposure import ledger_exposure_floor
 
 SCHEMA = "portfolio-assessment/1.0"
-MODEL = "shared-portfolio-candidate/1.1.0"
+MODEL = "shared-portfolio-candidate/1.2.0"
 ROUTES = {"inference", "resale", "forward"}
 MAX_ROWS, MAX_ROUTES, MAX_BYTES = 10000, 16, 1048576
 ROUTE_FIELDS = {"route_id", "kind", "buyer_entity_id", "reservation_id", "cash_event_ids", "exposure_ids", "economics", "supply_cost_allocations", "inference_request", "underwriting_request_id"}
 ECONOMIC_FIELDS = {"currency", "gross_billings", "expected_collections", "distribution_fees", "nonpurchase_cost", "policy_capital"}
-ROUTE_CASH_KINDS = {"buyer_invoice", "revenue", "buyer_receipt", "buyer_deposit", "deposit_apply", "deposit_refund", "expense", "other_outflow"}
+ROUTE_CASH_KINDS = {"buyer_invoice", "revenue", "buyer_receipt", "buyer_deposit", "deposit_apply", "deposit_refund", "expense", "other_outflow", "buyer_advance", "advance_apply", "advance_refund", "receivable_writeoff", "deposit_forfeit", "buyer_credit_note"}
 SUPPLY_CASH_KINDS = {"supplier_invoice", "supplier_prepayment", "prepaid_apply", "supplier_payment", "expense", "other_outflow"}
 SUPPLY_OUTFLOWS = {"supplier_prepayment", "supplier_payment", "other_outflow"}
 ZERO = Decimal(0)
@@ -199,9 +199,11 @@ def _evaluate(payload):
             _id(route[key])
         if route["underwriting_request_id"] is not None:
             _id(route["underwriting_request_id"])
-        _object(route["economics"], ECONOMIC_FIELDS)
+        _object(route["economics"], ECONOMIC_FIELDS, {"forfeiture_income"})
         for field in ECONOMIC_FIELDS - {"currency"}:
             _money(route["economics"][field])
+        if "forfeiture_income" in route["economics"]:
+            _money(route["economics"]["forfeiture_income"])
         if _money(route["economics"]["expected_collections"]) > _money(route["economics"]["gross_billings"]):
             hold("collections_exceed_gross_billings", route_id=identity)
         _ids(route["cash_event_ids"]); _ids(route["exposure_ids"])
@@ -335,7 +337,7 @@ def _evaluate(payload):
         result["underwriting"].append(assessment)
     baseline_requirements = underwriting_template()["requirements"]
     catalog_fields = {"required", "value_type", "unit", "subject_kind", "owning_path", "owner_model", "evidence_scope", "allow_not_applicable", "minimum", "maximum"}
-    economic_totals = {field: ZERO for field in ECONOMIC_FIELDS - {"currency"}}
+    economic_totals = {field: ZERO for field in (ECONOMIC_FIELDS - {"currency"}) | {"forfeiture_income"}}
     allocated_costs = Counter()
     for route in routes:
         identity, economics = route["route_id"], route["economics"]
@@ -343,15 +345,21 @@ def _evaluate(payload):
         if economics["currency"] != currency:
             hold("route_currency_mismatch", route_id=identity)
         for key in economic_totals:
-            economic_totals[key] += _money(economics[key])
+            economic_totals[key] += _money(economics.get(key, "0"))
         owned_ids = _ids(route["cash_event_ids"])
         cash_owners.update(owned_ids)
         owned = [event_map[key] for key in owned_ids if key in event_map]
         if any(event["kind"] not in ROUTE_CASH_KINDS for event in owned):
             hold("route_cannot_own_supply_or_financing_cash", route_id=identity)
-        collections = sum((_money(event["amount"]) for event in owned if event["kind"] in {"buyer_receipt", "deposit_apply"}), ZERO)
-        gross_invoices = sum((_money(event["amount"]) for event in owned if event["kind"] == "buyer_invoice"), ZERO)
-        earned_revenue = sum((_money(event["amount"]) for event in owned if event["kind"] == "revenue"), ZERO)
+        collections = sum((_money(event["amount"]) for event in owned if event["kind"] in {"buyer_receipt", "deposit_apply", "advance_apply"}), ZERO)
+        credits = sum((_money(event["amount"]) for event in owned if event["kind"] == "buyer_credit_note"), ZERO)
+        reversals = sum((_money(event["revenue_reversal_amount"]) for event in owned if event["kind"] == "buyer_credit_note"), ZERO)
+        gross_invoices = sum((_money(event["amount"]) for event in owned if event["kind"] == "buyer_invoice"), ZERO) - credits
+        earned_revenue = sum((_money(event["amount"]) for event in owned if event["kind"] == "revenue"), ZERO) - reversals
+        forfeit = sum((_money(event["amount"]) for event in owned if event["kind"] == "deposit_forfeit"), ZERO)
+        writeoffs = sum((_money(event["amount"]) for event in owned if event["kind"] == "receivable_writeoff"), ZERO)
+        if forfeit != _money(economics.get("forfeiture_income", "0")):
+            hold("forfeiture_income_requires_explicit_reconciled_declaration", route_id=identity)
         outflows = sum((_money(event["amount"]) for event in owned if event["kind"] == "other_outflow"), ZERO)
         expense = sum((_money(event["amount"]) for event in owned if event["kind"] == "expense"), ZERO)
         fees_and_cost = _money(economics["distribution_fees"]) + _money(economics["nonpurchase_cost"])
@@ -435,10 +443,15 @@ def _evaluate(payload):
                 if (subjects.get("workload") != identity
                         or not any(ref.get("artifact_sha256") == qualification.get("evidence_sha256") for ref in benchmark.get("evidence", []))):
                     hold("inference_benchmark_not_bound_to_underwriting_evidence", route_id=identity)
-        contribution = _money(economics["expected_collections"]) - fees_and_cost - allocated
+        contribution = _money(economics["expected_collections"]) + _money(economics.get("forfeiture_income", "0")) - fees_and_cost - allocated
         result["routes"].append({"route_id": identity, "kind": route["kind"], "reservation_id": route["reservation_id"],
                                   "economics": {**deepcopy(economics), "allocated_supply_cost": text_number(allocated),
                                                 "expected_contribution": text_number(contribution), "economic_profit": text_number(contribution - _money(economics["policy_capital"]))},
+                                  "settlement_reconciliation": {"basis": "net_service_billings_and_earnings_separate_from_forfeiture_income",
+                                      "net_service_billings": text_number(gross_invoices), "net_service_earned_revenue": text_number(earned_revenue),
+                                      "service_collections": text_number(collections), "credit_notes": text_number(credits),
+                                      "revenue_reversals": text_number(reversals), "noncash_receivable_writeoffs": text_number(writeoffs),
+                                      "forfeiture_income": text_number(forfeit), "writeoff_already_excluded_from_collections_not_an_extra_operating_cost": True},
                                   "inference": inference, "underwriting_request_id": route["underwriting_request_id"],
                                   "blockers": [item["code"] for item in blockers[route_start:] if item.get("route_id") == identity]})
     if any(allocated_costs[identity] > _money(supply["purchase_cost"]) for identity, supply in supply_map.items()):
@@ -454,7 +467,8 @@ def _evaluate(payload):
         event_owner.update({key: "route:" + route["route_id"] for key in route["cash_event_ids"]})
     invoice_owners, advance_owners = {}, {}
     for field, category, registry in (("opening_receivables", "buyer", invoice_owners), ("opening_payables", "supplier", invoice_owners),
-                                      ("opening_deposits", "buyer", advance_owners), ("opening_prepaids", "supplier", advance_owners)):
+                                      ("opening_deposits", "buyer", advance_owners), ("opening_prepaids", "supplier", advance_owners),
+                                      ("opening_advances", "buyer", advance_owners)):
         for identity in cash_payload.get(field, {}):
             registry[(category, identity)] = {"baseline"}
     for event in events:
@@ -466,6 +480,11 @@ def _evaluate(payload):
             invoice_owners.setdefault((category, event["invoice_id"]), set()).add(owner)
         if event.get("advance_account"):
             advance_owners.setdefault((category, event["advance_account"]), set()).add(owner)
+        if event["kind"] in {"buyer_advance", "advance_apply", "advance_refund"} and owner.startswith("route:"):
+            route = route_map.get(owner.removeprefix("route:"))
+            terms = cash_payload.get("advance_terms", {}).get(event.get("advance_account"), {})
+            if route is None or terms.get("buyer_entity_id") != route["buyer_entity_id"]:
+                hold("advance_terms_buyer_does_not_match_route", route_id=owner.removeprefix("route:"))
     if any(len(owners) != 1 for owners in invoice_owners.values()):
         hold("invoice_crosses_economic_owners")
     if any(len(owners) != 1 for owners in advance_owners.values()):
@@ -479,11 +498,11 @@ def _evaluate(payload):
         hold(code)
     result["checks"]["exposure"] &= floor_report["admitted"]
     allocated_total = sum(allocated_costs.values(), ZERO)
-    contribution = economic_totals["expected_collections"] - economic_totals["distribution_fees"] - economic_totals["nonpurchase_cost"] - total_supply
+    contribution = economic_totals["expected_collections"] + economic_totals["forfeiture_income"] - economic_totals["distribution_fees"] - economic_totals["nonpurchase_cost"] - total_supply
     result["economics"] = {"currency": currency, **{key: text_number(value) for key, value in economic_totals.items()},
                            "total_supply_cost": text_number(total_supply), "unallocated_supply_cost": text_number(total_supply - allocated_total),
                            "expected_contribution": text_number(contribution), "economic_profit": text_number(contribution - economic_totals["policy_capital"]),
-                           "basis": "candidate_expected_collections_less_owned_operating_and_entire_supply_cost_financing_excluded"}
+                           "basis": "candidate_service_collections_plus_explicit_forfeiture_less_owned_operating_and_entire_supply_cost_financing_excluded"}
     if contribution <= 0:
         hold("candidate_expected_contribution_not_positive")
     if contribution - economic_totals["policy_capital"] < 0:
@@ -494,8 +513,9 @@ def _evaluate(payload):
         result["exposures"]["declared_measures_admitted"] = result["exposures"]["admitted"]
         result["exposures"]["admitted"] = result["checks"]["exposure"]
     result["checks"]["evidence"] = bool(routes) and not any(item["code"].startswith("route_underwriting_") or item["code"] == "inference_benchmark_not_bound_to_underwriting_evidence" for item in blockers)
-    result["checks"]["economic_reconciliation"] = cash is not None and not any(item["code"] in {"collections_exceed_gross_billings", "supply_currency_or_lot_mismatch", "supply_cannot_own_revenue_or_financing_cash", "supplier_cash_and_expense_do_not_reconcile", "supply_lot_cost_declared_multiple_times", "every_supply_lot_requires_one_cost_record", "route_currency_mismatch", "route_cannot_own_supply_or_financing_cash", "route_cash_and_economics_do_not_reconcile", "gross_invoices_earned_revenue_do_not_reconcile", "supply_cost_allocation_has_wrong_lot", "explicit_route_supply_cost_allocation_required", "inference_economics_do_not_reconcile_to_shared_portfolio", "supplier_cost_allocated_more_than_once", "cash_events_must_have_one_global_owner", "invoice_crosses_economic_owners", "advance_crosses_economic_owners"} for item in blockers)
+    result["checks"]["economic_reconciliation"] = cash is not None and not any(item["code"] in {"collections_exceed_gross_billings", "supply_currency_or_lot_mismatch", "supply_cannot_own_revenue_or_financing_cash", "supplier_cash_and_expense_do_not_reconcile", "supply_lot_cost_declared_multiple_times", "every_supply_lot_requires_one_cost_record", "route_currency_mismatch", "route_cannot_own_supply_or_financing_cash", "route_cash_and_economics_do_not_reconcile", "gross_invoices_earned_revenue_do_not_reconcile", "supply_cost_allocation_has_wrong_lot", "explicit_route_supply_cost_allocation_required", "inference_economics_do_not_reconcile_to_shared_portfolio", "supplier_cost_allocated_more_than_once", "cash_events_must_have_one_global_owner", "invoice_crosses_economic_owners", "advance_crosses_economic_owners", "forfeiture_income_requires_explicit_reconciled_declaration", "advance_terms_buyer_does_not_match_route"} for item in blockers)
     result["warnings"].append("gross_uncollected_difference_is_declared_credit_assumption_not_a_verified_default_forecast")
-    result["warnings"].extend(["native_unrestricted_customer_advance_liability_and_receivable_writeoff_models_not_implemented",
+    result["warnings"].extend(["native_accounting_basis_and_advance_refund_terms_are_declared_not_legally_verified",
+                              "gross_billings_are_net_of_explicit_contractual_credit_notes",
                               "candidate_supply_cost_reconciliation_excludes_previously_paid_baseline_assets"])
     return finish()

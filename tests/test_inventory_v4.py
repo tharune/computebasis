@@ -23,7 +23,7 @@ AUTH = {"Authorization": "Bearer invented-inventory-test-key"}
 
 
 def state():
-    return {"schema_version": "paper-inventory/1.0", "sites": [
+    return {"schema_version": "paper-inventory/1.0", "provenance": "declared", "sites": [
         {"site_id": "invented-a", "latitude": "1.123456789012345678901", "longitude": "-2.0", "country_code": "US"},
         {"site_id": "invented-b"}], "lots": [
         {"lot_id": "invented-gpu-lot", "site_id": "invented-a", "unit_kind": "gpu", "unit_ids": ["invented-gpu-a", "invented-gpu-b"],
@@ -236,14 +236,15 @@ class InventoryStoreTests(unittest.TestCase):
 
     def test_removing_all_records_retains_removal_history_and_retry_is_idempotent(self):
         self.store.put(expected_revision=0, state=state())
-        removed = self.store.put(expected_revision=1, state=empty_state())
+        declared_empty = {**empty_state(), "provenance": "declared"}
+        removed = self.store.put(expected_revision=1, state=declared_empty)
         self.assertEqual(removed["summary"]["by_unit_kind"], {})
         self.assertEqual(removed["sites"], [])
         changes = removed["audit"]["recent"][0]["changes"]["removed"]
         self.assertEqual(len(changes["sites"]), 2)
         self.assertEqual(len(changes["lots"]), 2)
         self.assertEqual(len(changes["positions"]), 3)
-        retry = InventoryStore(self.path).put(expected_revision=1, state=empty_state())
+        retry = InventoryStore(self.path).put(expected_revision=1, state=declared_empty)
         self.assertTrue(retry["idempotent_replay"])
         self.assertEqual(retry["audit_hash"], removed["audit_hash"])
         self.assertEqual(len(self.store.get(as_of=T1, revision=1)["units"]), 3)

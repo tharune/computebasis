@@ -18,7 +18,7 @@ def evaluate_cash_payload(payload: dict):
     if not isinstance(payload, dict):
         raise ValueError("cash payload must be a JSON object")
     required = {"events", "legal_entity_id", "cash_account_id", "currency", "opening_cash", "start_date", "end_date"}
-    optional = {"reserves", "facility", "opening_deposits", "opening_prepaids", "opening_receivables", "opening_earned_for_release", "opening_payables"}
+    optional = {"reserves", "facility", "opening_deposits", "opening_prepaids", "opening_receivables", "opening_earned_for_release", "opening_payables", "opening_advances", "advance_terms"}
     if required - set(payload) or set(payload) - required - optional:
         raise ValueError("cash payload has missing or unregistered fields")
     if not isinstance(payload["events"], list):

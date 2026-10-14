@@ -492,6 +492,9 @@ class SourceAdapter:
         if self.source_id not in SOURCE_SPECS:
             raise ConnectorError("source_transport_not_implemented")
         spec = SOURCE_SPECS[self.source_id]
+        if self.source_id == "energinet_day_ahead":
+            from .energy import energinet_request
+            return energinet_request(filters)
         if self.source_id == "azure":
             return azure_request(filters)
         if self.source_id == "aws_public_pricing":
@@ -527,9 +530,12 @@ class SourceAdapter:
         query = urllib.parse.urlencode(dict(filters or {}), doseq=False)
         return ReadRequest(spec, "https://" + spec.host + paths[self.source_id] + ("?" + query if query else ""))
 
-    def parse(self, raw: RawResponse, policy: SourcePolicy) -> ConnectorBatch:
+    def parse(self, raw: RawResponse, policy: SourcePolicy, *, filters: Mapping[str, Any] | None = None) -> ConnectorBatch:
         if raw.source_id != self.source_id or policy.source_id != self.source_id:
             raise ConnectorError("source_policy_mismatch")
+        if self.source_id == "energinet_day_ahead":
+            from .energy import parse_energinet
+            return parse_energinet(raw, policy, filters=filters)
         if self.source_id == "huggingface":
             from .huggingface import parse_huggingface
             return parse_huggingface(raw, policy)
@@ -542,6 +548,7 @@ class SourceAdapter:
 
 
 ADAPTERS = {adapter.source_id: adapter for adapter in (
+    SourceAdapter("energinet_day_ahead", "energy_market_reference", "https://www.energidataservice.dk/guides/api-guides", "implemented"),
     SourceAdapter("huggingface_catalog", "model_recipe_metadata", "https://huggingface.co/docs/inference-endpoints/en/api_reference", "implemented"),
     SourceAdapter("aws_public_pricing", "native_cloud_meter_tariff", "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/price-changes.html", "implemented"),
     SourceAdapter("aws_ec2", "cloud_vm_list_price", "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/using-the-aws-price-list-bulk-api-fetching-price-list-files-manually.html", "not_implemented", "bounded_file_or_authenticated_query_required"),
@@ -586,6 +593,11 @@ def source_status(policies: Mapping[str, SourcePolicy], now: dt.datetime | None 
                        "max_age_s": policy.max_age_s if policy else None,
                        "collection_parameters": {"required": ["region"], "optional": ["sku", "sku_prefix", "max_pages"], "max_pages": 5, "default_sku_prefix": "Standard_N"} if name == "azure" else {"required": ["service", "region"], "optional": ["sku"], "approved_services": ["AWSLambda", "AmazonBedrock", "AmazonECS", "AmazonLightsail", "AmazonS3", "AmazonSageMaker"], "native_units_not_gpu_hours": True} if name == "aws_public_pricing" else {"required": [], "optional": ["q", "input_modalities", "output_modalities", "offset", "limit", "max_pages"], "max_limit": 100, "max_pages": 3, "price_scope": "current_default_conditions_only"} if name == "openrouter" else {"required": ["partNumber", "currencyCode"], "optional": []} if name == "oracle" else {"required": ["limit"], "at_least_one_scope": ["task", "accelerator", "engine", "license", "search"], "optional": ["task", "accelerator", "engine", "license", "search"], "max_limit": 100, "price_eligible": False} if name == "huggingface_catalog" else {"required": ["author", "pipeline_tag", "limit", "full"], "optional": [], "max_limit": 100} if name == "huggingface" else {"required": [], "optional": []},
                        "can_attempt_read": not blocked, "blockers": blocked, "execution_enabled": False})
+        if name == "energinet_day_ahead":
+            result[-1]["collection_parameters"] = {"required": ["price_area", "limit"],
+                "one_of_scope": [["start", "end"], ["rolling_days"]], "max_days": 7, "max_limit": 1000,
+                "native_unit": "MWh", "signed_prices": True, "price_areas": ["DK1", "DK2", "DE", "NO2", "SE3", "SE4"],
+                "recommended_refresh_s": 86400, "price_eligible": False}
     return result
 
 
@@ -600,6 +612,9 @@ def collect_source(source_id: str, policies: Mapping[str, SourcePolicy], *,
     # purposes before constructing a request or processing user query filters.
     for purpose in ("observe", "retain", "benchmark"):
         policy.require(purpose, client.clock())
+    if source_id == "energinet_day_ahead":
+        from .energy import collect_energinet
+        return collect_energinet(policy, client, filters)
     if source_id == "huggingface_catalog":
         from .huggingface_catalog import collect_catalog
         return collect_catalog(policy, client, filters)

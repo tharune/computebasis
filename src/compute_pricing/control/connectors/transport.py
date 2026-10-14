@@ -149,6 +149,8 @@ class SourceSpec:
 
 
 SOURCE_SPECS = {
+    "energinet_day_ahead": SourceSpec("energinet_day_ahead", "api.energidataservice.dk", r"/dataset/DayAheadPrices",
+        query_keys=frozenset({"start", "end", "limit", "filter", "columns", "sort"})),
     "huggingface_catalog": SourceSpec("huggingface_catalog", "endpoints.huggingface.co", r"/api/v1/catalog/list",
         query_keys=frozenset({"task", "accelerator", "engine", "license", "search", "limit"})),
     "aws_public_pricing": SourceSpec("aws_public_pricing", "pricing.us-east-1.amazonaws.com",

@@ -16,13 +16,20 @@ def invoice_due_date(trigger_date: str, *, net_days: int, settlement_lag_days: i
     for name, value in (("net_days", net_days), ("settlement_lag_days", settlement_lag_days)):
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise ValueError(f"{name} must be a nonnegative calendar-day integer")
-    if weekend_adjustment not in {"none", "following"}:
+    if weekend_adjustment not in {"none", "following", "preceding"}:
         raise ValueError("unsupported weekend adjustment")
     closed = {iso_date(day, "holiday") for day in holidays}
-    result = trigger + timedelta(days=net_days + settlement_lag_days)
-    if weekend_adjustment == "following":
+    try:
+        result = trigger + timedelta(days=net_days + settlement_lag_days)
+    except OverflowError as exc:
+        raise ValueError("invoice lag leaves supported calendar") from exc
+    if weekend_adjustment != "none":
+        step = 1 if weekend_adjustment == "following" else -1
         while result.weekday() >= 5 or result in closed:
-            result += timedelta(days=1)
+            try:
+                result += timedelta(days=step)
+            except OverflowError as exc:
+                raise ValueError("business-day adjustment leaves supported calendar") from exc
     return result.isoformat()
 
 

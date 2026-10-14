@@ -89,7 +89,7 @@ def _evaluate(payload):
                            "firm_pricing_and_execution_review_not_implemented"],
               "request_id": market.request_id, "as_of": market.as_of,
               "benchmark": benchmark, "economics": None, "bid": None,
-              "versions": {"model": "inverse-linear/1.0.0", "implementation": "purchase-cap-censoring/1.0.1", "policy": market.policy.version,
+              "versions": {"model": "inverse-linear/1.0.0", "implementation": "net-service-settlement/1.0.2", "policy": market.policy.version,
                            "registry": market.policy.registry_version, "schema": market.schema_version}}
     if utc_instant(market.as_of) < utc_instant(market.policy.effective_at):
         result["hold_reasons"].append("policy_not_yet_effective")
@@ -168,6 +168,7 @@ def _evaluate(payload):
                                      expected_purchase_coefficient=supply_coefficient,
                                      expected_fixed_outflows=expected_fixed + buyer_rate * billed_hours * (q * collected_fee + gross_fee),
                                      expected_collections=buyer_rate * billed_hours * q,
+                                     expected_billings=buyer_rate * billed_hours,
                                      supplied_ask=supplier_ask)
         result["cash_constraint"] = liquidity
         if liquidity["status"] != "feasible":

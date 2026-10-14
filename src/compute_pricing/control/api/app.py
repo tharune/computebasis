@@ -250,7 +250,7 @@ def create_app(*, api_key: str | None = None, store_path: Path,
             if isinstance(output.get(field), str) and output[field]:
                 snapshot_versions["evaluation." + label] = output[field]
         if kind == "cash":
-            snapshot_versions["evaluation.model"] = "dated-cash/1.0.0"
+            snapshot_versions["evaluation.model"] = output.get("accounting_extension", {}).get("model", "dated-cash/1.0.0")
         elif kind == "market_collection":
             snapshot_versions["evaluation.model"] = "readonly-adapter/1.0.0"
         try:
@@ -272,6 +272,16 @@ def create_app(*, api_key: str | None = None, store_path: Path,
     async def schema() -> dict[str, Any]:
         return json_schema()
 
+    @app.get("/v1/cash/contract", dependencies=[Depends(authenticated)])
+    async def cash_input_contract() -> dict[str, Any]:
+        from .treasury_contract import cash_contract
+        return cash_contract()
+
+    @app.get("/v1/cash/template", dependencies=[Depends(authenticated)])
+    async def cash_input_template() -> dict[str, Any]:
+        from .treasury_contract import cash_template
+        return cash_template()
+
     @app.get("/v1/sources", dependencies=[Depends(authenticated)])
     async def sources() -> dict[str, Any]:
         return {"sources": source_status(policies), "execution_enabled": False}
@@ -289,6 +299,26 @@ def create_app(*, api_key: str | None = None, store_path: Path,
             return await run_in_threadpool(market_index, store, policies, plan)
         except SnapshotStoreError:
             raise HTTPException(503, detail="snapshot_store_unavailable") from None
+
+    @app.get("/v1/market/curves", dependencies=[Depends(authenticated)])
+    async def current_curves() -> dict[str, Any]:
+        from .market import market_index
+        from compute_pricing.control.curves import observed_commitment_curves
+        try:
+            packet = await run_in_threadpool(market_index, store, policies, plan, row_limit=10000)
+            return await run_in_threadpool(observed_commitment_curves, packet)
+        except SnapshotStoreError:
+            raise HTTPException(503, detail="snapshot_store_unavailable") from None
+
+    @app.get("/v1/power/contract", dependencies=[Depends(authenticated)])
+    async def power_input_contract():
+        from compute_pricing.control.power import power_contract
+        return power_contract()
+
+    @app.get("/v1/curves/contract", dependencies=[Depends(authenticated)])
+    async def curve_input_contract():
+        from compute_pricing.control.curves import term_curve_contract
+        return term_curve_contract()
 
     def collect_and_save(source_id, filters):
         if source_id not in policies:
@@ -449,6 +479,41 @@ def create_app(*, api_key: str | None = None, store_path: Path,
         except (ValueError, TypeError, KeyError, ArithmeticError):
             raise HTTPException(422, detail="invalid_" + kind + "_input") from None
         return await run_in_threadpool(save, kind, payload, output)
+
+    @app.post("/v1/cash/calendar", dependencies=[Depends(authenticated)])
+    async def cash_calendar(request: Request) -> dict[str, Any]:
+        from .treasury_contract import evaluate_calendar
+        return await pure_evaluation(request, evaluate_calendar, "cash_calendar")
+
+    @app.post("/v1/power/evaluate", dependencies=[Depends(authenticated)])
+    async def power_evaluation(request: Request):
+        from compute_pricing.control.power import evaluate_power_payload
+        return await pure_evaluation(request, evaluate_power_payload, "power")
+
+    @app.post("/v1/power/from-reference", dependencies=[Depends(authenticated)])
+    async def reference_power_evaluation(request: Request):
+        from .market import market_index
+        from .power_reference import evaluate_reference_power
+        def bound_power(payload):
+            packet = market_index(store, policies, plan, row_limit=10000)
+            return evaluate_reference_power(payload, packet)
+        return await pure_evaluation(request, bound_power, "power")
+
+    @app.get("/v1/hedges/contract", dependencies=[Depends(authenticated)])
+    async def hedge_input_contract():
+        from compute_pricing.control.hedging import hedge_contract
+        return {"contract_version": "hedge-input/1.0.0", "template": hedge_contract(),
+                "paper_only": True, "missing_is_zero": False, "execution_enabled": False}
+
+    @app.post("/v1/curves/evaluate", dependencies=[Depends(authenticated)])
+    async def curve_evaluation(request: Request):
+        from compute_pricing.control.curves import evaluate_term_curve_payload
+        return await pure_evaluation(request, evaluate_term_curve_payload, "term_curve")
+
+    @app.post("/v1/hedges/evaluate", dependencies=[Depends(authenticated)])
+    async def hedge_evaluation(request: Request):
+        from compute_pricing.control.hedging import evaluate_hedge_payload
+        return await pure_evaluation(request, evaluate_hedge_payload, "hedge_study")
 
     @app.post("/v1/pricing/scenarios", dependencies=[Depends(authenticated)])
     async def scenarios(request: Request) -> dict[str, Any]:

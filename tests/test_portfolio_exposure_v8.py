@@ -33,9 +33,9 @@ class GrossLedgerFloorTests(unittest.TestCase):
     def test_full_prefix_schedule_retains_peaks_without_adding_separate_peak_times(self):
         output = evaluate_portfolio_payload(sample())
         self.assertEqual(output["status"], "indicative", output["blockers"])
-        self.assertEqual(output["versions"]["model"], "shared-portfolio-candidate/1.1.0")
+        self.assertEqual(output["versions"]["model"], "shared-portfolio-candidate/1.2.0")
         self.assertEqual(scope_row(output, "entity", "buyer:forward")["floor_amount"], "12")
-        self.assertEqual(scope_row(output, "site", "site:invented")["floor_amount"], "12")
+        self.assertEqual(scope_row(output, "site", "site:invented")["floor_amount"], "42")
         self.assertEqual(output["cash"]["days"][-1]["buyer_receivables"], "0")
         liability = output["ledger_exposure_floor"]["restricted_deposit_liabilities"][0]
         self.assertEqual(liability["peak_amount"], "4")

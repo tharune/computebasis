@@ -32,8 +32,10 @@ def pricing_packet():
     events = [event("supplier-invoice", "supplier_invoice", "0", invoice_id="invoice:supply"),
               event("supplier-pay", "supplier_payment", "0", invoice_id="invoice:supply"),
               event("cost-pay", "other_outflow", "2.672"),
-              event("buyer-invoice", "buyer_invoice", "21.6", "2026-01-04", invoice_id="invoice:buyer"),
-              event("buyer-pay", "buyer_receipt", "21.6", "2026-01-04", invoice_id="invoice:buyer")]
+              event("buyer-invoice", "buyer_invoice", "24", "2026-01-04", invoice_id="invoice:buyer"),
+              event("buyer-earned", "revenue", "24", "2026-01-04", invoice_id="invoice:buyer"),
+              event("buyer-pay", "buyer_receipt", "21.6", "2026-01-04", invoice_id="invoice:buyer"),
+              event("buyer-loss", "receivable_writeoff", "2.4", "2026-01-04", invoice_id="invoice:buyer", basis_ref="declared:collection-loss")]
     return {"market": {"request_id": "request:invented", "as_of": "2026-01-01T01:00:00Z", "observations": [observation],
                        "policy": {"policy_id": "policy:invented", "version": "1.0.0", "model_version": "inverse-linear/1.0.0", "registry_version": "1.0.0", "effective_at": "2026-01-01T00:00:00Z", "parameters": {"benchmark": benchmark_policy}}},
             "target": {"scope": "physical_offer", "currency": "USD", "hardware_model": "invented-gpu", "country_code": "US", "gpu_count": "1", "duration_hours": "10", "starts_at": observation["starts_at"], "ends_at": observation["ends_at"], "configuration": {}},

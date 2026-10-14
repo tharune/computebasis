@@ -125,6 +125,7 @@ class SnapshotStore:
             self.path.chmod(0o600)
             with self._connect() as connection:
                 connection.execute("CREATE TABLE IF NOT EXISTS snapshots (digest TEXT PRIMARY KEY CHECK(length(digest)=64), created_at TEXT NOT NULL, canonical_document TEXT NOT NULL)")
+                connection.execute("CREATE INDEX IF NOT EXISTS snapshot_kind_order ON snapshots(json_extract(canonical_document,'$.kind'), created_at DESC, digest DESC)")
                 connection.execute("CREATE TRIGGER IF NOT EXISTS snapshots_no_update BEFORE UPDATE ON snapshots BEGIN SELECT RAISE(ABORT, 'snapshots_append_only'); END")
                 connection.execute("CREATE TRIGGER IF NOT EXISTS snapshots_no_delete BEFORE DELETE ON snapshots BEGIN SELECT RAISE(ABORT, 'snapshots_append_only'); END")
         except (OSError, sqlite3.Error):
@@ -143,7 +144,7 @@ class SnapshotStore:
 
     def put(self, *, kind: str, input_payload: Mapping[str, Any], output_payload: Mapping[str, Any],
             versions: Mapping[str, str]) -> Snapshot:
-        if kind not in {"pricing", "pricing_scenarios", "cash", "market_collection", "market_refresh", "paper_decision", "inference", "calibration", "financing", "portfolio"}:
+        if kind not in {"pricing", "pricing_scenarios", "cash", "cash_calendar", "market_collection", "market_refresh", "paper_decision", "inference", "calibration", "financing", "portfolio", "power", "term_curve", "hedge_study"}:
             raise SnapshotStoreError("unknown_snapshot_kind")
         if not isinstance(input_payload, Mapping) or not isinstance(output_payload, Mapping) or not isinstance(versions, Mapping) or not versions:
             raise SnapshotStoreError("snapshot_object_required")
@@ -179,15 +180,21 @@ class SnapshotStore:
             raise SnapshotStoreError("snapshot_store_unavailable") from None
         if row is None:
             return None
-        if len(row[1].encode("utf-8")) > self.max_bytes or hashlib.sha256(row[1].encode("utf-8")).hexdigest() != digest:
+        return Snapshot(digest, row[0], self._decode_saved(digest, row[1]))
+
+    def _decode_saved(self, digest, encoded):
+        if not isinstance(encoded, str):
             raise SnapshotStoreError("snapshot_integrity_failed")
         try:
-            document = json.loads(row[1])
-            if canonical_document(document, max_bytes=self.max_bytes) != row[1]:
+            raw = encoded.encode("utf-8")
+            if len(raw) > self.max_bytes or hashlib.sha256(raw).hexdigest() != digest:
                 raise SnapshotStoreError("snapshot_integrity_failed")
-        except (ValueError, TypeError, RecursionError):
+            document = json.loads(encoded)
+            if canonical_document(document, max_bytes=self.max_bytes) != encoded:
+                raise SnapshotStoreError("snapshot_integrity_failed")
+        except (ValueError, TypeError, RecursionError, UnicodeError):
             raise SnapshotStoreError("snapshot_integrity_failed") from None
-        return Snapshot(digest, row[0], document)
+        return document
 
     def latest_collections(self, *, scan_limit: int = 512) -> tuple[Snapshot, ...]:
         return self.latest_collection_scan(scan_limit=scan_limit).snapshots
@@ -200,34 +207,40 @@ class SnapshotStore:
         """
         if type(scan_limit) is not int or not 1 <= scan_limit <= 2048:
             raise SnapshotStoreError("invalid_collection_scan_limit")
+        retained, scopes = [], set()
+        count, truncated = 0, False
         try:
             with self._connect() as connection:
-                rows = connection.execute("SELECT digest FROM snapshots WHERE json_extract(canonical_document,'$.kind')='market_collection' ORDER BY created_at DESC, digest DESC LIMIT ?", (scan_limit + 1,)).fetchall()
+                cursor = connection.execute("SELECT digest,created_at,canonical_document FROM snapshots WHERE json_extract(canonical_document,'$.kind')='market_collection' ORDER BY created_at DESC, digest DESC LIMIT ?", (scan_limit + 1,))
+                for digest, created, saved in cursor:
+                    if count == scan_limit:
+                        truncated = True
+                        break
+                    count += 1
+                    packet = self._decode_saved(digest, saved)
+                    if not isinstance(packet, Mapping) or not isinstance(packet.get("input"), Mapping) or not isinstance(packet.get("output"), Mapping):
+                        raise SnapshotStoreError("snapshot_integrity_failed")
+                    parameters = packet["input"].get("filters", {})
+                    if not isinstance(parameters, Mapping):
+                        raise SnapshotStoreError("snapshot_integrity_failed")
+                    source = packet["output"].get("source_id")
+                    if not isinstance(source, str) or re.fullmatch(r"[a-z][a-z0-9_]*", source) is None:
+                        raise SnapshotStoreError("snapshot_integrity_failed")
+                    filtered = {name: value for name, value in parameters.items() if name != "max_pages"}
+                    scope = (source, json.dumps(filtered, sort_keys=True, separators=(",", ":")))
+                    if scope not in scopes:
+                        scopes.add(scope)
+                        retained.append(Snapshot(digest, created, packet))
+                    # Every inspected historical duplicate still passes integrity
+                    # and metadata checks; only retained objects need freezing.
         except sqlite3.Error:
             raise SnapshotStoreError("snapshot_store_unavailable") from None
-        latest, seen = [], set()
-        for (digest,) in rows[:scan_limit]:
-            snapshot = self.get(digest)
-            if snapshot is None:
-                raise SnapshotStoreError("snapshot_integrity_failed")
-            packet = snapshot.to_dict()["document"]
-            if not isinstance(packet, dict) or not isinstance(packet.get("input"), dict) or not isinstance(packet.get("output"), dict) or not isinstance(packet["input"].get("filters", {}), dict):
-                raise SnapshotStoreError("snapshot_integrity_failed")
-            source = packet["output"].get("source_id")
-            filters = {key: value for key, value in packet["input"].get("filters", {}).items() if key not in {"max_pages"}}
-            scope = (source, json.dumps(filters, sort_keys=True, separators=(",", ":")))
-            if not isinstance(source, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", source):
-                raise SnapshotStoreError("snapshot_integrity_failed")
-            if scope in seen:
-                continue
-            seen.add(scope)
-            latest.append(snapshot)
-        return CollectionScan(tuple(latest), scan_limit, min(len(rows), scan_limit), len(rows) > scan_limit)
+        return CollectionScan(tuple(retained), scan_limit, count, truncated)
 
     def latest_refresh(self) -> Snapshot | None:
         try:
             with self._connect() as connection:
-                row = connection.execute("SELECT digest FROM snapshots WHERE json_extract(canonical_document,'$.kind')='market_refresh' ORDER BY created_at DESC, digest DESC LIMIT 1").fetchone()
+                row = connection.execute("SELECT digest,created_at,canonical_document FROM snapshots WHERE json_extract(canonical_document,'$.kind')='market_refresh' ORDER BY created_at DESC, digest DESC LIMIT 1").fetchone()
         except sqlite3.Error:
             raise SnapshotStoreError("snapshot_store_unavailable") from None
-        return self.get(row[0]) if row else None
+        return Snapshot(row[0], row[1], self._decode_saved(row[0], row[2])) if row else None

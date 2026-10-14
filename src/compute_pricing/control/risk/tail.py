@@ -8,7 +8,8 @@ from .exposure import Exposure, attribute_losses
 from .scenarios import CashScenario, ScenarioReport, evaluate_scenarios
 
 CASH_EFFECT_KINDS = frozenset({"buyer_receipt", "buyer_deposit", "deposit_refund", "supplier_prepayment",
-    "supplier_payment", "other_inflow", "other_outflow", "facility_draw", "facility_repay", "facility_interest"})
+    "supplier_payment", "other_inflow", "other_outflow", "facility_draw", "facility_repay", "facility_interest",
+    "buyer_advance", "advance_refund", "deposit_forfeit"})
 
 
 @dataclass(frozen=True)

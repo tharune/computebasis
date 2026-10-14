@@ -148,9 +148,10 @@ def request_scope(request: Request) -> str:
         return "collection"
     if request.method == "POST" and path in {
         "/v1/requests/parse", "/v1/pricing/evaluate", "/v1/pricing/scenarios",
-        "/v1/cash/evaluate", "/v1/inference/evaluate", "/v1/calibration/evaluate",
+        "/v1/cash/evaluate", "/v1/cash/calendar", "/v1/inference/evaluate", "/v1/calibration/evaluate",
         "/v1/financing/evaluate", "/v1/underwriting/assess", "/v1/portfolio/evaluate",
         "/v1/inventory/evaluate", "/v1/policies", "/v1/policies/validate",
+        "/v1/power/evaluate", "/v1/power/from-reference", "/v1/curves/evaluate", "/v1/hedges/evaluate",
     }:
         return "evaluate"
     # Future write routes require an explicit browser-session scope decision.

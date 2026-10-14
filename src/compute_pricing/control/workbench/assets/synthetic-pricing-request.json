@@ -122,7 +122,9 @@
       "supplier-pay",
       "cost-pay",
       "buyer-invoice",
-      "buyer-pay"
+      "buyer-pay",
+      "service-recognition:example",
+      "collection-impairment:example"
     ],
     "purchase_coefficients": {
       "supplier-invoice": "10",
@@ -161,7 +163,16 @@
           "obligation_id": "leg:buyer-invoice",
           "on": "2026-01-04",
           "kind": "buyer_invoice",
-          "amount": "21.6",
+          "amount": "24",
+          "currency": "USD",
+          "invoice_id": "invoice:buyer"
+        },
+        {
+          "event_id": "service-recognition:example",
+          "obligation_id": "service-recognition:example",
+          "on": "2026-01-04",
+          "kind": "revenue",
+          "amount": "24",
           "currency": "USD",
           "invoice_id": "invoice:buyer"
         },
@@ -173,6 +184,16 @@
           "amount": "21.6",
           "currency": "USD",
           "invoice_id": "invoice:buyer"
+        },
+        {
+          "event_id": "collection-impairment:example",
+          "obligation_id": "collection-impairment:example",
+          "on": "2026-01-04",
+          "kind": "receivable_writeoff",
+          "amount": "2.4",
+          "currency": "USD",
+          "invoice_id": "invoice:buyer",
+          "basis_ref": "assertion:collection-shortfall"
         }
       ],
       "legal_entity_id": "entity:invented",

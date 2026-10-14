@@ -37,7 +37,7 @@ expense reconcile once; route gross invoices/earned revenue, collections,
 operating payments and expenses reconcile. Previously paid baseline assets need
 their own treatment; they cannot be made zero-cost candidate supply implicitly.
 
-Model `shared-portfolio-candidate/1.1.0` additionally evaluates gross ledger
+Model `shared-portfolio-candidate/1.2.0` additionally evaluates gross ledger
 floors in date and declared same-day event order. Supplier prepayments and buyer
 receivables retain their supply/route, counterparty, lot, site, declared group
 and currency attribution. Each entity/group/site/currency floor is the peak
@@ -227,3 +227,5 @@ by batch or parallelism again, and idle GPU cost remains payable.
 These diagnostics require independent actual workload, fee, demand, privacy,
 credit, liquidity and model acceptance before any commitment. Offline synthetic
 tests exercise exact boundaries and conservation; they do not supply that evidence.
+
+Native advance application, unpaid-invoice credit notes and noncash write-offs reconcile net service billing without duplicating cash or losses. Forfeiture requires a separately declared nonservice income amount. Date-only exposure admission applies same-day gross asset increases before decreases; the supplied order is diagnostic rather than settlement evidence. New persisted inventory must be explicitly declared. See [current capabilities](features.md).

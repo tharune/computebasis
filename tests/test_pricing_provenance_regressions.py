@@ -38,6 +38,7 @@ def example_request():
         ("capacity-paid", "supplier_payment", "0", t.date(), "invoice:capacity"),
         ("hosting-paid", "other_outflow", "3", t.date(), None),
         ("service-bill", "buyer_invoice", "36", start.date(), "invoice:service"),
+        ("service-earned", "revenue", "36", start.date(), "invoice:service"),
         ("service-paid", "buyer_receipt", "36", start.date(), "invoice:service")):
         record = {"event_id": identity, "obligation_id": "obligation:" + identity, "kind": kind, "amount": amount, "currency": "USD", "on": str(on)}
         if invoice is not None:

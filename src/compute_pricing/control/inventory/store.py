@@ -151,6 +151,11 @@ class InventoryStore:
                     raise InventoryError("inventory_integrity_failed")
                 history = self._history(connection, snapshot["revision"])
                 return self._report(snapshot, history, latest_revision=current["revision"], replayed=True)
+            # Existing absent-marker states and their exact receipts retain
+            # their original hashes. Every new revision requires a positive
+            # caller declaration, which is still not independent verification.
+            if normalized.get("provenance") != "declared":
+                raise InventoryError("inventory_provenance_declaration_required")
             if current["revision"] != expected_revision:
                 raise InventoryError("inventory_revision_conflict", current_revision=current["revision"])
             if expected_revision == MAX_REVISION:

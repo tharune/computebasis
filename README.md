@@ -88,3 +88,5 @@ The [inventory and policy guide](docs/inventory-and-policy.md) covers versioned 
 The [interface design guide](docs/interface-design.md) records typography, action hierarchy, accessible controls and visual review criteria.
 
 The [underwriting coverage guide](docs/underwriting-assessment.md) describes the 112 neutral requirements, dynamic scopes and caller-qualified evidence checks. Missing evidence remains explicit; checklist coverage does not calibrate price factors or approve a transaction. The workspace now uses top navigation and light/dark themes.
+
+Current functionality and backend curve, power and hedge boundaries are listed in [capabilities](docs/features.md).

@@ -297,6 +297,23 @@
       "liveness": "not_verified",
       "attribution": "Hugging Face public Inference Endpoints Model Catalog; publisher recipe metadata claims, not independent serving or model-license qualification",
       "verified_by": "documented-public-recipe-discovery-review"
+    },
+    "energinet_day_ahead": {
+      "enabled": true,
+      "rights_status": "allowed",
+      "rights_evidence": "https://www.energidataservice.dk/terms-and-conditions (CC BY 4.0 commercial processing, retention and attribution); https://www.energidataservice.dk/guides/api-guides (bounded anonymous GET, backend caching and update-frequency cadence). Reviewed 2026-10-14 for wholesale reference scenarios, not site tariffs or GPU-hour benchmarks.",
+      "permissions": {
+        "observe": "PASS",
+        "retain": "PASS",
+        "benchmark": "PASS",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 172800,
+      "min_interval_s": 1,
+      "liveness": "not_verified",
+      "attribution": "Source: Energinet, Energi Data Service (https://www.energidataservice.dk), CC BY 4.0. Normalized timestamps and prices; no endorsement.",
+      "verified_by": "open-energy-reference-review"
     }
   }
 }
