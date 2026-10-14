@@ -25,12 +25,17 @@ Maintained by **Tharun Ekambaram**.
 - Research-only regional/configuration regression with temporal and group/lot-separated holdouts.
 - Exact comparable bid/ask studies for spot, physical forwards and financial futures, with separate advertised commitment references, whole-node size checks and explicit source-evidence holds.
 - Anonymous publisher-derived AWS/Azure/GCP GPU/VM references, plus conditional retained-market reads and bounded server-sent change notifications.
+- Server-bound retained cohort comparisons, versioned simulation-policy previews, and selected-quote cash scenarios using exact supplier capacity, calendars, deposits and net terms.
 
 This is a local read-only and paper development release. Source and qualification assertions are not independently verified assets or bank evidence. Calibration uses research diagnostics; no live regional premium, credit probability or confidence interval is asserted. Local durable paper commands and snapshots still require production identity, authoritative transactional cash/capacity coordination, accounting and witnessed operating evidence before real execution.
 
+The [backend pricing flow](docs/backend-pricing-flow.md) documents the retained
+reference and quote-to-cash routes for a separately developed frontend. Source
+observations, simulation policy and saved paper decisions retain distinct roles.
+
 ## Run the local workbench
 
-The [workbench guide](docs/workbench.md) starts the local application. It opens a short-lived same-origin workspace session automatically. Nine configured anonymous source roles provide advertised GPU references, regional retail meters, native cloud tariffs, inference token rates, informational FX, model/recipe discovery, wholesale energy references and publisher-derived GPU/VM catalogs. The backend refreshes explicitly configured scopes with permission checks, cooldowns, coalescing and backoff; the browser synchronizes retained evidence without overwriting drafts. Native economic units stay separate. Configured access is distinct from runtime availability and public redistribution permission.
+The [workbench guide](docs/workbench.md) starts the local application. It opens a short-lived same-origin workspace session automatically. Ten configured anonymous source roles provide advertised GPU references, regional retail meters, native cloud tariffs, inference token rates, informational FX, model/recipe discovery, wholesale energy references, publisher-derived GPU/VM catalogs and [Great Britain grid-carbon context](docs/grid-carbon-context.md). The backend refreshes explicitly configured scopes with permission checks, cooldowns, coalescing and backoff; the browser synchronizes retained evidence without overwriting drafts. Native economic units stay separate. Configured access is distinct from runtime availability and public redistribution permission.
 
 Start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json` after installation, then open `http://127.0.0.1:8000`. No credential paste is needed. Source reads run only while the local app runs; no system jobs are installed. `--no-auto-refresh` selects manual operation. Review [source scope](docs/source-adapters.md), [session and refresh](docs/local-session-refresh.md) and [workspace workflows](docs/workspace-workflows.md).
 
@@ -111,3 +116,8 @@ The [interface design guide](docs/interface-design.md) records typography, actio
 The [underwriting coverage guide](docs/underwriting-assessment.md) describes the 112 neutral requirements, dynamic scopes and caller-qualified evidence checks. Missing evidence remains explicit; checklist coverage does not calibrate price factors or approve a transaction. The workspace now uses top navigation and light/dark themes.
 
 Current functionality and backend curve, power and hedge boundaries are listed in [capabilities](docs/features.md).
+
+A separate [simulated quote book](docs/quote-book.md) provides independently generated
+providers, offer terms and scenario changes through authenticated `/v1/book` routes.
+These invented records remain separate from live reference collection, retained
+market evidence and declared inventory.

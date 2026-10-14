@@ -442,6 +442,19 @@ def create_app(*, api_key: str | None = None, store_path: Path,
         from compute_pricing.control.market_quotes import evaluate_quote_payload
         return await pure_evaluation(request, evaluate_quote_payload, "quote_study")
 
+    @app.get("/v1/market/reference/contract", dependencies=[Depends(authenticated)])
+    async def retained_reference_contract():
+        from .market_reference import market_reference_contract
+        return market_reference_contract()
+
+    @app.post("/v1/market/reference/evaluate", dependencies=[Depends(authenticated)])
+    async def retained_reference(request: Request):
+        from .market_reference import evaluate_market_reference
+        def bound_reference(payload):
+            return evaluate_market_reference(payload, store=store, policies=policies,
+                repository=app.state.policy_repository, collection_plan=plan)
+        return await pure_evaluation(request, bound_reference, "market_reference")
+
     @app.post("/v1/market/refresh", dependencies=[Depends(authenticated)])
     async def refresh(request: Request) -> dict[str, Any]:
         payload = await _json_body(request, optional=True)
@@ -629,9 +642,16 @@ def create_app(*, api_key: str | None = None, store_path: Path,
     from compute_pricing.control.policies.routes import attach_policies
     from compute_pricing.control.inventory import attach_inventory
     from compute_pricing.control.underwriting.routes import attach_underwriting
+    from compute_pricing.control.api.quote_book import attach_quote_book
     attach_policies(app, authenticated=authenticated, json_body=_json_body,
                     store_path=store.path, source_policies=policies)
     attach_inventory(app, authenticated=authenticated, json_body=_json_body, store_path=store.path)
     attach_underwriting(app, authenticated=authenticated, json_body=_json_body)
+    get_book = attach_quote_book(app, authenticated=authenticated, json_body=_json_body)
+    from .book_policy import attach_book_policy
+    attach_book_policy(app, get_book=get_book, authenticated=authenticated, json_body=_json_body)
+    from .book_deal import attach_book_deals
+    attach_book_deals(app, get_book=get_book, authenticated=authenticated, json_body=_json_body,
+                      evaluator=bound_pricing, save=save)
     add_workbench(app)
     return app

@@ -492,6 +492,9 @@ class SourceAdapter:
         if self.source_id not in SOURCE_SPECS:
             raise ConnectorError("source_transport_not_implemented")
         spec = SOURCE_SPECS[self.source_id]
+        if self.source_id == "gb_carbon_intensity":
+            from .carbon import carbon_request
+            return carbon_request(filters)
         if self.source_id == "gpuhunt_catalog":
             from .gpuhunt import gpuhunt_request
             return gpuhunt_request(filters)
@@ -536,6 +539,9 @@ class SourceAdapter:
     def parse(self, raw: RawResponse, policy: SourcePolicy, *, filters: Mapping[str, Any] | None = None) -> ConnectorBatch:
         if raw.source_id != self.source_id or policy.source_id != self.source_id:
             raise ConnectorError("source_policy_mismatch")
+        if self.source_id == "gb_carbon_intensity":
+            from .carbon import parse_carbon
+            return parse_carbon(raw, policy, filters=filters)
         if self.source_id == "gpuhunt_catalog":
             from .gpuhunt import parse_gpuhunt
             if not isinstance(filters, Mapping) or "version" not in filters:
@@ -556,6 +562,7 @@ class SourceAdapter:
 
 
 ADAPTERS = {adapter.source_id: adapter for adapter in (
+    SourceAdapter("gb_carbon_intensity", "grid_carbon_reference", "https://carbon-intensity.github.io/api-definitions/", "implemented"),
     SourceAdapter("gpuhunt_catalog", "publisher_gpu_vm_reference", "https://github.com/dstackai/gpuhunt", "implemented"),
     SourceAdapter("gcp_cloud_billing", "direct_vendor_sku_tariff", "https://docs.cloud.google.com/billing/v1/how-tos/catalog-api", "not_implemented", "api_key_and_bounded_read_contract_required"),
     SourceAdapter("skypilot_catalog", "publisher_gpu_vm_reference", "https://github.com/skypilot-org/skypilot-catalog", "rights_review_pending", "catalog_data_license_unresolved"),
@@ -604,6 +611,12 @@ def source_status(policies: Mapping[str, SourcePolicy], now: dt.datetime | None 
                        "max_age_s": policy.max_age_s if policy else None,
                        "collection_parameters": {"required": ["region"], "optional": ["sku", "sku_prefix", "max_pages"], "max_pages": 5, "default_sku_prefix": "Standard_N"} if name == "azure" else {"required": ["service", "region"], "optional": ["sku"], "approved_services": ["AWSLambda", "AmazonBedrock", "AmazonECS", "AmazonLightsail", "AmazonS3", "AmazonSageMaker"], "native_units_not_gpu_hours": True} if name == "aws_public_pricing" else {"required": [], "optional": ["q", "input_modalities", "output_modalities", "offset", "limit", "max_pages"], "max_limit": 100, "max_pages": 3, "price_scope": "current_default_conditions_only"} if name == "openrouter" else {"required": ["partNumber", "currencyCode"], "optional": []} if name == "oracle" else {"required": ["limit"], "at_least_one_scope": ["task", "accelerator", "engine", "license", "search"], "optional": ["task", "accelerator", "engine", "license", "search"], "max_limit": 100, "price_eligible": False} if name == "huggingface_catalog" else {"required": ["author", "pipeline_tag", "limit", "full"], "optional": [], "max_limit": 100} if name == "huggingface" else {"required": [], "optional": []},
                        "can_attempt_read": not blocked, "blockers": blocked, "execution_enabled": False})
+        if name == "gb_carbon_intensity":
+            result[-1]["collection_parameters"] = {"required": ["limit"],
+                "one_of_scope": [["start", "end"], ["rolling_hours"]], "max_hours": 168, "max_limit": 336,
+                "native_unit": "gCO2/kWh", "geography": "GB", "interval_minutes": 30,
+                "forecast_actual_distinct": True, "recommended_refresh_s": 1800,
+                "price_eligible": False, "gpu_hour_benchmark_eligible": False}
         if name == "energinet_day_ahead":
             result[-1]["collection_parameters"] = {"required": ["price_area", "limit"],
                 "one_of_scope": [["start", "end"], ["rolling_days"]], "max_days": 7, "max_limit": 1000,
@@ -634,6 +647,9 @@ def collect_source(source_id: str, policies: Mapping[str, SourcePolicy], *,
     # purposes before constructing a request or processing user query filters.
     for purpose in ("observe", "retain", "benchmark"):
         policy.require(purpose, client.clock())
+    if source_id == "gb_carbon_intensity":
+        from .carbon import collect_carbon
+        return collect_carbon(policy, client, filters)
     if source_id == "gpuhunt_catalog":
         from .gpuhunt import collect_gpuhunt
         return collect_gpuhunt(policy, client, filters)

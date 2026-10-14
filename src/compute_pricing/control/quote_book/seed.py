@@ -1,69 +1,114 @@
-"""Providers and quotes copied from a fictional mock workbook. GENERATED, do not edit.
+"""Independent simulation declarations, with no document or market inputs."""
+from collections.abc import Mapping
+from datetime import date
+from decimal import Decimal, InvalidOperation
+import re
+from types import MappingProxyType
 
-Regenerate with scripts/gen_quote_book_seed.py WORKBOOK.xlsx. The workbook is not part of this
-repository; SOURCE_SHA256 identifies the exact file these rows were read from, and
-CONTENT_SHA256 covers the rows below so hand edits are detected. Every name, entity and
-figure is invented test data.
-"""
-from __future__ import annotations
+AS_OF = "2032-06-01"
+DEFAULT_SEED = 4271
+PROVIDER_COUNT = 32
+QUOTE_COUNT = 192
+MODELS = ("B300", "GB300", "B200", "H200", "H100", "Pro 6000")
+TIER_KEYS = ("certification", "dc_tier", "sla", "delivery", "credit", "responsiveness")
 
-SOURCE = 'Senthos Labs - Mock Provider and Quote Data v1.3.xlsx'
-SOURCE_SHA256 = '601199d584fd32e29528111173908fd5001c2e45f11b67ab0ee62dbad2aedfd6'
-CONTENT_SHA256 = '7857ea8f70b9bbaa8a9d4d730b994435757fd56bc36bcc1bc3c8e4301e5d5e7c'
-AS_OF = "2026-10-13"  # the workbook's Assumptions as-of date
+# Wholly invented anchors for this simulation, not quotes, forecasts, historical
+# averages, publisher prices, physical benchmarks or bid/ask midpoints.
+BASE_PRICE = MappingProxyType({"B300": "8.17", "GB300": "11.43", "B200": "6.29",
+    "H200": "4.83", "H100": "3.17", "Pro 6000": "1.79"})
 
-PROVIDERS = (
-    {'id': 'P001', 'name': 'Northwind Compute', 'entity': 'Northwind Compute Inc.', 'jurisdiction': 'Delaware, US', 'regions': 'US', 'dc_locations': 'Dallas TX, Ashburn VA', 'dc_tier_claim': 'Tier III', 'soc2': 'Type II', 'iso27001': 'Yes', 'sla_uptime': 99.95, 'sla_remedy': '10% credit per 0.1% below SLA', 'dc_ownership': 'Leases', 'references': '3 named enterprise customers, 2 checked', 'financial_standing': 'Audited FY25 financials', 'source': 'Supply referral', 'notes': 'Delivered 64 H200 to us in 2026 on schedule', 'oob_access': 'Yes', 'oob_keys': 'OCL', 'reimage': 'Yes', 'dc_ops_sla': 'Yes', 'support_hours': 1, 'named_contact': 'J. Alvarez', 'kind': 'Owner', 'config_documented': 'Yes', 'tiers': {'certification': 1, 'dc_tier': 1, 'sla': 1, 'delivery': 1, 'credit': 1, 'responsiveness': 1}},
-    {'id': 'P002', 'name': 'Basalt GPU Cloud', 'entity': 'Basalt GPU Cloud Ltd.', 'jurisdiction': 'England & Wales', 'regions': 'UK / EU', 'dc_locations': 'London, Frankfurt', 'dc_tier_claim': 'Tier III', 'soc2': 'Type I', 'iso27001': 'No', 'sla_uptime': 99.9, 'sla_remedy': '5% credit per incident', 'dc_ownership': 'Leases', 'references': '2 references at 256+ GPU scale', 'financial_standing': 'Unaudited FY25 P&L provided', 'source': 'Supply referral', 'notes': None, 'oob_access': 'Yes', 'oob_keys': 'OCL', 'reimage': 'Yes', 'dc_ops_sla': 'Yes', 'support_hours': 2, 'named_contact': 'M. Okafor', 'kind': 'Owner', 'config_documented': 'Yes', 'tiers': {'certification': 2, 'dc_tier': 1, 'sla': 1, 'delivery': 2, 'credit': 2, 'responsiveness': 1}},
-    {'id': 'P003', 'name': 'Kestrel Datacenters', 'entity': 'Kestrel DC Holdings Corp.', 'jurisdiction': 'Ontario, CA', 'regions': 'Canada', 'dc_locations': 'Toronto, Montreal', 'dc_tier_claim': 'Tier III', 'soc2': 'Type II', 'iso27001': 'Yes', 'sla_uptime': 99.99, 'sla_remedy': 'Service credits, tiered', 'dc_ownership': 'Owns', 'references': 'Public customer list', 'financial_standing': 'Public parent', 'source': 'Inbound', 'notes': 'Owns the facility; strong spec sheet', 'oob_access': 'Yes', 'oob_keys': 'Provider', 'reimage': 'No', 'dc_ops_sla': 'Yes', 'support_hours': 4, 'named_contact': 'S. Tremblay', 'kind': 'Owner', 'config_documented': 'Yes', 'tiers': {'certification': 1, 'dc_tier': 1, 'sla': 1, 'delivery': 2, 'credit': 1, 'responsiveness': 2}},
-    {'id': 'P004', 'name': 'Halcyon AI Infra', 'entity': 'Halcyon AI Infra Pte. Ltd.', 'jurisdiction': 'Singapore', 'regions': 'APAC', 'dc_locations': 'Singapore, Tokyo', 'dc_tier_claim': 'Tier II', 'soc2': 'In progress', 'iso27001': 'No', 'sla_uptime': 99.5, 'sla_remedy': 'None stated', 'dc_ownership': 'Leases', 'references': '1 reference, unverified', 'financial_standing': 'Seed-funded, backers disclosed', 'source': 'Supply referral', 'notes': 'Audit firm engaged, report expected Q1', 'oob_access': 'Yes', 'oob_keys': 'Provider', 'reimage': 'Yes', 'dc_ops_sla': 'No', 'support_hours': 6, 'named_contact': None, 'kind': 'Owner', 'config_documented': 'No', 'tiers': {'certification': 2, 'dc_tier': 2, 'sla': 2, 'delivery': 3, 'credit': 2, 'responsiveness': 2}},
-    {'id': 'P005', 'name': 'Ferrous Cloud (Broker)', 'entity': 'Ferrous Cloud LLC', 'jurisdiction': 'Wyoming, US', 'regions': 'US / EU', 'dc_locations': 'Not stated', 'dc_tier_claim': None, 'soc2': 'No', 'iso27001': 'No', 'sla_uptime': None, 'sla_remedy': None, 'dc_ownership': 'Unknown', 'references': 'None provided', 'financial_standing': 'None provided', 'source': 'Supply referral', 'notes': 'Broker; underlying DC not disclosed', 'oob_access': None, 'oob_keys': None, 'reimage': None, 'dc_ops_sla': None, 'support_hours': None, 'named_contact': None, 'kind': 'Reseller', 'config_documented': None, 'tiers': {'certification': 3, 'dc_tier': 3, 'sla': 3, 'delivery': 3, 'credit': 3, 'responsiveness': 3}},
-    {'id': 'P006', 'name': 'Meridian Racks', 'entity': 'Meridian Racks Inc.', 'jurisdiction': 'Texas, US', 'regions': 'US', 'dc_locations': 'Austin TX', 'dc_tier_claim': 'Tier III', 'soc2': 'Type II', 'iso27001': 'No', 'sla_uptime': 99.9, 'sla_remedy': 'Credits capped at 25% of monthly fee', 'dc_ownership': 'Owns', 'references': '4 references, 2 checked', 'financial_standing': 'Unaudited FY25 financials provided', 'source': 'Inbound', 'notes': None, 'oob_access': 'Yes', 'oob_keys': 'OCL', 'reimage': 'Yes', 'dc_ops_sla': 'Yes', 'support_hours': 1, 'named_contact': 'R. Chen', 'kind': 'Owner', 'config_documented': 'Yes', 'tiers': {'certification': 1, 'dc_tier': 1, 'sla': 1, 'delivery': 2, 'credit': 2, 'responsiveness': 1}},
-    {'id': 'P007', 'name': 'Quarry Labs', 'entity': 'Quarry Labs GmbH', 'jurisdiction': 'Germany', 'regions': 'EU', 'dc_locations': 'Frankfurt', 'dc_tier_claim': 'Tier III (claimed)', 'soc2': 'No', 'iso27001': 'Yes', 'sla_uptime': 99.9, 'sla_remedy': None, 'dc_ownership': 'Leases', 'references': '2 references', 'financial_standing': 'None provided', 'source': 'Supply referral', 'notes': 'Facility name withheld until NDA', 'oob_access': 'Yes', 'oob_keys': 'Provider', 'reimage': 'No', 'dc_ops_sla': 'No', 'support_hours': 8, 'named_contact': 'K. Weber', 'kind': 'Owner', 'config_documented': 'No', 'tiers': {'certification': 1, 'dc_tier': 2, 'sla': 2, 'delivery': 2, 'credit': 3, 'responsiveness': 2}},
-    {'id': 'P008', 'name': 'Tessellate Compute', 'entity': 'Tessellate Compute Pvt. Ltd.', 'jurisdiction': 'India', 'regions': 'India', 'dc_locations': 'Mumbai, Chennai', 'dc_tier_claim': 'Tier II', 'soc2': 'No', 'iso27001': 'No', 'sla_uptime': 99, 'sla_remedy': 'None stated', 'dc_ownership': 'Leases', 'references': '1 reference', 'financial_standing': 'None provided', 'source': 'Supply referral', 'notes': 'Slow to return quote fields', 'oob_access': None, 'oob_keys': None, 'reimage': None, 'dc_ops_sla': None, 'support_hours': 24, 'named_contact': None, 'kind': 'Owner', 'config_documented': None, 'tiers': {'certification': 3, 'dc_tier': 2, 'sla': 2, 'delivery': 3, 'credit': 3, 'responsiveness': 3}},
-    {'id': 'P009', 'name': 'Larkspur GPU', 'entity': 'Larkspur GPU Inc.', 'jurisdiction': 'Delaware, US', 'regions': 'US', 'dc_locations': 'Phoenix AZ, Reno NV', 'dc_tier_claim': 'Tier III', 'soc2': 'Type II', 'iso27001': 'Yes', 'sla_uptime': 99.9, 'sla_remedy': '10% credit per 0.1% below SLA', 'dc_ownership': 'Leases', 'references': '3 references at 512+ GPU scale', 'financial_standing': 'Series B, backers disclosed', 'source': 'Inbound', 'notes': None, 'oob_access': 'Yes', 'oob_keys': 'OCL', 'reimage': 'Yes', 'dc_ops_sla': 'Yes', 'support_hours': 2, 'named_contact': 'D. Park', 'kind': 'Owner', 'config_documented': 'Yes', 'tiers': {'certification': 1, 'dc_tier': 1, 'sla': 1, 'delivery': 2, 'credit': 2, 'responsiveness': 1}},
-    {'id': 'P010', 'name': 'Saltmarsh Systems', 'entity': 'Saltmarsh Systems ehf.', 'jurisdiction': 'Iceland', 'regions': 'Nordics', 'dc_locations': 'Reykjavik', 'dc_tier_claim': 'Tier III', 'soc2': 'Type I', 'iso27001': 'No', 'sla_uptime': 99.9, 'sla_remedy': '5% credit per incident', 'dc_ownership': 'Owns', 'references': '2 references', 'financial_standing': 'Unaudited financials provided', 'source': 'Supply referral', 'notes': 'Hydro power, liquid cooling capable', 'oob_access': 'Yes', 'oob_keys': 'OCL', 'reimage': 'Yes', 'dc_ops_sla': 'No', 'support_hours': 4, 'named_contact': 'A. Sigurdsson', 'kind': 'Owner', 'config_documented': 'Yes', 'tiers': {'certification': 2, 'dc_tier': 1, 'sla': 1, 'delivery': 3, 'credit': 2, 'responsiveness': 2}},
-    {'id': 'P011', 'name': 'Orchard Compute (Broker)', 'entity': 'Orchard Compute LLC', 'jurisdiction': 'Nevada, US', 'regions': 'US / Middle East', 'dc_locations': 'Dubai, Las Vegas', 'dc_tier_claim': None, 'soc2': 'No', 'iso27001': 'No', 'sla_uptime': None, 'sla_remedy': None, 'dc_ownership': 'Unknown', 'references': 'None provided', 'financial_standing': 'None provided', 'source': 'Supply referral', 'notes': 'Broker for several unnamed DCs', 'oob_access': None, 'oob_keys': None, 'reimage': None, 'dc_ops_sla': None, 'support_hours': 4, 'named_contact': None, 'kind': 'Reseller', 'config_documented': None, 'tiers': {'certification': 3, 'dc_tier': 3, 'sla': 3, 'delivery': 3, 'credit': 3, 'responsiveness': 2}},
-    {'id': 'P012', 'name': 'Vantor Cloud', 'entity': 'Vantor Cloud Sdn. Bhd.', 'jurisdiction': 'Malaysia', 'regions': 'APAC', 'dc_locations': 'Johor', 'dc_tier_claim': 'Tier III', 'soc2': 'No', 'iso27001': 'No', 'sla_uptime': 99.5, 'sla_remedy': 'None stated', 'dc_ownership': 'Leases', 'references': 'None provided', 'financial_standing': 'Unaudited financials provided', 'source': 'Inbound', 'notes': None, 'oob_access': 'No', 'oob_keys': 'Provider', 'reimage': 'No', 'dc_ops_sla': 'No', 'support_hours': 12, 'named_contact': None, 'kind': 'Owner', 'config_documented': 'No', 'tiers': {'certification': 3, 'dc_tier': 1, 'sla': 2, 'delivery': 3, 'credit': 2, 'responsiveness': 3}},
-)
+PROVIDER_FIELDS = frozenset({"id", "name", "kind", "region", "sites", "tiers", "changed_tick", "synthetic"})
+QUOTE_FIELDS = frozenset({"id", "provider_id", "gpu", "gpus_per_node", "nodes", "price", "currency", "price_unit",
+    "months", "down_payment", "payment_days", "location", "country", "interconnect", "cooling", "moq",
+    "lead_weeks", "available", "expires", "posted", "updated", "posted_tick", "changed_tick", "synthetic"})
 
-QUOTES = (
-    {'id': 'Q001', 'provider': 'Ferrous Cloud (Broker)', 'location': None, 'country': None, 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 32, 'moq': None, 'interconnect': None, 'cooling': None, 'available': '2027-01-11', 'lead_weeks': None, 'price': 4.64, 'months': 24, 'down_payment': 0.3, 'payment_days': 30, 'status': 'Live', 'posted': '2026-09-17', 'updated': '2026-10-04', 'expires': None},
-    {'id': 'Q002', 'provider': 'Orchard Compute (Broker)', 'location': 'Dubai', 'country': 'UAE', 'gpu': 'GB300', 'gpus_per_node': 8, 'nodes': 128, 'moq': None, 'interconnect': None, 'cooling': 'Liquid', 'available': '2026-11-12', 'lead_weeks': None, 'price': 6.07, 'months': 36, 'down_payment': 0.35, 'payment_days': None, 'status': 'Live', 'posted': '2026-09-22', 'updated': None, 'expires': '2026-11-21'},
-    {'id': 'Q003', 'provider': 'Halcyon AI Infra', 'location': 'Singapore', 'country': 'Singapore', 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 4, 'moq': None, 'interconnect': None, 'cooling': 'Air', 'available': '2027-01-11', 'lead_weeks': 4, 'price': 5.74, 'months': 36, 'down_payment': 0.25, 'payment_days': None, 'status': 'Live', 'posted': '2026-10-05', 'updated': None, 'expires': None},
-    {'id': 'Q004', 'provider': 'Kestrel Datacenters', 'location': 'Toronto', 'country': 'Canada', 'gpu': 'H100', 'gpus_per_node': 8, 'nodes': 32, 'moq': None, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2026-12-12', 'lead_weeks': 2, 'price': 1.73, 'months': 12, 'down_payment': 0.3, 'payment_days': 45, 'status': 'Live', 'posted': '2026-09-19', 'updated': None, 'expires': '2026-12-18'},
-    {'id': 'Q005', 'provider': 'Ferrous Cloud (Broker)', 'location': None, 'country': None, 'gpu': 'GB300', 'gpus_per_node': 8, 'nodes': 4, 'moq': None, 'interconnect': 'Infiniband', 'cooling': None, 'available': '2026-11-27', 'lead_weeks': None, 'price': 6.26, 'months': 24, 'down_payment': None, 'payment_days': 30, 'status': 'Live', 'posted': '2026-09-21', 'updated': None, 'expires': None},
-    {'id': 'Q006', 'provider': 'Orchard Compute (Broker)', 'location': 'Dubai', 'country': 'UAE', 'gpu': 'H100', 'gpus_per_node': 8, 'nodes': 16, 'moq': 2, 'interconnect': None, 'cooling': None, 'available': '2026-09-23', 'lead_weeks': None, 'price': 1.69, 'months': 24, 'down_payment': None, 'payment_days': 30, 'status': 'Live', 'posted': '2026-10-08', 'updated': None, 'expires': None},
-    {'id': 'Q007', 'provider': 'Vantor Cloud', 'location': 'Johor', 'country': 'Malaysia', 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 16, 'moq': 4, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2026-11-27', 'lead_weeks': 8, 'price': 5.27, 'months': 24, 'down_payment': 0.2, 'payment_days': 30, 'status': 'Live', 'posted': '2026-10-08', 'updated': None, 'expires': '2026-11-22'},
-    {'id': 'Q008', 'provider': 'Northwind Compute', 'location': 'Dallas TX', 'country': 'USA', 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 16, 'moq': 2, 'interconnect': 'Infiniband', 'cooling': 'Air', 'available': '2026-11-12', 'lead_weeks': None, 'price': 5.31, 'months': 60, 'down_payment': 0.25, 'payment_days': 15, 'status': 'Live', 'posted': '2026-10-12', 'updated': None, 'expires': '2026-11-11'},
-    {'id': 'Q009', 'provider': 'Saltmarsh Systems', 'location': 'Reykjavik', 'country': 'Iceland', 'gpu': 'H200', 'gpus_per_node': 8, 'nodes': 8, 'moq': None, 'interconnect': 'Infiniband', 'cooling': 'Air', 'available': '2027-01-11', 'lead_weeks': 6, 'price': 2.31, 'months': 12, 'down_payment': 0.35, 'payment_days': 15, 'status': 'Live', 'posted': '2026-09-21', 'updated': None, 'expires': '2026-12-20'},
-    {'id': 'Q010', 'provider': 'Ferrous Cloud (Broker)', 'location': None, 'country': None, 'gpu': 'H100', 'gpus_per_node': 8, 'nodes': 8, 'moq': None, 'interconnect': 'RoCE', 'cooling': None, 'available': '2026-10-13', 'lead_weeks': None, 'price': 1.65, 'months': 36, 'down_payment': 0.1, 'payment_days': None, 'status': 'Live', 'posted': '2026-09-28', 'updated': None, 'expires': None},
-    {'id': 'Q011', 'provider': 'Vantor Cloud', 'location': 'Johor', 'country': 'Malaysia', 'gpu': 'H200', 'gpus_per_node': 8, 'nodes': 128, 'moq': None, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2026-10-27', 'lead_weeks': 2, 'price': 2.39, 'months': 12, 'down_payment': 0.3, 'payment_days': 15, 'status': 'Live', 'posted': '2026-10-03', 'updated': None, 'expires': '2027-01-01'},
-    {'id': 'Q012', 'provider': 'Tessellate Compute', 'location': 'Mumbai', 'country': 'India', 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 16, 'moq': 2, 'interconnect': None, 'cooling': 'Air', 'available': '2026-10-13', 'lead_weeks': 6, 'price': 5.55, 'months': 36, 'down_payment': 0.25, 'payment_days': None, 'status': 'Live', 'posted': '2026-09-30', 'updated': None, 'expires': '2026-10-30'},
-    {'id': 'Q013', 'provider': 'Ferrous Cloud (Broker)', 'location': None, 'country': None, 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 8, 'moq': None, 'interconnect': None, 'cooling': None, 'available': '2026-10-13', 'lead_weeks': None, 'price': 5.88, 'months': 24, 'down_payment': None, 'payment_days': 30, 'status': 'Live', 'posted': '2026-09-25', 'updated': '2026-10-06', 'expires': '2026-11-24'},
-    {'id': 'Q014', 'provider': 'Saltmarsh Systems', 'location': 'Reykjavik', 'country': 'Iceland', 'gpu': 'Pro 6000', 'gpus_per_node': 8, 'nodes': 8, 'moq': None, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2026-10-27', 'lead_weeks': 4, 'price': 1.07, 'months': 12, 'down_payment': 0.35, 'payment_days': 30, 'status': 'Live', 'posted': '2026-09-14', 'updated': '2026-09-20', 'expires': '2026-10-14'},
-    {'id': 'Q015', 'provider': 'Northwind Compute', 'location': 'Dallas TX', 'country': 'USA', 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 32, 'moq': 8, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2026-09-23', 'lead_weeks': None, 'price': 5.74, 'months': 36, 'down_payment': 0.2, 'payment_days': 15, 'status': 'Live', 'posted': '2026-10-07', 'updated': None, 'expires': '2027-01-05'},
-    {'id': 'Q016', 'provider': 'Orchard Compute (Broker)', 'location': None, 'country': 'UAE', 'gpu': 'H200', 'gpus_per_node': 8, 'nodes': 8, 'moq': None, 'interconnect': None, 'cooling': None, 'available': '2027-01-11', 'lead_weeks': None, 'price': 2.26, 'months': 36, 'down_payment': None, 'payment_days': None, 'status': 'Live', 'posted': '2026-10-01', 'updated': None, 'expires': None},
-    {'id': 'Q017', 'provider': 'Basalt GPU Cloud', 'location': 'London', 'country': 'UK', 'gpu': 'Pro 6000', 'gpus_per_node': 8, 'nodes': 64, 'moq': 4, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2026-11-27', 'lead_weeks': 2, 'price': 1.54, 'months': 12, 'down_payment': 0.25, 'payment_days': 15, 'status': 'Live', 'posted': '2026-09-17', 'updated': None, 'expires': '2026-11-01'},
-    {'id': 'Q018', 'provider': 'Halcyon AI Infra', 'location': 'Singapore', 'country': 'Singapore', 'gpu': 'H200', 'gpus_per_node': 8, 'nodes': 32, 'moq': 2, 'interconnect': 'Infiniband', 'cooling': 'Air', 'available': '2026-12-12', 'lead_weeks': None, 'price': 2.18, 'months': 24, 'down_payment': None, 'payment_days': 30, 'status': 'Live', 'posted': '2026-10-01', 'updated': None, 'expires': None},
-    {'id': 'Q019', 'provider': 'Northwind Compute', 'location': 'Dallas TX', 'country': 'USA', 'gpu': 'Pro 6000', 'gpus_per_node': 8, 'nodes': 16, 'moq': 4, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2026-12-12', 'lead_weeks': 10, 'price': 1.18, 'months': 36, 'down_payment': 0.25, 'payment_days': 30, 'status': 'Live', 'posted': '2026-10-01', 'updated': None, 'expires': '2026-11-30'},
-    {'id': 'Q020', 'provider': 'Larkspur GPU', 'location': 'Phoenix AZ', 'country': 'USA', 'gpu': 'B200', 'gpus_per_node': 8, 'nodes': 32, 'moq': 4, 'interconnect': 'Infiniband', 'cooling': 'Air', 'available': '2026-11-27', 'lead_weeks': 4, 'price': 4.28, 'months': 60, 'down_payment': 0.3, 'payment_days': 30, 'status': 'Live', 'posted': '2026-09-30', 'updated': None, 'expires': '2026-10-30'},
-    {'id': 'Q021', 'provider': 'Tessellate Compute', 'location': 'Mumbai', 'country': 'India', 'gpu': 'H100', 'gpus_per_node': 8, 'nodes': 16, 'moq': 4, 'interconnect': None, 'cooling': None, 'available': '2026-11-12', 'lead_weeks': 6, 'price': 1.62, 'months': 60, 'down_payment': None, 'payment_days': 30, 'status': 'Live', 'posted': '2026-09-21', 'updated': '2026-09-30', 'expires': '2026-10-21'},
-    {'id': 'Q022', 'provider': 'Kestrel Datacenters', 'location': 'Toronto', 'country': 'Canada', 'gpu': 'H200', 'gpus_per_node': 8, 'nodes': 128, 'moq': 4, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2027-02-10', 'lead_weeks': 2, 'price': 2.98, 'months': 36, 'down_payment': 0.3, 'payment_days': 30, 'status': 'Live', 'posted': '2026-10-11', 'updated': None, 'expires': '2026-11-10'},
-    {'id': 'Q023', 'provider': 'Orchard Compute (Broker)', 'location': None, 'country': 'UAE', 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 32, 'moq': None, 'interconnect': None, 'cooling': None, 'available': '2026-11-12', 'lead_weeks': None, 'price': 5.42, 'months': 12, 'down_payment': 0.2, 'payment_days': 30, 'status': 'Live', 'posted': '2026-09-18', 'updated': None, 'expires': None},
-    {'id': 'Q024', 'provider': 'Ferrous Cloud (Broker)', 'location': None, 'country': None, 'gpu': 'B200', 'gpus_per_node': 8, 'nodes': 4, 'moq': None, 'interconnect': None, 'cooling': 'Air', 'available': '2026-09-23', 'lead_weeks': None, 'price': 3.57, 'months': 60, 'down_payment': 0.25, 'payment_days': None, 'status': 'Live', 'posted': '2026-10-06', 'updated': None, 'expires': None},
-    {'id': 'Q025', 'provider': 'Ferrous Cloud (Broker)', 'location': None, 'country': None, 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 64, 'moq': 4, 'interconnect': None, 'cooling': 'Air', 'available': '2026-09-23', 'lead_weeks': None, 'price': 4.63, 'months': 36, 'down_payment': 0.1, 'payment_days': None, 'status': 'Live', 'posted': '2026-09-19', 'updated': '2026-10-06', 'expires': None},
-    {'id': 'Q026', 'provider': 'Ferrous Cloud (Broker)', 'location': None, 'country': None, 'gpu': 'Pro 6000', 'gpus_per_node': 8, 'nodes': 64, 'moq': None, 'interconnect': None, 'cooling': None, 'available': '2026-09-23', 'lead_weeks': None, 'price': 1.08, 'months': 24, 'down_payment': None, 'payment_days': None, 'status': 'Live', 'posted': '2026-10-04', 'updated': None, 'expires': None},
-    {'id': 'Q027', 'provider': 'Tessellate Compute', 'location': 'Mumbai', 'country': 'India', 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 128, 'moq': 2, 'interconnect': None, 'cooling': 'Air', 'available': '2026-11-27', 'lead_weeks': 12, 'price': 4.68, 'months': 36, 'down_payment': 0.35, 'payment_days': None, 'status': 'Live', 'posted': '2026-09-21', 'updated': '2026-09-30', 'expires': None},
-    {'id': 'Q028', 'provider': 'Orchard Compute (Broker)', 'location': None, 'country': 'UAE', 'gpu': 'B200', 'gpus_per_node': 8, 'nodes': 16, 'moq': 2, 'interconnect': None, 'cooling': 'Air', 'available': '2026-10-13', 'lead_weeks': None, 'price': 3.71, 'months': 36, 'down_payment': 0.25, 'payment_days': 30, 'status': 'Live', 'posted': '2026-10-09', 'updated': None, 'expires': None},
-    {'id': 'Q029', 'provider': 'Tessellate Compute', 'location': 'Mumbai', 'country': 'India', 'gpu': 'H200', 'gpus_per_node': 8, 'nodes': 16, 'moq': 2, 'interconnect': None, 'cooling': None, 'available': '2026-11-27', 'lead_weeks': 8, 'price': 3.01, 'months': 36, 'down_payment': 0.25, 'payment_days': 30, 'status': 'Live', 'posted': '2026-09-29', 'updated': None, 'expires': None},
-    {'id': 'Q030', 'provider': 'Orchard Compute (Broker)', 'location': None, 'country': 'UAE', 'gpu': 'H200', 'gpus_per_node': 8, 'nodes': 64, 'moq': None, 'interconnect': None, 'cooling': None, 'available': '2026-12-12', 'lead_weeks': None, 'price': 2.48, 'months': 24, 'down_payment': None, 'payment_days': 30, 'status': 'Live', 'posted': '2026-10-02', 'updated': None, 'expires': '2026-11-16'},
-    {'id': 'Q031', 'provider': 'Meridian Racks', 'location': 'Austin TX', 'country': 'USA', 'gpu': 'Pro 6000', 'gpus_per_node': 8, 'nodes': 128, 'moq': 4, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2027-01-11', 'lead_weeks': 10, 'price': 1.38, 'months': 36, 'down_payment': 0.3, 'payment_days': 30, 'status': 'Live', 'posted': '2026-09-17', 'updated': '2026-09-29', 'expires': '2026-11-01'},
-    {'id': 'Q032', 'provider': 'Kestrel Datacenters', 'location': 'Toronto', 'country': 'Canada', 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 32, 'moq': None, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2026-11-12', 'lead_weeks': 2, 'price': 5.64, 'months': 24, 'down_payment': 0.35, 'payment_days': 30, 'status': 'Live', 'posted': '2026-10-09', 'updated': None, 'expires': '2026-11-23'},
-    {'id': 'Q033', 'provider': 'Quarry Labs', 'location': 'Frankfurt', 'country': 'Germany', 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 16, 'moq': 2, 'interconnect': 'Infiniband', 'cooling': 'Air', 'available': '2026-10-13', 'lead_weeks': 12, 'price': 5.59, 'months': None, 'down_payment': 0.25, 'payment_days': 45, 'status': 'Live', 'posted': '2026-09-22', 'updated': None, 'expires': '2026-12-21'},
-    {'id': 'Q034', 'provider': 'Quarry Labs', 'location': 'Frankfurt', 'country': 'Germany', 'gpu': 'Pro 6000', 'gpus_per_node': 8, 'nodes': 16, 'moq': 8, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2026-10-13', 'lead_weeks': 2, 'price': 1.36, 'months': 60, 'down_payment': 0.25, 'payment_days': 30, 'status': 'Live', 'posted': '2026-10-08', 'updated': None, 'expires': '2026-12-07'},
-    {'id': 'Q035', 'provider': 'Northwind Compute', 'location': 'Dallas TX', 'country': 'USA', 'gpu': 'Pro 6000', 'gpus_per_node': 8, 'nodes': 16, 'moq': 4, 'interconnect': 'RoCE', 'cooling': 'Air', 'available': '2026-11-12', 'lead_weeks': 2, 'price': 1.42, 'months': 12, 'down_payment': 0.1, 'payment_days': 45, 'status': 'Live', 'posted': '2026-10-04', 'updated': None, 'expires': '2026-11-18'},
-    {'id': 'Q036', 'provider': 'Orchard Compute (Broker)', 'location': None, 'country': 'UAE', 'gpu': 'Pro 6000', 'gpus_per_node': 8, 'nodes': 32, 'moq': None, 'interconnect': None, 'cooling': None, 'available': '2026-11-12', 'lead_weeks': None, 'price': 0.97, 'months': 36, 'down_payment': None, 'payment_days': None, 'status': 'Live', 'posted': '2026-09-17', 'updated': None, 'expires': None},
-    {'id': 'Q037', 'provider': 'Larkspur GPU', 'location': 'Phoenix AZ', 'country': 'USA', 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 32, 'moq': None, 'interconnect': 'Infiniband', 'cooling': 'Air', 'available': '2026-10-13', 'lead_weeks': 8, 'price': 5.6, 'months': None, 'down_payment': 0.25, 'payment_days': 30, 'status': 'Live', 'posted': '2026-09-26', 'updated': None, 'expires': '2026-12-25'},
-    {'id': 'Q038', 'provider': 'Meridian Racks', 'location': 'Austin TX', 'country': 'USA', 'gpu': 'B300', 'gpus_per_node': 8, 'nodes': 32, 'moq': None, 'interconnect': 'Infiniband', 'cooling': 'Air', 'available': '2027-02-10', 'lead_weeks': None, 'price': 5.5, 'months': 24, 'down_payment': 0.25, 'payment_days': 30, 'status': 'Live', 'posted': '2026-10-07', 'updated': None, 'expires': '2027-01-05'},
-)
+
+def simulation_inputs(seed_value, as_of):
+    if type(seed_value) is not int or not 0 <= seed_value < 2**32:
+        raise ValueError("simulation seed must be an integer in [0, 2**32)")
+    if not isinstance(as_of, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", as_of):
+        raise ValueError("simulation assessment date must use YYYY-MM-DD")
+    try:
+        instant = date.fromisoformat(as_of)
+    except ValueError:
+        raise ValueError("simulation assessment date is invalid") from None
+    if not date(2000, 1, 1) <= instant <= date(2099, 12, 1):
+        raise ValueError("simulation assessment date is outside the supported 2000–2099 window")
+    return instant
+
+
+def _money(value, *, fraction=False, positive=False):
+    if not isinstance(value, str) or len(value) > 32 or not re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?", value):
+        raise ValueError("simulation financial values require plain decimal strings")
+    try:
+        amount = Decimal(value)
+    except InvalidOperation:
+        raise ValueError("simulation financial decimal is invalid") from None
+    if positive and amount <= 0 or fraction and not 0 <= amount <= 1:
+        raise ValueError("simulation financial value is outside its declared bounds")
+
+
+def validate_population(providers, quotes, *, as_of=AS_OF):
+    """Validate only the independent generator's declared shape, never an import."""
+    simulation_inputs(DEFAULT_SEED, as_of)
+    if not isinstance(providers, list) or len(providers) != PROVIDER_COUNT or not isinstance(quotes, list) or len(quotes) != QUOTE_COUNT:
+        raise ValueError("simulation population requires 32 providers and 192 quotes")
+    provider_ids = set()
+    for provider in providers:
+        if not isinstance(provider, Mapping) or set(provider) != PROVIDER_FIELDS:
+            raise ValueError("simulation provider shape mismatch")
+        if not isinstance(provider["id"], str) or not re.fullmatch(r"provider-demo-[0-9]{3}", provider["id"]) or provider["id"] in provider_ids:
+            raise ValueError("simulation provider identity mismatch")
+        provider_ids.add(provider["id"])
+        if (not isinstance(provider["name"], str) or not re.fullmatch(r"(?:Demo Supplier|Sample Reseller) [0-9]{2}", provider["name"])
+                or provider["kind"] not in {"Owner", "Reseller"} or provider["synthetic"] is not True or provider["changed_tick"] != -1):
+            raise ValueError("simulation provider label or provenance mismatch")
+        if not isinstance(provider["sites"], list) or not 1 <= len(provider["sites"]) <= 3 or any(not isinstance(site, str) or not site.startswith("Demo Site ") for site in provider["sites"]):
+            raise ValueError("simulation site claims mismatch")
+        tiers = provider["tiers"]
+        if not isinstance(tiers, Mapping) or set(tiers) != set(TIER_KEYS) or any(value is not None and (type(value) is not int or not 0 <= value <= 4) for value in tiers.values()):
+            raise ValueError("simulation tiers require 0–4 higher-is-stronger or null")
+    quote_ids, totals = set(), {model: 0 for model in MODELS}
+    for quote in quotes:
+        if not isinstance(quote, Mapping) or set(quote) != QUOTE_FIELDS:
+            raise ValueError("simulation quote shape mismatch")
+        if (not isinstance(quote["id"], str) or not re.fullmatch(r"quote-demo-[0-9]{4}", quote["id"]) or quote["id"] in quote_ids
+                or quote["provider_id"] not in provider_ids or quote["gpu"] not in totals):
+            raise ValueError("simulation quote identity mismatch")
+        quote_ids.add(quote["id"]); totals[quote["gpu"]] += 1
+        if quote["synthetic"] is not True or quote["currency"] != "USD" or quote["price_unit"] != "gpu_hour" or quote["changed_tick"] != -1 or quote["posted_tick"] != 0:
+            raise ValueError("simulation quote provenance or rate basis mismatch")
+        for key in ("gpus_per_node", "nodes", "months", "moq"):
+            if type(quote[key]) is not int or not 1 <= quote[key] <= 128:
+                raise ValueError("simulation quantity requires bounded positive whole values")
+        if quote["moq"] > quote["nodes"] or quote["gpus_per_node"] * quote["nodes"] > 8192:
+            raise ValueError("simulation whole-node allocation mismatch")
+        for key in ("payment_days", "lead_weeks"):
+            if type(quote[key]) is not int or not 0 <= quote[key] <= 128:
+                raise ValueError("simulation timing requires bounded nonnegative integers")
+        _money(quote["price"], positive=True)
+        if quote["down_payment"] is not None:
+            _money(quote["down_payment"], fraction=True)
+        for key in ("available", "expires", "posted", "updated"):
+            if quote[key] is None and key in {"expires", "updated"}:
+                continue
+            if not isinstance(quote[key], str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", quote[key]):
+                raise ValueError("simulation quote dates require explicit calendar strings")
+            date.fromisoformat(quote[key])
+    if any(count != 32 for count in totals.values()):
+        raise ValueError("simulation population must contain 32 quotes per model")
+    return {"providers": PROVIDER_COUNT, "quotes": QUOTE_COUNT, "quotes_per_model": totals,
+        "fixture_label": "independent simulation fixture", "simulated": True, "execution_enabled": False}
+
+
+def seed_payload(seed_value=DEFAULT_SEED, *, as_of=AS_OF):
+    from .population import build_population
+    providers, quotes = build_population(seed_value, as_of=as_of)
+    return {"schema_version": "independent-quote-book-fixture/1.0", "fixture_label": "independent simulation fixture",
+        "data_origin": "generated_only_without_documents_vendor_data_or_customer_inputs", "seed_value": seed_value,
+        "simulation_as_of": as_of, "simulated": True, "execution_enabled": False,
+        "market_evidence_admitted": False, "inventory_ownership_verified": False,
+        "rating_scale": {"minimum": 0, "maximum": 4, "direction": "higher_is_stronger", "unknown": None},
+        "price_basis": {"currency": "USD", "unit": "gpu_hour", "decimal_places": 4,
+            "meaning": "invented simulation rate_for_declared_whole_GPU_allocation"},
+        "base_price_assumptions": dict(BASE_PRICE), "providers": providers, "quotes": quotes}

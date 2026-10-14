@@ -1,65 +1,51 @@
-"""Routes for the simulated quote book: a local, seeded market of providers and quotes.
-
-``GET /v1/book`` returns the current book as one snapshot with a weak ETag, and answers 304 when
-the caller already holds the current tag. ``POST /v1/book/control`` pauses, resumes or resets the
-simulated clock, or applies a named scenario. The book lives in process memory only: nothing is
-read from or written to the evidence store, every response says ``simulated: true`` and
-execution stays disabled. Both routes use the app's shared authentication; browser sessions need
-the dedicated ``book`` scope for control (see ``sessions.request_scope``) and a CSRF token.
-"""
-from __future__ import annotations
-
+"""Authenticated, process-local controls for an independently generated simulation."""
 import re
 import threading
-from typing import Any, Awaitable, Callable
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
+from starlette.responses import Response
 
-from compute_pricing.control.quote_book import QuoteBook
 
-
-def etag_matches(header: str | None, etag: str) -> bool:
-    """RFC 9110 weak comparison of an If-None-Match field against one entity tag."""
-    if header is None:
+def etag_matches(header, etag):
+    if not isinstance(header, str):
         return False
     if header.strip() == "*":
         return True
-    wanted = etag.removeprefix("W/")
-    return any(candidate.strip().removeprefix("W/") == wanted for candidate in re.findall(r'(?:W/)?"[^"]*"', header))
+    target = etag.removeprefix("W/")
+    return any(tag.removeprefix("W/") == target
+               for tag in re.findall(r'(?:W/)?"[^"\r\n]*"', header))
 
 
-def attach_quote_book(app: FastAPI, *, authenticated: Callable[..., Awaitable[None]],
-                      json_body: Callable[..., Awaitable[dict[str, Any]]]) -> None:
-    """Register the two routes directly on the app, like ``attach_sessions``, so ``app.routes`` stays flat."""
-    lock = threading.Lock()
+def attach_quote_book(app, *, authenticated, json_body):
+    from compute_pricing.control.quote_book import QuoteBook
+    creation = threading.Lock()
 
-    def book(request: Request) -> QuoteBook:
-        # Built on first use: the simulation is process memory only and most callers never open it.
-        with lock:
-            state = request.app.state
-            if getattr(state, "quote_book", None) is None:
-                state.quote_book = QuoteBook()
-            return state.quote_book
+    def get_book():
+        with creation:
+            if getattr(app.state, "quote_book", None) is None:
+                app.state.quote_book = QuoteBook()
+            return app.state.quote_book
 
-    @app.get("/v1/book", dependencies=[Depends(authenticated)],
-                responses={200: {"description": "Simulated quote book", "content": {"application/json": {"schema": {"type": "object"}}}},
-                           304: {"description": "The book has not moved since the tag the client holds"}})
-    async def snapshot(request: Request) -> Response:
-        etag, body = await run_in_threadpool(lambda: book(request).encoded())
-        headers = {"ETag": etag, "Cache-Control": "no-store"}
+    @app.get("/v1/book", dependencies=[Depends(authenticated)])
+    async def read_book(request: Request):
+        etag, encoded = await run_in_threadpool(lambda: get_book().encoded())
+        headers = {"ETag": etag, "Cache-Control": "no-store", "Vary": "Cookie, Authorization"}
         if etag_matches(request.headers.get("if-none-match"), etag):
             return Response(status_code=304, headers=headers)
-        return Response(body, media_type="application/json", headers=headers)
+        return Response(encoded, media_type="application/json", headers=headers)
 
     @app.post("/v1/book/control", dependencies=[Depends(authenticated)])
-    async def control(request: Request) -> dict[str, Any]:
+    async def control_book(request: Request):
         payload = await json_body(request)
-        action, scenario = payload.get("action"), payload.get("scenario")
-        if set(payload) - {"action", "scenario"} or not isinstance(action, str) or not (scenario is None or isinstance(scenario, str)):
+        if (set(payload) not in ({"action"}, {"action", "scenario"})
+                or type(payload.get("action")) is not str
+                or "scenario" in payload and type(payload["scenario"]) is not str):
             raise HTTPException(422, detail="invalid_book_control")
         try:
-            state = await run_in_threadpool(book(request).control, action, scenario)
+            result = await run_in_threadpool(get_book().control, payload["action"], payload.get("scenario"))
         except ValueError:
             raise HTTPException(422, detail="invalid_book_control") from None
-        return {"simulated": True, **state, "execution_enabled": False}
+        return {**result, "simulated": True, "execution_enabled": False}
+
+    return get_book

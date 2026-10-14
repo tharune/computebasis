@@ -1,5 +1,8 @@
 # Backend and frontend handoff
 
+For the current retained-reference, editable book-policy and selected-quote
+cash routes, start with [the backend pricing flow](backend-pricing-flow.md).
+
 ComputeBasis separates market research, declared deal arithmetic and paper
 inventory. The backend owns source admission, normalization, comparable cohorts,
 price calculations, cash schedules and evidence holds. The frontend presents

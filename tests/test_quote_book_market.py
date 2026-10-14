@@ -1,282 +1,328 @@
-"""The quote book: reproducible, internally consistent, and anchored to the mock workbook."""
-import hashlib
+"""Independent synthetic state/control regressions; no vendor or file IO."""
+from copy import deepcopy
+from decimal import Decimal, localcontext
 import json
-import os
-from pathlib import Path
-import sys
+import math
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from compute_pricing.control.quote_book import market as market_module, scoring, seed
-from compute_pricing.control.quote_book.market import QuoteBook, MAX_CATCH_UP
-
-try:
-    import openpyxl
-except ImportError:
-    openpyxl = None
-
-# The mock workbook is not committed. Point this at the file named in seed.SOURCE to run the workbook oracle.
-WORKBOOK = Path(os.environ["QUOTE_BOOK_WORKBOOK"]) if os.environ.get("QUOTE_BOOK_WORKBOOK") else None
-SKIP_REASON = "set QUOTE_BOOK_WORKBOOK to the mock workbook named in seed.SOURCE (needs openpyxl)"
+from compute_pricing.control.quote_book import QuoteBook
+from compute_pricing.control.quote_book.population import MODELS
+from compute_pricing.control.quote_book.scoring import quote_economics, validate_policy
 
 
-def workbook_available():
-    if not (openpyxl and WORKBOOK and WORKBOOK.exists()):
-        return False
-    if hashlib.sha256(WORKBOOK.read_bytes()).hexdigest() != seed.SOURCE_SHA256:
-        raise AssertionError("QUOTE_BOOK_WORKBOOK is not the workbook the seed was generated from (SHA-256 differs)")
-    return True
-
-
-class FakeClock:
+class Clock:
     def __init__(self):
-        self.now = 1000.0
+        self.value = 0
 
     def __call__(self):
-        return self.now
-
-    def advance(self, seconds):
-        self.now += seconds
+        return self.value
 
 
-def make(seed_value=2026):
-    clock = FakeClock()
-    return QuoteBook(seed_value=seed_value, clock=clock, tick_seconds=3.0), clock
+class QuoteBookMarketTests(unittest.TestCase):
+    def setUp(self):
+        self.clock = Clock()
+        self.book = QuoteBook(clock=self.clock)
 
+    def test_baseline_has_all_families_and_only_simulation_eligibility(self):
+        snapshot = self.book.snapshot()
+        self.assertEqual(len(snapshot["providers"]), 32)
+        self.assertEqual(len(snapshot["quotes"]), 192)
+        self.assertEqual({row["gpu"] for row in snapshot["models"]}, set(MODELS))
+        for row in snapshot["models"]:
+            self.assertGreater(row["eligible"], 0)
+            self.assertIsNotNone(row["best"])
+            self.assertTrue(row["best"]["eligible"])
+            self.assertIsInstance(row["best"]["missing"], int)
+            self.assertIsInstance(row["best"]["missing_fields"], list)
+            self.assertEqual(row["price_unit"], "gpu_hour")
+        held = [row for row in snapshot["quotes"] if not row["eligible"]]
+        self.assertTrue(held)
+        self.assertTrue(any("grade" in row["missing_fields"] for row in held))
+        self.assertTrue(any("simulated_quote_expired" in row["ineligible_reasons"] for row in held))
+        for scope in (snapshot, snapshot["meta"], *snapshot["quotes"], *snapshot["providers"]):
+            self.assertTrue(scope["simulated"])
+            self.assertFalse(scope["source_evidence_eligible"])
+            self.assertFalse(scope["firm_price_eligible"])
+            self.assertFalse(scope["execution_enabled"])
+        encoded = self.book.encoded()[1]
+        self.assertNotIn("workbook", encoded.lower())
+        self.assertNotIn("source_hash", encoded)
+        self.assertIn("independently_invented", encoded)
 
-def run(market, clock, steps):
-    for _ in range(steps):
-        clock.advance(3.0)
-        market.encoded()
-
-
-class StartingStateTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.market, cls.clock = make()
-        cls.snapshot = cls.market.snapshot()
-
-    def test_it_is_labelled_simulated_and_names_its_source(self):
-        self.assertIs(self.snapshot["simulated"], True)
-        self.assertEqual(self.snapshot["meta"]["source"], seed.SOURCE)
-        self.assertEqual(self.snapshot["meta"]["tick"], 0)
-
-    def test_scale_resembles_the_workbook_extended(self):
-        kpis = self.snapshot["kpis"]
-        self.assertEqual(kpis["providers_total"], 28)
-        self.assertTrue(140 <= kpis["live_quotes"] <= 170, kpis["live_quotes"])
-        self.assertEqual(len(self.snapshot["quotes"]), kpis["live_quotes"])
-        self.assertEqual(len({q["id"] for q in self.snapshot["quotes"]}), kpis["live_quotes"])
-        self.assertEqual({m["model"] for m in self.snapshot["models"]}, set(market_module.MODELS))
-
-    def test_every_workbook_quote_is_present_at_its_published_price(self):
-        by_id = {q["id"]: q for q in self.snapshot["quotes"]}
-        for row in seed.QUOTES:
-            self.assertEqual(by_id[row["id"]]["price"], f'{row["price"]:.2f}', row["id"])
-            self.assertTrue(by_id[row["id"]]["workbook"])
-
-    def test_history_is_already_on_the_charts(self):
-        series = self.snapshot["series"]
-        self.assertEqual(series["ticks"], list(range(-90, 1)))
-        for key in ("live", "gpus", "eligible_share", "basis"):
-            self.assertEqual(len(series[key]), 91, key)
-        self.assertEqual(series["live"][-1], self.snapshot["kpis"]["live_quotes"])
-        self.assertEqual(series["models"]["B300"]["cheapest"][-1], min(float(q["price"]) for q in self.snapshot["quotes"] if q["gpu"] == "B300"))
-
-    def test_the_cheapest_quote_is_usually_a_weak_seller_and_basis_is_positive(self):
-        weak = [m for m in self.snapshot["models"] if m["cheapest"] and m["cheapest"]["grade"] in ("C", "D")]
-        self.assertGreaterEqual(len(weak), 4)
-        for model in self.snapshot["models"]:
-            if model["basis"] is not None:
-                self.assertGreater(model["basis"], 0, model["model"])
-        gb300 = next(m for m in self.snapshot["models"] if m["model"] == "GB300")
-        self.assertIsNone(gb300["best"])  # newest hardware has no vetted seller, as in the workbook
-        self.assertIsNone(gb300["basis"])
-
-    def test_the_workbook_rows_carry_the_workbooks_own_numbers(self):
-        by_id = {q["id"]: q for q in self.snapshot["quotes"]}
-        self.assertAlmostEqual(by_id["Q038"]["risk_adjusted"], 5.69012375, places=3)
-        self.assertAlmostEqual(by_id["Q001"]["risk_adjusted"], 5.2790675, places=3)
-        self.assertEqual(by_id["Q038"]["grade"], "A")
-        self.assertEqual(by_id["Q001"]["grade"], "D")
-        self.assertFalse(by_id["Q001"]["eligible"])
-        self.assertIn("grade D is below C", by_id["Q001"]["reasons"])
-
-    @unittest.skipUnless(workbook_available(), SKIP_REASON)
-    def test_workbook_only_summary_matches_the_workbooks_quote_summary(self):
-        sheet = openpyxl.load_workbook(WORKBOOK, data_only=True)["Quote Summary"]
-        grades = {p["name"]: scoring.grade_for(scoring.quality_score(p["tiers"]))[0] for p in seed.PROVIDERS}
-        import datetime as dt
-        as_of = dt.date.fromisoformat(seed.AS_OF)
-        for model, quotes, _, reference, cheapest, _, cheapest_grade, cheapest_price, best, _, _, _, risk, *_ in sheet.iter_rows(min_row=3, max_row=8, values_only=True):
-            rows = [q for q in seed.QUOTES if q["gpu"] == model]
-            self.assertEqual(len(rows), quotes)
-            priced = sorted(rows, key=lambda q: (q["price"], q["id"]))
-            self.assertEqual((priced[0]["id"], priced[0]["price"], grades[priced[0]["provider"]]), (cheapest, cheapest_price, cheapest_grade))
-            economics = [(scoring.quote_economics(q, grade=grades[q["provider"]], reference=scoring.ASSUMPTIONS["reference"].get(model), as_of=as_of), q) for q in rows]
-            eligible = sorted(((e["risk_adjusted"], q["id"]) for e, q in economics if e["eligible"]))
-            if best == "None eligible":
-                self.assertEqual(eligible, [], model)
-            else:
-                self.assertEqual(eligible[0][1], best, model)
-                self.assertAlmostEqual(eligible[0][0], risk, places=6)
-
-
-class DynamicsTests(unittest.TestCase):
-    def test_same_seed_and_same_clock_give_identical_bytes_and_other_seeds_differ(self):
-        (a, ca), (b, cb), (c, cc) = make(7), make(7), make(8)
-        for market, clock in ((a, ca), (b, cb), (c, cc)):
-            run(market, clock, 25)
-        self.assertEqual(a.encoded(), b.encoded())
-        self.assertNotEqual(a.encoded()[1], c.encoded()[1])
-
-    def test_book_stays_healthy_and_every_reference_resolves_over_a_long_run(self):
-        market, clock = make()
-        run(market, clock, 160)
-        snapshot = market.snapshot()
-        self.assertEqual(snapshot["meta"]["tick"], 160)
-        providers = {p["id"] for p in snapshot["providers"]}
-        self.assertTrue(110 <= snapshot["kpis"]["live_quotes"] <= 200, snapshot["kpis"]["live_quotes"])
+    def test_financial_serialization_and_compatibility_collections(self):
+        snapshot = self.book.snapshot()
+        self.assertIsInstance(snapshot["kpis"]["contract_value"], str)
+        self.assertIsInstance(snapshot["kpis"]["basis"], str)
+        self.assertIsInstance(snapshot["kpis"]["gpus"], int)
         for quote in snapshot["quotes"]:
-            self.assertIn(quote["provider_id"], providers)
-            self.assertGreater(float(quote["price"]), 0)
-            self.assertIn(quote["grade"], scoring.GRADES)
-        ticks = snapshot["series"]["ticks"]
-        self.assertEqual(ticks, sorted(set(ticks)))
-        self.assertLessEqual(len(ticks), market_module.HISTORY_STEPS)
-        numbers = [a["n"] for a in snapshot["alerts"]]
-        self.assertEqual(numbers, sorted(numbers, reverse=True))
-        self.assertTrue(any(a["level"] != "info" for a in snapshot["alerts"]))
+            for key in ("price", "risk_adjusted", "risk_adjusted_scorecard", "contract_value",
+                        "down_payment_usd", "financing_cost", "failure_probability", "reference"):
+                self.assertTrue(quote[key] is None or isinstance(quote[key], str), key)
+        self.assertIsInstance(snapshot["grade_mix"]["A"], dict)
+        self.assertIsInstance(snapshot["supply"][MODELS[0]], dict)
+        self.assertIsInstance(snapshot["expiry"], list)
+        self.assertEqual(sum(row["quotes"] for row in snapshot["expiry"]), 192)
+        self.assertEqual(sum(row["quotes"] for row in snapshot["completeness"]), 192)
+        for model in snapshot["series"]["models"].values():
+            self.assertEqual({len(values) for values in model.values()}, {1})
+        for provider in snapshot["providers"]:
+            self.assertIn("price_index", provider)
+            self.assertIn("missing_average", provider)
+        tag, body = self.book.encoded()
+        self.assertTrue(tag.startswith('W/"') and tag.endswith('"'))
+        self.assertEqual(json.loads(body), snapshot)
 
-    def test_a_quote_rank_matches_its_position_and_eligible_ranks_follow_risk_adjusted_cost(self):
-        market, clock = make()
-        run(market, clock, 30)
-        for model in market_module.MODELS:
-            quotes = [q for q in market.snapshot()["quotes"] if q["gpu"] == model]
-            self.assertEqual(sorted(q["price_rank"] for q in quotes), list(range(1, len(quotes) + 1)))
-            eligible = sorted((q for q in quotes if q["eligible"]), key=lambda q: q["risk_rank"])
-            self.assertEqual([q["risk_rank"] for q in eligible], list(range(1, len(eligible) + 1)))
-            costs = [q["risk_adjusted"] for q in eligible]
-            self.assertEqual(costs, sorted(costs))
+    def test_basis_compares_best_cost_to_lowest_offer_and_totals_expose_unknowns(self):
+        snapshot = self.book.snapshot()
+        for model in snapshot["models"]:
+            with localcontext() as context:
+                context.prec = 200
+                expected = Decimal(model["best"]["risk_adjusted"]) / Decimal(model["cheapest"]["price"]) - 1
+                self.assertLess(abs(Decimal(model["basis"]) - expected), Decimal("1e-60"))
+            self.assertEqual(model["basis_unit"], "fraction_above_lowest_displayed_native_offer")
+        known, unknown = snapshot["kpis"]["contract_value_known_components"], snapshot["kpis"]["contract_value_unknown_components"]
+        self.assertEqual(known + unknown, snapshot["kpis"]["live_quotes"])
+        target = next(row for row in self.book._quotes if row["id"] == snapshot["models"][0]["best"]["id"])
+        target["available"] = None
+        self.book._record(replace_current=True)
+        updated = self.book.snapshot()
+        self.assertEqual(updated["kpis"]["contract_value_unknown_components"], unknown + 1)
+        self.assertFalse(updated["kpis"]["contract_value_complete"])
+        changed = next(row for row in updated["quotes"] if row["id"] == target["id"])
+        self.assertIsNone(changed["contract_value"])
+        self.assertIn("available", changed["missing_fields"])
 
-    def test_the_etag_moves_with_the_market_and_not_otherwise(self):
-        market, clock = make()
-        first = market.encoded()[0]
-        clock.advance(1.0)
-        self.assertEqual(market.encoded()[0], first)
-        clock.advance(3.0)
-        self.assertNotEqual(market.encoded()[0], first)
-        self.assertEqual(market.etag(), market.encoded()[0])
+    def test_aggregate_basis_uses_gpu_weights_and_exposes_unsupported_capacity(self):
+        snapshot = self.book.snapshot()
+        with localcontext() as context:
+            context.prec = 300
+            numerator = sum((Decimal(row["basis"]) * row["gpus"] for row in snapshot["models"]), Decimal(0))
+            denominator = sum(row["gpus"] for row in snapshot["models"])
+            self.assertLess(abs(Decimal(snapshot["kpis"]["basis"]) - numerator / denominator), Decimal("1e-60"))
+        self.assertEqual(snapshot["kpis"]["basis_supported_gpus"], denominator)
+        self.assertEqual(Decimal(snapshot["kpis"]["basis_weight_coverage"]), Decimal(1))
+        excluded_model = snapshot["models"][0]
+        for quote in self.book._quotes:
+            if quote["gpu"] == excluded_model["gpu"]:
+                quote["down_payment"] = None
+        self.book._record(replace_current=True)
+        unsupported = self.book.snapshot()
+        self.assertEqual(unsupported["kpis"]["basis_unsupported_gpus"], excluded_model["gpus"])
+        self.assertEqual(unsupported["kpis"]["models_with_basis"], 5)
+        self.assertEqual(unsupported["kpis"]["basis_supported_gpus"] + unsupported["kpis"]["basis_unsupported_gpus"],
+                         unsupported["kpis"]["basis_total_quoted_gpus"])
+        self.assertFalse(unsupported["assumptions"]["basis_is_market_benchmark"])
+        self.assertIsNone(unsupported["models"][0]["basis"])
 
-    def test_pausing_freezes_the_market_and_resuming_does_not_replay_the_gap(self):
-        market, clock = make()
-        run(market, clock, 5)
-        market.control("pause")
-        frozen = market.encoded()
-        clock.advance(600.0)
-        self.assertEqual(market.encoded()[1], frozen[1])
-        self.assertTrue(market.snapshot()["meta"]["paused"])
-        market.control("resume")
-        self.assertEqual(market.snapshot()["meta"]["tick"], 5)
-        clock.advance(3.0)
-        self.assertEqual(market.snapshot()["meta"]["tick"], 6)
+    def test_ui_metadata_aliases_and_alerts_remain_explicit_simulation(self):
+        initial = self.book.snapshot()
+        self.assertEqual(initial["assumptions"]["weights"], initial["assumptions"]["scorecard_policy"]["weights"])
+        self.assertEqual(initial["meta"]["epoch"], 0)
+        self.assertEqual(initial["meta"]["source"], "Independent simulation fixture")
+        self.assertEqual(initial["meta"]["step_minutes"], 1)
+        self.book.control("scenario", "supply_shock")
+        first = self.book.snapshot()["alerts"][-1]
+        self.assertEqual(first["time"], self.book.snapshot()["meta"]["time"])
+        self.assertEqual(first["level"], "warn")
+        self.assertTrue(first["text"] and first["simulated"])
+        self.assertIsInstance(first["n"], int)
+        self.assertEqual(self.book.control("reset")["epoch"], 1)
+        self.book.control("scenario", "price_war")
+        second = self.book.snapshot()["alerts"][-1]
+        self.assertGreater(second["n"], first["n"])
+        self.assertEqual(second["level"], "info")
+        self.assertEqual(self.book.control("reset")["epoch"], 2)
 
-    def test_a_long_gap_is_capped_rather_than_replayed(self):
-        market, clock = make()
-        clock.advance(100000.0)
-        self.assertEqual(market.snapshot()["meta"]["tick"], MAX_CATCH_UP)
-        clock.advance(3.0)
-        self.assertEqual(market.snapshot()["meta"]["tick"], MAX_CATCH_UP + 1)
+    def test_quote_aliases_preserve_rate_units_unknowns_and_exact_ranking(self):
+        snapshot = self.book.snapshot()
+        financed = next(row for row in snapshot["quotes"] if row["financing_cost"] is not None and Decimal(row["financing_cost"]) > 0)
+        self.assertEqual(financed["financing"], financed["financing_cost_per_gpu_hour"])
+        self.assertNotEqual(financed["financing"], financed["financing_cost"])
+        self.assertEqual(financed["exposure"], financed["exposure_charge"])
+        self.assertEqual(financed["units"]["financing"], "USD_per_gpu_hour")
+        for quote in snapshot["quotes"]:
+            self.assertIsInstance(quote["missing"], list)
+            self.assertEqual(quote["missing_count"], len(quote["missing"]))
+            self.assertEqual(quote["reasons"], quote["ineligible_reasons"])
+            if not quote["eligible"]:
+                self.assertIsNone(quote["risk_rank"])
+            if quote["expires"] is None:
+                self.assertIsNone(quote["days_to_expiry"])
+        for model in snapshot["models"]:
+            best = next(row for row in snapshot["quotes"] if row["id"] == model["best"]["id"])
+            cheapest = next(row for row in snapshot["quotes"] if row["id"] == model["cheapest"]["id"])
+            self.assertEqual(best["risk_rank"], 1)
+            self.assertEqual(cheapest["price_rank"], 1)
+            self.assertIsInstance(model["cheapest"]["missing"], int)
+        for provider in snapshot["providers"]:
+            if provider["grade"] is None:
+                self.assertIsNone(provider["score"])
+                self.assertIsNone(provider["score_exact"])
+            else:
+                self.assertIsInstance(provider["score"], (int, float))
+                self.assertIsInstance(provider["score_exact"], str)
 
-    def test_reset_returns_to_the_published_starting_state(self):
-        market, clock = make()
-        fresh = market.snapshot()
-        run(market, clock, 40)
-        market.control("scenario", "downgrade")
-        market.control("reset")
-        after = market.snapshot()
-        self.assertEqual(after["meta"]["tick"], 0)
-        self.assertEqual(after["meta"]["epoch"], 1)
-        self.assertEqual(after["quotes"], fresh["quotes"])
-        self.assertEqual(after["providers"], fresh["providers"])
-        self.assertNotEqual(market.etag(), 'W/"book-0-0-0"')
+    def test_same_seed_reproduces_ticks_and_snapshots_are_detached(self):
+        second = QuoteBook(clock=self.clock)
+        baseline = self.book.snapshot()
+        baseline["quotes"][0]["price"] = "999999999999"
+        baseline["providers"][0]["tiers"].clear()
+        baseline["assumptions"]["scorecard_policy"]["weights"].clear()
+        self.assertEqual(self.book.snapshot(), second.snapshot())
+        self.clock.value = 12
+        self.assertEqual(self.book.snapshot(), second.snapshot())
+        self.assertEqual(self.book.snapshot()["meta"]["tick"], 4)
+        self.assertNotEqual(self.book.snapshot()["quotes"][0]["price"], "999999999999")
 
-    def test_payload_is_strict_json(self):
-        market, clock = make()
-        run(market, clock, 10)
-        json.loads(market.encoded()[1], parse_constant=lambda name: self.fail(f"non-finite value {name}"))
+    def test_pause_resume_drops_parked_time_and_controls_are_idempotent(self):
+        self.assertTrue(self.book.control("pause")["changed"])
+        paused = self.book.snapshot()
+        tag = self.book.etag()
+        self.clock.value = 1_000_000
+        self.assertEqual(self.book.snapshot(), paused)
+        self.assertEqual(self.book.etag(), tag)
+        self.assertFalse(self.book.control("pause")["changed"])
+        self.assertTrue(self.book.control("resume")["changed"])
+        self.clock.value += 2
+        self.assertFalse(self.book.control("resume")["changed"])
+        self.clock.value += 1
+        self.assertEqual(self.book.snapshot()["meta"]["tick"], 1)
 
+    def test_large_and_backward_clock_moves_are_bounded(self):
+        self.clock.value = 10_000
+        first = self.book.snapshot()
+        self.assertEqual(first["meta"]["tick"], 8)
+        self.assertTrue(first["meta"]["catchup_clamped"])
+        self.assertEqual(self.book.snapshot()["meta"]["tick"], 8)
+        self.clock.value = -20
+        self.assertEqual(self.book.snapshot()["meta"]["tick"], 8)
+        self.clock.value = -17
+        self.assertEqual(self.book.snapshot()["meta"]["tick"], 9)
+        self.clock.value = 1e308
+        self.assertEqual(self.book.snapshot()["meta"]["tick"], 17)
+        self.assertTrue(math.isfinite(self.book._last_clock))
 
-class ScenarioTests(unittest.TestCase):
-    def prepared(self):
-        market, clock = make()
-        run(market, clock, 6)
-        return market, clock
+    def test_history_arrays_are_bounded_and_aligned(self):
+        for _ in range(17):
+            self.clock.value += 24
+            self.book.snapshot()
+        snapshot = self.book.snapshot()
+        series = snapshot["series"]
+        self.assertEqual(len(series["ticks"]), 128)
+        self.assertEqual(series["ticks"][-1], snapshot["meta"]["tick"])
+        for key in ("times", "live", "gpus", "eligible_share", "basis"):
+            self.assertEqual(len(series[key]), 128)
+        for model in series["models"].values():
+            self.assertEqual({len(values) for values in model.values()}, {128})
 
-    def model(self, snapshot, name):
-        return next(m for m in snapshot["models"] if m["model"] == name)
+    def test_price_war_recomputes_costs_persists_and_same_selection_is_noop(self):
+        original = self.book.snapshot()
+        result = self.book.control("scenario", "price_war")
+        self.assertTrue(result["posted"] and result["changed"])
+        stressed = self.book.snapshot()
+        for before, after in zip(original["quotes"], stressed["quotes"]):
+            self.assertEqual(Decimal(after["price"]), Decimal(before["price"]) * Decimal("0.96"))
+        selected = next(row for row in stressed["quotes"] if row["eligible"])
+        raw = next(row for row in self.book._quotes if row["id"] == selected["id"])
+        expected = quote_economics(raw, grade=(selected["grade"], Decimal(selected["grade_premium"])),
+                                   reference=selected["reference"], as_of=stressed["meta"]["as_of"])
+        self.assertEqual(Decimal(selected["risk_adjusted"]), expected["risk_adjusted"])
+        tag = self.book.etag()
+        self.assertFalse(self.book.control("scenario", "price_war")["changed"])
+        self.assertEqual(self.book.etag(), tag)
+        self.clock.value = 3
+        moved = self.book.snapshot()
+        self.assertTrue(all(Decimal(after["price"]) < Decimal(before["price"])
+                            for before, after in zip(original["quotes"], moved["quotes"])))
+        self.assertEqual(moved["meta"]["scenario"], "price_war")
 
-    def test_price_war_lowers_the_cheapest_quote_and_widens_the_basis(self):
-        market, _ = self.prepared()
-        before = self.model(market.snapshot(), "B300")
-        market.control("scenario", "price_war")
-        after_snapshot = market.snapshot()
-        after = self.model(after_snapshot, "B300")
-        self.assertLess(float(after["cheapest"]["price"]), float(before["cheapest"]["price"]) * 0.96)
-        self.assertGreater(after["basis"], before["basis"] + 0.03)
-        self.assertEqual(after_snapshot["alerts"][0]["kind"], "scenario")
-        self.assertEqual(after_snapshot["series"]["basis"][-1], after_snapshot["kpis"]["basis"])  # the chart already reflects it
+    def test_supply_shock_removes_whole_nodes_and_preserves_delivery_dates(self):
+        original = self.book.snapshot()
+        self.book.control("scenario", "supply_shock")
+        shocked = self.book.snapshot()
+        for before, after in zip(original["quotes"], shocked["quotes"]):
+            self.assertEqual(after["nodes"], before["nodes"] * 3 // 4)
+            self.assertEqual(after["available"], before["available"])
+            if not after["nodes"]:
+                self.assertFalse(after["eligible"])
+                self.assertIn("no_available_capacity", after["ineligible_reasons"])
+        self.assertLess(shocked["kpis"]["gpus"], original["kpis"]["gpus"])
+        self.assertEqual(len(shocked["quotes"]), 192)
 
-    def test_price_war_cuts_hold_instead_of_drifting_back_to_the_old_level(self):
-        market, _ = self.prepared()
-        before = {q["id"]: q["price"] for q in market.quotes.values() if q["gpu"] == "B300"}
-        market.control("scenario", "price_war")
-        cut = [q for q in market.quotes.values() if q["id"] in before and q["price"] < before[q["id"]] * 0.95]
-        self.assertGreaterEqual(len(cut), 3)
-        for quote in cut:  # later revisions pull a quote toward its target; a pinned cut is its own target
-            self.assertAlmostEqual(market._target_price(quote), quote["price"], delta=0.01, msg=quote["id"])
+    def test_downgrade_rescores_known_ratings_without_filling_unknowns(self):
+        original = self.book.snapshot()
+        self.book.control("scenario", "downgrade")
+        downgraded = self.book.snapshot()
+        for before, after in zip(original["providers"], downgraded["providers"]):
+            for key, value in before["tiers"].items():
+                self.assertEqual(after["tiers"][key], None if value is None else 0)
+            self.assertEqual(after["grade"], None if before["grade"] is None else "D")
+        self.assertEqual(downgraded["grade_mix"]["A"]["providers"], 0)
+        self.assertEqual(downgraded["grade_mix"]["unknown"]["providers"],
+                         original["grade_mix"]["unknown"]["providers"])
 
-    def test_supply_shock_withdraws_a_large_share_of_the_models_gpus(self):
-        market, _ = self.prepared()
-        before = self.model(market.snapshot(), "H200")["gpus"]
-        market.control("scenario", "supply_shock")
-        after = self.model(market.snapshot(), "H200")["gpus"]
-        self.assertLess(after, before * 0.6)
+    def test_reset_restores_population_policy_series_and_rng(self):
+        initial = self.book.snapshot()
+        self.clock.value = 9
+        self.book.snapshot()
+        self.book.control("scenario", "downgrade")
+        self.book.control("pause")
+        self.book.control("reset")
+        initial["meta"]["epoch"] = 1
+        self.assertEqual(self.book.snapshot(), initial)
+        fresh = QuoteBook(clock=self.clock)
+        self.clock.value += 6
+        same_rates = fresh.snapshot()
+        same_rates["meta"]["epoch"] = 1
+        self.assertEqual(self.book.snapshot(), same_rates)
 
-    def test_downgrade_drops_a_strong_provider_by_at_least_two_grades(self):
-        market, _ = self.prepared()
-        before = {p["id"]: p["grade"] for p in market.snapshot()["providers"]}
-        market.control("scenario", "downgrade")
-        snapshot = market.snapshot()
-        moved = [p for p in snapshot["providers"] if p["grade"] != before[p["id"]]]
-        self.assertEqual(len(moved), 1)
-        self.assertEqual(before[moved[0]["id"]], "A")
-        self.assertIn(moved[0]["grade"], ("C", "D"))
-        self.assertEqual(moved[0]["changed_tick"], snapshot["meta"]["tick"])
-        self.assertIn("downgraded", snapshot["alerts"][0]["text"])
+    def test_simulation_midnight_uses_same_assessment_for_eligibility_and_buckets(self):
+        # Place the deterministic state just before its calendar boundary;
+        # testing 1,440 random-price steps would obscure this date regression.
+        self.book._tick = 1439
+        self.book._quotes[0]["expires"] = "2032-06-02"
+        self.book._record()
+        before = self.book.snapshot()
+        self.assertEqual(before["meta"]["time"], "2032-06-01T23:59:00Z")
+        self.assertEqual(before["meta"]["as_of"], "2032-06-01")
+        self.clock.value = 3
+        after = self.book.snapshot()
+        self.assertEqual(after["meta"]["time"], "2032-06-02T00:00:00Z")
+        self.assertEqual(after["meta"]["as_of"], "2032-06-02")
+        self.assertTrue(all(row["as_of"] == "2032-06-02" for row in after["quotes"]))
+        self.assertIn("simulated_quote_expired", after["quotes"][0]["ineligible_reasons"])
+        self.assertEqual(after["series"]["times"][-1], after["meta"]["time"])
 
-    def test_scenarios_may_be_repeated_without_breaking_the_book(self):
-        market, clock = self.prepared()
-        for name in market_module.SCENARIOS * 3:
-            market.control("scenario", name)
-            run(market, clock, 2)
-        snapshot = market.snapshot()
-        self.assertGreater(snapshot["kpis"]["live_quotes"], 30)
-        self.assertEqual(snapshot["meta"]["tick"], 6 + 18)
+    def test_policy_is_effective_detached_and_context_independent(self):
+        policy = validate_policy()
+        policy["grade_premiums"]["A"] = "0.023"
+        book = QuoteBook(clock=self.clock, policy=policy)
+        policy["grade_premiums"]["A"] = "0.9"
+        self.assertEqual(book.snapshot()["assumptions"]["scorecard_policy"]["grade_premiums"]["A"], "0.023")
+        self.assertTrue(any(row["grade_premium"] == "0.023" for row in book.snapshot()["quotes"]))
+        with localcontext() as context:
+            context.prec = 6
+            same = QuoteBook(clock=self.clock, policy=deepcopy(book._policy))
+        self.assertEqual(book.snapshot(), same.snapshot())
 
-
-class ControlValidationTests(unittest.TestCase):
-    def test_bad_requests_are_rejected_and_change_nothing(self):
-        market, _ = make()
-        before = market.encoded()
-        for action, scenario in (("explode", None), ("scenario", None), ("scenario", "unknown"), ("pause", "price_war"), ("reset", "downgrade")):
-            with self.assertRaises(ValueError, msg=(action, scenario)):
-                market.control(action, scenario)
-        self.assertEqual(market.encoded(), before)
-
-    def test_tick_seconds_must_be_positive(self):
+    def test_invalid_controls_and_clock_do_not_mutate_the_book(self):
+        before = self.book.snapshot()
+        for action, scenario in (({}, None), ("publish", None), ("scenario", "other"),
+                                 ("pause", "price_war"), ("scenario", {})):
+            with self.assertRaises(ValueError):
+                self.book.control(action, scenario)
+        self.assertEqual(before, self.book.snapshot())
+        self.clock.value = float("nan")
         with self.assertRaises(ValueError):
-            QuoteBook(tick_seconds=0)
+            self.book.snapshot()
+        self.clock.value = 0
+        self.assertEqual(before, self.book.snapshot())
+        for seed in (True, -1, 2**32):
+            with self.assertRaises(ValueError):
+                QuoteBook(seed_value=seed)
+        for duration in (0, float("inf"), float("nan"), True):
+            with self.assertRaises(ValueError):
+                QuoteBook(tick_seconds=duration)
 
 
 if __name__ == "__main__":
