@@ -10,3 +10,10 @@ dist/
 local-data/
 *.pem
 *.key
+
+*.egg-info/
+build/
+dist/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

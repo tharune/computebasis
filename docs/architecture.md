@@ -1,25 +1,28 @@
 # Architecture and boundaries
 
-The Python boundary is `compute_pricing.evaluate(payload)`. Callers supply the cohort, observations, contract interval and policy assumptions. Decimal arithmetic supports reproducibility; changing inputs changes outputs without editing code.
+ComputeBasis separates source evidence, comparable prices, contract economics, dated cash, technical qualification and financial authority. Changing observations and terms change the result without changing code. Exact monetary calculations retain declared units, currencies and versions.
 
-Connectors, persistent evidence, calibrated models and a complete cash ledger are future components.
+The current local control-plane entry is `compute_pricing.control.pricing.evaluate_pricing`; authenticated API routes wrap the same kernels and store hashed development snapshots. `compute_pricing.evaluate` remains the compact research interface. The [control-plane guide](control-plane.md) defines their scope and request boundaries.
 
-## Planned data flow
+## Current development flow
 
 ```text
-Evidence → typed observations → normalization and cohort admission
-         → benchmark snapshot → deal economics and constraints
-         → reproducible decision record
+Admitted read → typed observations → exact cohort and normalization
+              → deduplicated weighted benchmark → inverse economics
+              → full dated shared-account cash constraints
+              → immutable indicative/held decision
 ```
 
-Evidence preserves source values and timestamps. Admission checks comparability, freshness, offer identity and permitted use. Benchmarking records contributors, exclusions, weights and support. Pricing combines that snapshot with contract, cost and policy inputs.
+Read-only connectors enforce rights, admitted endpoints, authentication, TLS/DNS, quotas and bounded retries. Physical offers and aggregate references retain different evidence. Token tariffs, financial marks and event values have separate unit-aware roles. Benchmark snapshots expose excluded inputs, actual contributors and weights, support and uncalibrated dispersion.
 
-Optional features belong in a versioned registry with a type, unit, evidence requirement and declared effect. An unknown extra field can be preserved without silently changing a formula. A missing required field prevents the affected calculation; a missing optional field must not become zero. Sensitive evidence stays outside public examples and source control.
+Pricing reconciles explicit buyer collections and owned costs with the scoped deal's dated cash legs. Full-node allocation, complete settlement horizons, reserves and ordered cash troughs constrain a purchase price. Inference costing uses measured matching workload setups and the entire allocated GPU deployment, including idle capacity. Research regression never silently becomes a live regional premium.
 
-## Reproducibility and updates
+Features belong in a versioned registry with type, unit, evidence and owning model. Unknown fields survive as evidence and remain visibly unpriced. Missing critical inputs or unavailable validated owning methods hold the result. Source assertions do not independently establish commercial rights, privacy, bank balances or creditworthiness.
 
-A decision record should retain inputs, evaluation time, schema/model/policy versions, results and reasons. Material changes create new evaluations; historical records remain reproducible. Stale or partial feeds produce explicit limitations and appropriate holds.
+## Persistence and control
 
-Future adapters acquire observations separately. Quotas, retries and permissions belong at the connector boundary. Price refreshes have no transaction side effects. Eventual execution requires separate authorization, idempotency and reconciliation.
+The local API saves immutable canonical input/output/version snapshots in SQLite outside Git and verifies hashes on replay. The paper journal binds approvals to versions/expiry, checks claimed actor limits and preserves holds for unknown effects until independent reconciliation. These are tested development slices.
 
-The development sequence is in [the roadmap](roadmap.md); the economic conventions are in [the methodology](methodology.md).
+Production identity and authorization, transactional capacity/cash holds, balanced journal, durable outbox/saga, recovery and external reconciliation remain implementation and operating-certification work. Calibrated models require representative evidence and independent validation. Real execution needs a separately admitted, funded and authorized rail.
+
+Price refreshes have no transaction side effects. No startup feed collection, signing, trading, paid inference or funds movement occurs. The [roadmap](roadmap.md) records the remaining acceptance for each module.

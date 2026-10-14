@@ -1,0 +1,1033 @@
+{
+  "$defs": {
+    "Configuration": {
+      "additionalProperties": false,
+      "properties": {
+        "cpu_cores": {
+          "maxLength": 128,
+          "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-decimal": true,
+          "x-decimal-minimum": "0"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "interconnect": {
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "network_gbps": {
+          "maxLength": 128,
+          "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-decimal": true,
+          "x-decimal-minimum": "0"
+        },
+        "privacy_class": {
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ram_gib": {
+          "maxLength": 128,
+          "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-decimal": true,
+          "x-decimal-minimum": "0"
+        },
+        "storage_gib": {
+          "maxLength": 128,
+          "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-decimal": true,
+          "x-decimal-minimum": "0"
+        },
+        "tenancy": {
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "EvidenceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "accessed_at": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": "string"
+        },
+        "artifact_sha256": {
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "event_at": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expires_at": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "locator": {
+          "maxLength": 2048,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "permission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Permission"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope": {
+          "items": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "source_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "claimed",
+            "verified",
+            "stale",
+            "rejected"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        },
+        "verifier": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "source_id",
+        "accessed_at"
+      ],
+      "type": "object"
+    },
+    "FeatureDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_values": {
+          "items": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "feature_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "maximum": {
+          "maxLength": 128,
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-decimal": true
+        },
+        "minimum": {
+          "maxLength": 128,
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-decimal": true
+        },
+        "owner_model": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "owning_path": {
+          "enum": [
+            "price",
+            "cost",
+            "loss",
+            "constraint",
+            "diagnostic"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "unit": {
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value_type": {
+          "enum": [
+            "decimal",
+            "integer",
+            "string",
+            "boolean"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "value_type",
+        "owning_path",
+        "owner_model"
+      ],
+      "type": "object"
+    },
+    "FeatureObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "feature_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "owner_model": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "owning_path": {
+          "enum": [
+            "price",
+            "cost",
+            "loss",
+            "constraint",
+            "diagnostic",
+            null
+          ],
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "known",
+            "missing",
+            "stale",
+            "conflicted"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        },
+        "transform_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unit": {
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "valid_from": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "valid_until": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "feature_id",
+        "status"
+      ],
+      "type": "object"
+    },
+    "FeatureOwnership": {
+      "additionalProperties": false,
+      "properties": {
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "feature_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "owner_model": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "owning_path": {
+          "enum": [
+            "price",
+            "cost",
+            "loss",
+            "constraint",
+            "diagnostic"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "owning_path",
+        "owner_model"
+      ],
+      "type": "object"
+    },
+    "Hardware": {
+      "additionalProperties": false,
+      "properties": {
+        "accelerator_count": {
+          "maxLength": 128,
+          "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-decimal": true,
+          "x-decimal-minimum": "0"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "memory_gib": {
+          "maxLength": 128,
+          "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-decimal": true,
+          "x-decimal-minimum": "0"
+        },
+        "model": {
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "MarketObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "configuration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Configuration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ends_at": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "hardware": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Hardware"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "ingested_at": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "listing_ask",
+            "firm_supplier_rfq",
+            "confirmed_rental_trade",
+            "buyer_bid",
+            "aggregate_advertised_index",
+            "model_token_price",
+            "financial_future_mark",
+            "event_contract_price"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        },
+        "lot_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observed_at": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": "string"
+        },
+        "offer_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MoneyRate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "price_side": {
+          "enum": [
+            "ask",
+            "bid",
+            "trade",
+            "mark",
+            null
+          ],
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider_group_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quantity": {
+          "maxLength": 128,
+          "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-decimal": true,
+          "x-decimal-minimum": "0"
+        },
+        "quantity_unit": {
+          "enum": [
+            "gpu",
+            "node",
+            null
+          ],
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "region": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Region"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rights": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Permission"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schema_version": {
+          "maxLength": 40,
+          "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "source_version": {
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "starts_at": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "claimed",
+            "verified",
+            "stale",
+            "rejected"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source_id",
+        "kind",
+        "observed_at",
+        "ingested_at"
+      ],
+      "type": "object"
+    },
+    "MoneyRate": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "maxLength": 128,
+          "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "type": "string",
+          "x-decimal": true,
+          "x-decimal-minimum": "0"
+        },
+        "currency": {
+          "maxLength": 3,
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "unit": {
+          "enum": [
+            "gpu_hour",
+            "node_hour",
+            "token",
+            "input_million_tokens",
+            "output_million_tokens",
+            "contract"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "currency",
+        "unit"
+      ],
+      "type": "object"
+    },
+    "NormalizedPrice": {
+      "additionalProperties": false,
+      "properties": {
+        "blockers": {
+          "items": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "feature_ownership": {
+          "items": {
+            "$ref": "#/$defs/FeatureOwnership"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "lot_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_version": {
+          "maxLength": 512,
+          "type": "string"
+        },
+        "normalization_steps": {
+          "items": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "normalized_price": {
+          "$ref": "#/$defs/MoneyRate"
+        },
+        "observation_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "policy_version": {
+          "maxLength": 40,
+          "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "source_price": {
+          "$ref": "#/$defs/MoneyRate"
+        },
+        "status": {
+          "enum": [
+            "indicative",
+            "comparable",
+            "rejected",
+            "unknown"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        }
+      },
+      "required": [
+        "observation_id",
+        "source_id",
+        "source_price",
+        "normalized_price",
+        "model_version",
+        "policy_version"
+      ],
+      "type": "object"
+    },
+    "Permission": {
+      "additionalProperties": false,
+      "properties": {
+        "benchmark": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        },
+        "execution": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "observe": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        },
+        "retain": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        },
+        "scope": {
+          "items": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "allowed",
+            "pending",
+            "denied"
+          ],
+          "maxLength": 512,
+          "type": "string"
+        },
+        "verified_by": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "PolicySnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "critical_feature_ids": {
+          "items": {
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "critical_market_fields": {
+          "items": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "effective_at": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "model_version": {
+          "maxLength": 512,
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "policy_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "registry_version": {
+          "maxLength": 40,
+          "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "schema_version": {
+          "maxLength": 40,
+          "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 40,
+          "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "policy_id",
+        "version",
+        "model_version",
+        "registry_version",
+        "effective_at"
+      ],
+      "type": "object"
+    },
+    "PricingRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "as_of": {
+          "format": "date-time",
+          "maxLength": 32,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "type": "string"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "features": {
+          "items": {
+            "$ref": "#/$defs/FeatureObservation"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "normalized_prices": {
+          "items": {
+            "$ref": "#/$defs/NormalizedPrice"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/$defs/MarketObservation"
+          },
+          "maxItems": 10000,
+          "type": "array"
+        },
+        "policy": {
+          "$ref": "#/$defs/PolicySnapshot"
+        },
+        "request_id": {
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)*$",
+          "type": "string"
+        },
+        "schema_version": {
+          "maxLength": 40,
+          "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "as_of",
+        "observations",
+        "policy"
+      ],
+      "type": "object"
+    },
+    "Region": {
+      "additionalProperties": false,
+      "properties": {
+        "country_code": {
+          "maxLength": 2,
+          "pattern": "^[A-Z]{2}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "locality": {
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subdivision": {
+          "maxLength": 512,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [],
+      "type": "object"
+    }
+  },
+  "$id": "urn:compute-pricing:domain:1.0.0",
+  "$ref": "#/$defs/PricingRequest",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Nullable intake fields preserve unknowns. Exact string decimals use x-decimal bounds enforced by the runtime parser. Permission and evidence fields are claims, not execution authority.",
+  "title": "Compute pricing domain contracts",
+  "x-schema-version": "1.0.0"
+}

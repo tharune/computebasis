@@ -1,0 +1,149 @@
+{
+  "schema": "computebasis-source-admission/1.0",
+  "sources": {
+    "getdeploying": {
+      "enabled": true,
+      "rights_status": "allowed",
+      "rights_evidence": "https://getdeploying.com/dataset/gpu-prices (published dataset files only; CC BY 4.0; reviewed 2026-10-14)",
+      "permissions": {
+        "observe": "PASS",
+        "retain": "PASS",
+        "benchmark": "PASS",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 1209600,
+      "liveness": "not_verified",
+      "attribution": "GetDeploying, GPU rental price history, https://getdeploying.com/gpus, CC BY 4.0 https://creativecommons.org/licenses/by/4.0/",
+      "verified_by": "dataset-license-review"
+    },
+    "vast": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 900,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    },
+    "runpod": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 3600,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    },
+    "openrouter": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 3600,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    },
+    "kalshi": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 60,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    },
+    "silicon_data": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 86400,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    },
+    "cme": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 60,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    },
+    "cboe": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 60,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    },
+    "liquid_ai": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 86400,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    }
+  }
+}
