@@ -1,7 +1,7 @@
 "use strict";
 // Draw the shipped chart and Brief/Overview/Quotes modules against snapshots produced by the real simulator, in a browserless DOM.
 const { test } = require("node:test");
-const { assert, fs, path, vm, assets, snapshots, html, El, walk, findAll, classes, byClass, byTag, settle, assertClean, makePage, base, war, reset, book, normalize, assertLive, DEMO_FILES, chartsSource, dataSource, adapterSource } = require("./demo_harness.js");
+const { assert, fs, path, vm, assets, snapshots, html, El, walk, findAll, classes, byClass, byTag, settle, assertClean, makePage, base, war, reset, book, normalize, assertLive, DEMO_FILES, chartsSource, dataSource, adapterSource, landingChartsSource } = require("./demo_harness.js");
 
 test("snapshots come from the simulator and the scenario and reset change them", () => {
   assert.equal(base.simulated, true);
@@ -74,7 +74,7 @@ const BRIEF_SLOTS = ["brief-live", "brief-facts", "brief-fact-gaps", "brief-gaps
 test("the Brief states the problem with figures from the book and draws clean bars, not dumbbells", async () => {
   const page = makePage(base); page.connect(); await settle();
   const hero = page.el("brief-live");
-  assert.equal(byClass(hero, "bf-bar").length, book.base.models.filter((entry) => entry.best).length, "one bar per model with an eligible seller");
+  assert.equal(byClass(hero, "bf-bar").length, book.base.models.filter((entry) => entry.best).length + 1, "one bar per model with an eligible seller, and one for the GPU-weighted All models row under them");
   assert.equal(byClass(page.el("brief-facts"), "bf-number").length, 4);
   assert.match(page.el("brief-facts").textContent, new RegExp(String(base.kpis.live_quotes)));
   assert.match(page.el("brief-fact-grades").textContent, new RegExp("of " + book.base.models.length));
@@ -267,7 +267,7 @@ test("the basis breakdown says nothing when no model has an eligible, priced quo
 });
 
 test("the sources keep to the content security policy", () => {
-  for (const [name, source] of [["workbench-charts.js", chartsSource], ...DEMO_FILES.map((name) => [name, fs.readFileSync(path.join(assets, name), "utf8")]), ["landing-data.js", dataSource], ["book-adapter.js", adapterSource]]) {
+  for (const [name, source] of [["workbench-charts.js", chartsSource], ...DEMO_FILES.map((name) => [name, fs.readFileSync(path.join(assets, name), "utf8")]), ["landing-data.js", dataSource], ["landing-charts.js", landingChartsSource], ["book-adapter.js", adapterSource]]) {
     for (const forbidden of ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function", "localStorage", "sessionStorage", ".style.", 'setAttribute("style"', "setAttribute('style'"]) {
       assert.equal(source.includes(forbidden), false, name + " must not use " + forbidden);
     }

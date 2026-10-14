@@ -18,6 +18,10 @@ const dataSource = fs.readFileSync(path.join(assets, "landing-data.js"), "utf8")
 const DEMO_FILES = [...html.matchAll(/<script src="\/workbench\/assets\/([^"]+\.js)"/g)].map((match) => match[1]).filter((name) => /^(demo-core|page-[a-z-]+|us-[a-z-]+|desk-[a-z-]+)\.js$/.test(name));
 const deskFixture = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "desk-ledger.json"), "utf8"));  // the desk-ledger contract, docs/desk-ledger-contract.md
 const adapterSource = fs.readFileSync(path.join(assets, "book-adapter.js"), "utf8");
+const landingChartsSource = fs.readFileSync(path.join(assets, "landing-charts.js"), "utf8");
+/* What a chart slot reports as its width. undefined is "no layout engine at all" (the landing charts then use their own fallback width);
+   0 is a hidden slot; a number is a laid-out column. Suites set it through makePage({ width }) or page.resize(). */
+const layout = { width: undefined };
 
 class El {
   constructor(tag) {
@@ -34,12 +38,20 @@ class El {
   set textContent(value) { this._text = String(value); this.children = []; }
   append(...nodes) { nodes.forEach((node) => { assert.ok(node instanceof El, "append expects DOM nodes"); this.children.push(node); }); }
   replaceChildren(...nodes) { this.children = []; this._text = ""; this.append(...nodes); }
-  setAttribute(key, value) { this.attributes[key] = String(value); }
+  setAttribute(key, value) {
+    assert.ok(!/^(style|on.*)$/i.test(key), "the content security policy blocks the " + key + " attribute");  // inline styles and inline handlers, set by any route
+    this.attributes[key] = String(value);
+  }
   getAttribute(key) { return this.attributes[key] ?? null; }
   removeAttribute(key) { delete this.attributes[key]; }
   addEventListener(name, action) { this.listeners.set(name, [...(this.listeners.get(name) || []), action]); }
   async click() { if (this.disabled) return; await Promise.all((this.listeners.get("click") || []).map((action) => action({ preventDefault() {}, target: this }))); }
-  focus() { this.focused = true; }
+  get clientWidth() { return this.has("bf-chart-host") ? layout.width : undefined; }
+  matches() { return false; }  // :hover and :focus-within, which a suite turns on by assigning its own
+  contains(node) { return node === this || this.children.some((child) => child.contains(node)); }
+  removeChild(node) { this.children = this.children.filter((child) => child !== node); return node; }
+  fire(name, event = {}) { (this.listeners.get(name) || []).forEach((action) => action({ target: this, preventDefault() {}, ...event })); }
+  focus() { this.focused = true; this.fire("focus"); }
   scrollIntoView(options) { this.scrolled = options; }
 }
 const walk = (node, visit) => { visit(node); node.children.forEach((child) => walk(child, visit)); };
@@ -56,7 +68,8 @@ function assertClean(node, label = "chart") {
   });
 }
 
-function makePage(initial, { priceQuote, browser = {}, desk = deskFixture } = {}) {
+function makePage(initial, { priceQuote, browser = {}, desk = deskFixture, width } = {}) {
+  layout.width = width;
   const ids = new Map();
   for (const tag of html.matchAll(/<([a-z][a-z0-9]*)\b([^>]*)>/g)) {
     const id = /\bid="([^"]+)"/.exec(tag[2]); if (id) ids.set(id[1], new El(tag[1]));
@@ -95,16 +108,19 @@ function makePage(initial, { priceQuote, browser = {}, desk = deskFixture } = {}
   const context = vm.createContext({ window, document: doc, setInterval: (fn, ms) => intervals.push({ fn, ms }), console });
   vm.runInContext(chartsSource, context, { filename: "workbench-charts.js" });
   vm.runInContext(adapterSource, context, { filename: "book-adapter.js" });
+  vm.runInContext(landingChartsSource, context, { filename: "landing-charts.js" });
   vm.runInContext(dataSource, context, { filename: "landing-data.js" });
   DEMO_FILES.forEach((name) => vm.runInContext(fs.readFileSync(path.join(assets, name), "utf8"), context, { filename: name }));
   const el = (id) => host.byId(id);
   const button = (id, label) => findAll(el(id), (item) => item.tagName === "button" && item.textContent === label)[0];
   return {
-    server, calls, bookCalls: () => calls.filter((call) => call.url === "/v1/book"), deskCalls: () => calls.filter((call) => call.url === "/v1/book/desk"), notices, shown, priced, host, el, button, doc, charts: window.ComputeCharts,
+    server, calls, bookCalls: () => calls.filter((call) => call.url === "/v1/book"), deskCalls: () => calls.filter((call) => call.url === "/v1/book/desk"), notices, shown, priced, host, el, button, doc, charts: window.ComputeCharts, landing: window.LandingCharts,
+    resize: (next) => { layout.width = next; },
     connect: () => sessionListeners.forEach((listener) => listener(true)),
     disconnect: () => sessionListeners.forEach((listener) => listener(false)),
     poll: () => intervals.find((item) => item.ms === 2000).fn(),
     visibility: () => documentListeners.filter((item) => item.name === "visibilitychange").forEach((item) => item.action({})),
+    press: (key) => documentListeners.filter((item) => item.name === "keydown").forEach((item) => item.action({ key })),
   };
 }
 const { base, war, reset } = snapshots;  // what the server sends: decimal strings, reason codes
@@ -114,4 +130,4 @@ const book = { base: normalize(base), war: normalize(war), reset: normalize(rese
 const assertLive = (page) => { assert.equal(page.el("session-state").textContent, "Live"); assert.ok(page.el("session-dot").has("live")); };
 
 
-module.exports = { assert, fs, path, vm, assets, snapshots, html, El, walk, findAll, classes, byClass, byTag, settle, assertClean, makePage, base, war, reset, book, normalize, assertLive, DEMO_FILES, chartsSource, dataSource, adapterSource, deskFixture };
+module.exports = { layout, landingChartsSource, assert, fs, path, vm, assets, snapshots, html, El, walk, findAll, classes, byClass, byTag, settle, assertClean, makePage, base, war, reset, book, normalize, assertLive, DEMO_FILES, chartsSource, dataSource, adapterSource, deskFixture };
