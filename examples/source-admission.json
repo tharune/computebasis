@@ -1,6 +1,73 @@
 {
   "schema": "computebasis-source-admission/1.0",
   "sources": {
+    "huggingface": {
+      "enabled": true,
+      "rights_status": "allowed",
+      "rights_evidence": "https://huggingface.co/docs/hub/en/api and https://huggingface.co/docs/hub/en/rate-limits document open public /api/models and anonymous API access; narrowly admitted metadata-only local research/discovery, attached licenses/gating separate; no weights, private repos, pricing/performance/credit inference or raw public redistribution admission; reviewed 2026-10-14",
+      "permissions": {
+        "observe": "PASS",
+        "retain": "PASS",
+        "benchmark": "PASS",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 86400,
+      "min_interval_s": 1,
+      "liveness": "not_verified",
+      "attribution": "Hugging Face public Hub API; model-card license tags are discovery metadata, not model-use permission",
+      "verified_by": "documented-api-discovery-review"
+    },
+    "azure": {
+      "enabled": true,
+      "rights_status": "allowed",
+      "rights_evidence": "https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices explicitly documents unauthenticated own tools for internal analysis and region/SKU price comparison; internal local use only, no public raw-feed redistribution admission; reviewed 2026-10-14",
+      "permissions": {
+        "observe": "PASS",
+        "retain": "PASS",
+        "benchmark": "PASS",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 86400,
+      "min_interval_s": 1,
+      "liveness": "not_verified",
+      "attribution": "Microsoft Azure Retail Prices API; undiscounted native USD VM list meters, not capacity offers",
+      "verified_by": "documented-api-internal-use-review"
+    },
+    "ecb": {
+      "enabled": true,
+      "rights_status": "allowed",
+      "rights_evidence": "https://www.ecb.europa.eu/services/using-our-site/disclaimer/html/index.en.html permits free accurate information reuse with ECB attribution, free-availability notice in sold documents and derived-modification disclosure; https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html links latest daily XML; reviewed 2026-10-14",
+      "permissions": {
+        "observe": "PASS",
+        "retain": "PASS",
+        "benchmark": "PASS",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 604800,
+      "min_interval_s": 1,
+      "liveness": "not_verified",
+      "attribution": "European Central Bank, euro foreign exchange reference rates; free from https://www.ecb.europa.eu; informational only, not transaction rates",
+      "verified_by": "ecb-reuse-policy-review"
+    },
+    "scaleway": {
+      "enabled": false,
+      "rights_status": "pending",
+      "rights_evidence": "Public catalog API documents unauthenticated access, but https://www.scaleway.com/en/legal-notice/ and current service intellectual-property terms do not establish persisted commercial benchmark/display/redistribution rights",
+      "permissions": {
+        "observe": "UNKNOWN",
+        "retain": "UNKNOWN",
+        "benchmark": "UNKNOWN",
+        "execution": "FAIL"
+      },
+      "expires_at": null,
+      "max_age_s": 86400,
+      "liveness": "not_verified",
+      "attribution": "",
+      "verified_by": null
+    },
     "getdeploying": {
       "enabled": true,
       "rights_status": "allowed",

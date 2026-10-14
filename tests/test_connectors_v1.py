@@ -40,9 +40,10 @@ def public_resolver(*args, **kwargs):
 
 
 class AdmissionTests(unittest.TestCase):
-    def test_example_only_dataset_enabled(self):
+    def test_example_approved_public_sources_enabled(self):
         policies = load_policies(Path(__file__).resolve().parents[1] / "examples/source-admission.json")
-        self.assertEqual([key for key, p in policies.items() if p.enabled], ["getdeploying"])
+        self.assertEqual({key for key, p in policies.items() if p.enabled}, {"getdeploying", "azure", "ecb", "huggingface"})
+        self.assertTrue(all(p.permissions.get("execution") == "FAIL" for p in policies.values()))
         self.assertEqual(policies["getdeploying"].permissions["execution"], "FAIL")
         statuses = {item["source_id"]: item for item in source_status(policies, NOW)}
         self.assertTrue(statuses["getdeploying"]["can_attempt_read"])

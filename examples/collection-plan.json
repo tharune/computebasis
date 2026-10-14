@@ -1,0 +1,40 @@
+[
+  {
+    "source_id": "getdeploying",
+    "filters": {}
+  },
+  {
+    "source_id": "azure",
+    "filters": {
+      "region": "eastus",
+      "max_pages": 3
+    }
+  },
+  {
+    "source_id": "azure",
+    "filters": {
+      "region": "westeurope",
+      "max_pages": 3
+    }
+  },
+  {
+    "source_id": "azure",
+    "filters": {
+      "region": "southeastasia",
+      "max_pages": 3
+    }
+  },
+  {
+    "source_id": "ecb",
+    "filters": {}
+  },
+  {
+    "source_id": "huggingface",
+    "filters": {
+      "author": "LiquidAI",
+      "pipeline_tag": "text-generation",
+      "limit": 50,
+      "full": true
+    }
+  }
+]

@@ -2,6 +2,7 @@
 """Start the authenticated loopback-only development API; no startup feed calls."""
 from __future__ import annotations
 import argparse
+import json
 import os
 from pathlib import Path
 import sys
@@ -14,6 +15,7 @@ def main() -> None:
     parser.add_argument("--store", required=True, type=Path, help="Absolute SQLite path outside every Git checkout")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--source-config", type=Path, help="Explicit reviewed source admission config; omitted means all feeds blocked")
+    parser.add_argument("--collection-plan", type=Path, help="Explicit source/filter scopes; no automatic startup collection")
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
         parser.error("port must be in 1024-65535")
@@ -23,7 +25,9 @@ def main() -> None:
     import uvicorn
     try:
         app = create_app(api_key=key, store_path=args.store,
-                         source_policies=load_policies(args.source_config) if args.source_config else None)
+                         source_policies=load_policies(args.source_config) if args.source_config else None,
+                         collection_plan=json.loads(args.collection_plan.read_text()) if args.collection_plan else None,
+                         local_instance_id=os.environ.get("COMPUTEBASIS_LOCAL_INSTANCE_ID"))
     except ValueError:
         parser.error("supply a strong COMPUTE_PRICING_API_KEY, an absolute store path outside Git, and valid source config")
     uvicorn.run(app, host="127.0.0.1", port=args.port, access_log=False, proxy_headers=False)

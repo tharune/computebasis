@@ -137,6 +137,14 @@ class SourceSpec:
 
 
 SOURCE_SPECS = {
+    "azure": SourceSpec("azure", "prices.azure.com", r"/api/retail/prices",
+                        query_keys=frozenset({"api-version", "currencyCode", "$filter", "$skip", "meterRegion"})),
+    "ecb": SourceSpec("ecb", "www.ecb.europa.eu", r"/stats/eurofxref/eurofxref-daily\.xml",
+                      content_types=frozenset({"application/xml", "text/xml"})),
+    "scaleway": SourceSpec("scaleway", "api.scaleway.com", r"/product-catalog/v2alpha1/public-catalog/products",
+                           query_keys=frozenset({"page", "page_size", "product_types", "service_category"})),
+    "huggingface": SourceSpec("huggingface", "huggingface.co", r"/api/models",
+                              query_keys=frozenset({"author", "pipeline_tag", "limit", "full"})),
     "getdeploying": SourceSpec("getdeploying", "getdeploying.com", r"/dataset/gpu-prices/weekly\.csv",
                                content_types=frozenset({"text/csv", "application/csv"})),
     "vast": SourceSpec("vast", "console.vast.ai", r"/api/v0/bundles", method="POST",
@@ -236,7 +244,16 @@ def resolve_public(host: str, resolver: Callable[..., Any] = socket.getaddrinfo,
 
 class _PinnedHTTPSConnection(http.client.HTTPSConnection):
     def __init__(self, host: str, address: str, timeout: float):
-        super().__init__(host, port=443, timeout=timeout, context=ssl.create_default_context())
+        context = ssl.create_default_context()
+        try:
+            import certifi
+        except ImportError:
+            pass
+        else:
+            # Add the pinned Mozilla CA bundle when installed. Verification and
+            # hostname checks stay enabled; failure never falls back to insecure TLS.
+            context.load_verify_locations(cafile=certifi.where())
+        super().__init__(host, port=443, timeout=timeout, context=context)
         self._address = address
 
     def connect(self) -> None:
@@ -397,8 +414,11 @@ class ReadOnlyTransport:
                 if request.spec.method != "GET" or redirects >= 2 or not incoming.get("location"):
                     raise ConnectorError("redirect_forbidden")
                 redirected = urllib.parse.urljoin(request.url, incoming["location"])
-                request = dataclasses.replace(request, url=redirected)
-                parts = request.validate()  # Same host, standard port, paths, query and credential rules.
+                candidate = dataclasses.replace(request, url=redirected)
+                next_parts = candidate.validate()  # Same host, standard port, paths, query and credential rules.
+                if next_parts.path != parts.path or dict(urllib.parse.parse_qsl(next_parts.query)) != dict(urllib.parse.parse_qsl(parts.query)):
+                    raise ConnectorError("redirect_scope_changed")
+                request, parts = candidate, next_parts
                 redirects += 1
                 attempts -= 1
                 continue
@@ -423,3 +443,14 @@ class ReadOnlyTransport:
             return RawResponse(policy.source_id, utc_string(self.clock()), parts.path,
                                status, safe_headers, body, attempts)
         raise ConnectorError("retry_attempts_exhausted")
+
+    def wait_for_source(self, source_id: str, *, max_wait_s: float = 5) -> None:
+        """Budgeted pacing for admitted pagination; never truncates server cooldown."""
+        spec = SOURCE_SPECS.get(source_id)
+        if spec is None or not math.isfinite(max_wait_s) or not 0 <= max_wait_s <= 60:
+            raise ConnectorError("invalid_pagination_wait")
+        remaining = max(0, self._cooldown.get(spec.host, 0) - self.monotonic())
+        if remaining > max_wait_s:
+            raise ConnectorError("source_cooldown_exceeds_pagination_budget")
+        if remaining:
+            self.sleep(remaining)

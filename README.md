@@ -23,6 +23,12 @@ Maintained by **Tharun Ekambaram**.
 
 This is a local read-only and paper development release. Source and qualification assertions are not independently verified assets or bank evidence. Calibration uses research diagnostics; no live regional premium, credit probability or confidence interval is asserted. The in-memory paper journal and SQLite snapshots need production identity, transactional durability, accounting, reconciliation and operating evidence before real execution.
 
+## Run the local workbench
+
+The [workbench guide](docs/workbench.md) runs a local browser UI with current source admission, native prices, freshness and immutable provenance. It includes manual scoped refresh and actual retained-reference evaluation; pricing/cash/inference editors keep synthetic examples separate. Four source roles are available: weekly GPU references, regional cloud VM retail meters, informational FX and bounded model discovery. They are not four interchangeable GPU-price feeds.
+
+After installation, start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json`, then open `http://127.0.0.1:8000`. Retrieve your locally generated development key with the explicit `scripts/local.py key` command and paste it into the page. Startup makes no live request; choose **Refresh admitted feeds** to index the configured scopes.
+
 ## Try the current control plane
 
 Use Python 3.12 and a virtual environment:

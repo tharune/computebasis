@@ -72,6 +72,9 @@ SQLite development snapshots use canonical hashes, transactions, append-only tri
 
 ## Source boundaries
 
+The [local workbench](workbench.md) adds an authenticated retained-market index and explicit scoped refresh. Azure is admitted for documented internal regional/SKU retail comparison in native VM-hour units; GPU model/count remain unknown. ECB provides informational EUR-base reference FX. Hugging Face provides bounded [model discovery](model-discovery.md) without prices, weights or technical qualification. These roles stay separate from comparable GPU-hour support.
+
+
 GetDeploying has a read-only weekly advertised-price CSV adapter. Its published [dataset](https://getdeploying.com/dataset/gpu-prices) specifies [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) attribution; the admission example records that scope. API selection excludes an incomplete current week. Values remain claimed global aggregates, not confirmed rentable inventory. No live prices or raw vendor payloads are committed here.
 
 Vast/OpenRouter parsers and Runpod query candidates have explicit authentication, unit and rights gates. Licensed index providers, financial venues and direct-model vendors remain candidates where commercial access/schema/rights or relevant instruments are unverified. The [admission example](../examples/source-admission.json) makes unavailable states visible. No source is enabled merely because its name is popular, a URL exists or an API key has been supplied.

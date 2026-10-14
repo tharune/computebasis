@@ -4,8 +4,10 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import hmac
+import json
 from pathlib import Path
 import re
+import secrets
 from typing import Any, Mapping
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -19,7 +21,7 @@ from compute_pricing.control.domain.generate import json_schema
 from compute_pricing.control.reporting import SnapshotStore, SnapshotStoreError
 from compute_pricing.control.treasury import evaluate_cash_payload
 
-SERVICE_VERSION = "0.1.0"
+SERVICE_VERSION = "0.2.0"
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
 
 
@@ -93,12 +95,19 @@ def _latest_collection(batch: Any) -> dict[str, Any]:
 
 def create_app(*, api_key: str, store_path: Path,
                source_policies: Mapping[str, SourcePolicy] | None = None,
-               transport: ReadOnlyTransport | None = None) -> FastAPI:
+               transport: ReadOnlyTransport | None = None,
+               collection_plan: list[dict] | None = None,
+               local_instance_id: str | None = None) -> FastAPI:
     if not isinstance(api_key, str) or not 32 <= len(api_key) <= 256 or not re.fullmatch(r"[!-~]+", api_key):
         raise ValueError("API key must be an explicit 32-256 character printable ASCII secret without whitespace")
     store = SnapshotStore(store_path)
+    if local_instance_id is not None and not re.fullmatch(r"[a-f0-9]{32}", local_instance_id):
+        raise ValueError("invalid local instance ID")
     policies = dict(source_policies or {})
     collector_transport = transport or ReadOnlyTransport()
+    plan = json.loads(json.dumps(collection_plan or [], allow_nan=False))
+    if not isinstance(plan, list) or len(plan) > 32 or any(not isinstance(row, dict) or set(row) != {"source_id", "filters"} or not isinstance(row["source_id"], str) or not isinstance(row["filters"], dict) for row in plan):
+        raise ValueError("collection plan requires bounded explicit source/filter records")
     app = FastAPI(title="Compute Pricing", version=SERVICE_VERSION, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.store = store
     versions = {"api": SERVICE_VERSION, "domain": SCHEMA_VERSION, "snapshot": "1.0"}
@@ -133,8 +142,11 @@ def create_app(*, api_key: str, store_path: Path,
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
-        return {"status": "ok", "service": "compute-pricing", "version": SERVICE_VERSION,
-                "mode": "local-paper", "execution_enabled": False}
+        result = {"status": "ok", "service": "compute-pricing", "version": SERVICE_VERSION,
+                  "mode": "local-paper", "execution_enabled": False}
+        if local_instance_id:
+            result["local_instance_id"] = local_instance_id
+        return result
 
     @app.get("/v1/contracts/schema", dependencies=[Depends(authenticated)])
     async def schema() -> dict[str, Any]:
@@ -144,6 +156,74 @@ def create_app(*, api_key: str, store_path: Path,
     async def sources() -> dict[str, Any]:
         return {"sources": source_status(policies), "execution_enabled": False}
 
+    @app.get("/v1/market/index", dependencies=[Depends(authenticated)])
+    async def index() -> dict[str, Any]:
+        from .market import market_index
+        try:
+            return await run_in_threadpool(market_index, store, policies, plan)
+        except SnapshotStoreError:
+            raise HTTPException(503, detail="snapshot_store_unavailable") from None
+
+    def collect_and_save(source_id, filters):
+        if source_id not in policies:
+            raise ConnectorError("source_not_admitted")
+        policy = policies[source_id]
+        for scope in ("observe", "retain", "benchmark"):
+            policy.require(scope)
+        # Multiple explicitly requested regions share a host quota. Wait only
+        # inside the configured budget; long Retry-After holds remain enforced.
+        collector_transport.wait_for_source(source_id, max_wait_s=collector_transport.max_wait_s)
+        batch = collect_source(source_id, policies, transport=collector_transport, filters=filters)
+        if batch.source_id != source_id:
+            raise ConnectorError("source_policy_mismatch")
+        for scope in ("observe", "retain", "benchmark"):
+            policy.require(scope)
+        admitted_input = {"source_id": source_id, "filters": filters,
+                          "source_policy": {field.name: dict(policy.permissions) if field.name == "permissions" else getattr(policy, field.name)
+                                            for field in dataclasses.fields(policy)}}
+        return save("market_collection", admitted_input, _latest_collection(batch))
+
+    @app.post("/v1/market/refresh", dependencies=[Depends(authenticated)])
+    async def refresh(request: Request) -> dict[str, Any]:
+        payload = await _json_body(request, optional=True)
+        attempted_at = dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+        if set(payload) - {"source_ids", "requests"} or "source_ids" in payload and "requests" in payload:
+            raise HTTPException(422, detail="invalid_refresh_input")
+        if "requests" in payload:
+            requests = payload["requests"]
+        else:
+            source_ids = payload.get("source_ids")
+            if source_ids is not None and (not isinstance(source_ids, list) or not 1 <= len(source_ids) <= 32 or any(not isinstance(source, str) for source in source_ids) or len(set(source_ids)) != len(source_ids)):
+                raise HTTPException(422, detail="invalid_refresh_input")
+            selected = source_ids if source_ids is not None else [name for name, policy in policies.items() if policy.enabled]
+            requests = [row for row in plan if row["source_id"] in selected]
+            planned_sources = {row["source_id"] for row in requests}
+            requests += [{"source_id": source, "filters": {}} for source in selected if source not in planned_sources]
+        if not isinstance(requests, list) or not 1 <= len(requests) <= 32 or any(not isinstance(row, dict) or set(row) != {"source_id", "filters"} or not isinstance(row["source_id"], str) or not isinstance(row["filters"], dict) for row in requests):
+            raise HTTPException(422, detail="invalid_refresh_input")
+        keys = [(row["source_id"], json.dumps(row["filters"], sort_keys=True)) for row in requests]
+        if len(set(keys)) != len(keys):
+            raise HTTPException(422, detail="duplicate_refresh_scope")
+        updated, held, failed = [], [], []
+        for row in requests:
+            try:
+                result = await run_in_threadpool(collect_and_save, row["source_id"], row["filters"])
+                updated.append({"source_id": row["source_id"], "filters": row["filters"], "snapshot_id": result["snapshot_id"],
+                                "observation_count": len(result["result"].get("observations", [])),
+                                "catalog_record_count": len(result["result"].get("catalog_records", [])),
+                                "coverage": result["result"].get("coverage", {})})
+            except ConnectorError as exc:
+                destination = held if exc.code.startswith("admission_blocked") or exc.code in {"source_not_admitted", "authentication_missing", "source_cooldown_active", "source_collection_in_progress"} else failed
+                destination.append({"source_id": row["source_id"], "filters": row["filters"], "reason": exc.code})
+            except HTTPException:
+                failed.append({"source_id": row["source_id"], "reason": "snapshot_store_unavailable"})
+        output = {"updated": updated, "held": held, "failed": failed, "execution_enabled": False,
+                  "refresh_mode": "explicit_manual_read", "partial_refresh": bool(held or failed),
+                  "refresh_event_id": secrets.token_hex(16), "attempted_at": attempted_at,
+                  "completed_at": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")}
+        receipt = await run_in_threadpool(save, "market_refresh", {"requests": requests}, output)
+        return {**output, "snapshot_id": receipt["snapshot_id"], "created_at": receipt["created_at"]}
+
     @app.post("/v1/sources/{source_id}/collect", dependencies=[Depends(authenticated)])
     async def collect(source_id: str, request: Request) -> dict[str, Any]:
         payload = await _json_body(request, optional=True)
@@ -151,22 +231,12 @@ def create_app(*, api_key: str, store_path: Path,
             raise HTTPException(422, detail="invalid_collection_input")
         if source_id not in policies:
             raise HTTPException(409, detail="source_not_admitted")
-        policy = policies[source_id]
         try:
-            policy.require("observe")
-            policy.require("retain")
-            policy.require("benchmark")
-            batch = await run_in_threadpool(collect_source, source_id, policies,
-                                           transport=collector_transport, filters=payload.get("filters"))
+            return await run_in_threadpool(collect_and_save, source_id, payload.get("filters", {}))
         except ConnectorError as exc:
             status = 429 if exc.code in {"source_collection_in_progress", "source_cooldown_active"} else 409 if exc.code.startswith("admission_blocked") or exc.code in {"authentication_missing", "unknown_or_unadmitted_source", "source_transport_not_implemented"} else 502
             # Codes are generated by the connector and contain no input values.
             raise HTTPException(status, detail=exc.code) from None
-        output = _latest_collection(batch)
-        admitted_input = {"source_id": source_id, "filters": payload.get("filters", {}),
-                          "source_policy": {field.name: dict(policy.permissions) if field.name == "permissions" else getattr(policy, field.name)
-                                            for field in dataclasses.fields(policy)}}
-        return await run_in_threadpool(save, "market_collection", admitted_input, output)
 
     @app.post("/v1/pricing/evaluate", dependencies=[Depends(authenticated)])
     async def pricing(request: Request) -> dict[str, Any]:
@@ -220,4 +290,6 @@ def create_app(*, api_key: str, store_path: Path,
             raise HTTPException(404, detail="snapshot_not_found")
         return snapshot.to_dict()
 
+    from compute_pricing.control.workbench import add_workbench
+    add_workbench(app)
     return app

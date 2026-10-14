@@ -127,7 +127,7 @@ class SnapshotStore:
 
     def put(self, *, kind: str, input_payload: Mapping[str, Any], output_payload: Mapping[str, Any],
             versions: Mapping[str, str]) -> Snapshot:
-        if kind not in {"pricing", "pricing_scenarios", "cash", "market_collection", "paper_decision", "inference", "calibration", "financing"}:
+        if kind not in {"pricing", "pricing_scenarios", "cash", "market_collection", "market_refresh", "paper_decision", "inference", "calibration", "financing"}:
             raise SnapshotStoreError("unknown_snapshot_kind")
         if not isinstance(input_payload, Mapping) or not isinstance(output_payload, Mapping) or not isinstance(versions, Mapping) or not versions:
             raise SnapshotStoreError("snapshot_object_required")
@@ -172,3 +172,37 @@ class SnapshotStore:
         except (ValueError, TypeError, RecursionError):
             raise SnapshotStoreError("snapshot_integrity_failed") from None
         return Snapshot(digest, row[0], document)
+
+    def latest_collections(self, *, scan_limit: int = 512) -> tuple[Snapshot, ...]:
+        """Latest verified result per explicit source/filter scope, bounded scan.
+
+        A scoped cloud response never replaces another region's observation.
+        This is a development index over immutable collection snapshots.
+        """
+        if type(scan_limit) is not int or not 1 <= scan_limit <= 2048:
+            raise SnapshotStoreError("invalid_collection_scan_limit")
+        try:
+            with self._connect() as connection:
+                rows = connection.execute("SELECT digest FROM snapshots WHERE json_extract(canonical_document,'$.kind')='market_collection' ORDER BY created_at DESC, digest DESC LIMIT ?", (scan_limit,)).fetchall()
+        except sqlite3.Error:
+            raise SnapshotStoreError("snapshot_store_unavailable") from None
+        latest, seen = [], set()
+        for (digest,) in rows:
+            snapshot = self.get(digest)
+            packet = snapshot.to_dict()["document"]
+            source = packet["output"].get("source_id")
+            filters = {key: value for key, value in packet["input"].get("filters", {}).items() if key not in {"max_pages"}}
+            scope = (source, json.dumps(filters, sort_keys=True, separators=(",", ":")))
+            if not isinstance(source, str) or not source or scope in seen:
+                continue
+            seen.add(scope)
+            latest.append(snapshot)
+        return tuple(latest)
+
+    def latest_refresh(self) -> Snapshot | None:
+        try:
+            with self._connect() as connection:
+                row = connection.execute("SELECT digest FROM snapshots WHERE json_extract(canonical_document,'$.kind')='market_refresh' ORDER BY created_at DESC, digest DESC LIMIT 1").fetchone()
+        except sqlite3.Error:
+            raise SnapshotStoreError("snapshot_store_unavailable") from None
+        return self.get(row[0]) if row else None
