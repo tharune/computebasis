@@ -257,6 +257,18 @@ test("synthetic load is explicit, unauthenticated, separate, and discarded after
   assert.equal(h.node("pricing-input").value, ""); assert.equal(h.node("notice").hidden, true);
 });
 
+test("the shipped synthetic scenario opens in the editor, and a simulated quote replaces only the supplier ask", async () => {
+  const sample = fs.readFileSync(path.join(assets, "synthetic-pricing-request.json"), "utf8");
+  const h = harness(); await h.connect(); h.node("pricing-input").value = ""; h.reply(sample);
+  await h.node("load-sample").emit("click");
+  assert.equal(h.node("notice").className, "notice"); assert.match(h.node("pricing-mode").textContent, /^SYNTHETIC EXAMPLE/);
+  assert.equal(h.node("pricing-input").value, sample); assert.ok(field(h, "pricing", "target.gpu_count"), "the editor draws the scenario's fields");
+  h.node("pricing-input").value = ""; h.reply(sample);
+  await h.window.ComputeHost.priceQuote({ id: "Q0149", price: "3.1234" });
+  const packet = JSON.parse(h.node("pricing-input").value); assert.equal(packet.commercial.supplier_ask, "3.1234");
+  assert.match(h.node("pricing-mode").textContent, /Q0149/); assert.equal(h.node("pricing-view").hidden, false);
+});
+
 test("mutations send memory CSRF while exact request bytes and decimals are preserved", async () => {
   const h = harness(); await h.connect(); h.node("pricing-input").value = '{"amount":"0.000000000000000000001"}'; await h.node("pricing-input").emit("input");
   h.reply(evaluated()); await h.node("evaluate-pricing").emit("click");
