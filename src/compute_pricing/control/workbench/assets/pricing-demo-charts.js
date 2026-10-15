@@ -73,7 +73,7 @@
      A wide slot puts each name left of its bar; a narrow one puts it above, so nothing is squeezed or clipped. */
   function barChart({ rows, width, axisTitle, description, animate = false }) {
     const narrow = width < 520; const valueRoom = narrow ? 72 : 80;
-    const labelW = narrow ? 0 : clamp(Math.round(width * 0.36), 150, 236); const rowH = narrow ? 62 : 46; const barH = narrow ? 14 : 16;
+    const labelW = narrow ? 0 : clamp(Math.round(width * 0.4), 212, 250); const rowH = narrow ? 62 : 46; const barH = narrow ? 14 : 16;
     const top = 8; const axisH = 40; const height = top + rows.length * rowH + axisH;
     const left = labelW; const right = width - valueRoom;
     const high = Math.max(0, ...rows.map((row) => row.value).filter(finite));

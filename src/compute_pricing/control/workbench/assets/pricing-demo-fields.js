@@ -95,7 +95,7 @@
     "settlement.yield_share_buyer": ["Buyer yield share", FRACTION],
     "treasury.opening_cash": ["Opening cash", "USD"],
     "treasury.minimum_cash": ["Minimum cash floor", "USD"],
-    "treasury.supplier_payment_on": ["Supplier deposit paid", "date", "YYYY-MM-DD"],
+    "treasury.supplier_payment_on": ["Supplier deposit paid", "date"],
     "treasury.supplier_balance_on": ["Supplier balance paid", "date"],
     "treasury.buyer_invoice_on": ["Buyer invoiced", "date"],
     "treasury.buyer_receipt_on": ["Buyer pays", "date"],
