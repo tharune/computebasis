@@ -13,7 +13,7 @@ dependencies = ["fastapi==0.143.0", "uvicorn==0.54.0", "numpy==2.3.5", "certifi=
 where = ["src"]
 
 [tool.setuptools.package-data]
-"compute_pricing.control.workbench" = ["assets/*"]
+"compute_pricing.control.workbench" = ["assets/*", "assets/fonts/*"]
 
 [tool.ruff]
 target-version = "py311"

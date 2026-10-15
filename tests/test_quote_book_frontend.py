@@ -33,12 +33,20 @@ class QuoteBookFrontendTests(unittest.TestCase):
         war = market.snapshot()
         market.control("reset")
         reset = market.snapshot()
-        suite = Path(__file__).with_name("workbench_demo.test.js")
+        # The other two scenarios, each on a fresh book, for the Brief's figures (workbench_landing_figures.test.js).
+        shocked = QuoteBook(clock=Clock())
+        shocked.control("scenario", "supply_shock")
+        downgraded = QuoteBook(clock=Clock())
+        downgraded.control("scenario", "downgrade")
+        # Every suite that draws the book: workbench_demo.test.js, plus one per page or component (workbench_overview, _quotes, _map ...).
+        # workbench_behavior.test.js has its own runner. demo_harness.js is their shared fake DOM and host.
+        suites = sorted(str(path) for path in Path(__file__).parent.glob("workbench_*.test.js") if path.name != "workbench_behavior.test.js")
+        self.assertIn("workbench_demo.test.js", [Path(path).name for path in suites])
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "snapshots.json"
-            target.write_text(json.dumps({"base": base, "war": war, "reset": reset}))
+            target.write_text(json.dumps({"base": base, "war": war, "reset": reset, "shock": shocked.snapshot(), "downgrade": downgraded.snapshot()}))
             result = subprocess.run(
-                [node, "--test", str(suite)],
+                [node, "--test", *suites],
                 env={**os.environ, "COMPUTEBASIS_WORKBENCH_ASSETS": str(ASSETS), "COMPUTEBASIS_BOOK_SNAPSHOTS": str(target)},
                 capture_output=True, text=True, timeout=60, check=False,
             )

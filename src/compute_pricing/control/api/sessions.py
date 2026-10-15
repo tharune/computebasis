@@ -149,6 +149,8 @@ def request_scope(request: Request) -> str:
         return "book"
     if request.method == "POST" and (path == "/v1/market/refresh" or path.startswith("/v1/sources/") and path.endswith("/collect")):
         return "collection"
+    if request.method == "POST" and path == "/v1/book/control":
+        return "book"
     if request.method == "POST" and path in {
         "/v1/requests/parse", "/v1/pricing/evaluate", "/v1/pricing/scenarios",
         "/v1/cash/evaluate", "/v1/cash/calendar", "/v1/inference/evaluate", "/v1/calibration/evaluate",

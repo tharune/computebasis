@@ -241,6 +241,8 @@ def create_app(*, api_key: str | None = None, store_path: Path,
         raise HTTPException(401, detail="unauthorized", headers={"WWW-Authenticate": "Bearer"})
 
     attach_sessions(app, sessions, json_body=_json_body)
+    from .quote_book import attach_quote_book
+    attach_quote_book(app, authenticated=authenticated, json_body=_json_body)
 
     def save(kind: str, payload: Mapping[str, Any], output: Mapping[str, Any]) -> dict[str, Any]:
         snapshot_versions = dict(versions)
@@ -652,6 +654,8 @@ def create_app(*, api_key: str | None = None, store_path: Path,
     from .book_deal import attach_book_deals
     attach_book_deals(app, get_book=get_book, authenticated=authenticated, json_body=_json_body,
                       evaluator=bound_pricing, save=save)
+    from .book_desk import attach_book_desk
+    attach_book_desk(app, get_book=get_book, authenticated=authenticated)
     from .pricing_demo import attach_pricing_demo
     from .live_market import configured_market
     attach_pricing_demo(app, authenticated=authenticated, json_body=_json_body, save=save,

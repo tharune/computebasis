@@ -36,15 +36,15 @@ observations, simulation policy and saved paper decisions retain distinct roles.
 
 ## Run the local workbench
 
-The [workbench guide](docs/workbench.md) starts the local application. It opens a short-lived same-origin workspace session automatically. Ten configured anonymous source roles provide advertised GPU references, regional retail meters, native cloud tariffs, inference token rates, informational FX, model/recipe discovery, wholesale energy references, publisher-derived GPU/VM catalogs and [Great Britain grid-carbon context](docs/grid-carbon-context.md). The backend refreshes explicitly configured scopes with permission checks, cooldowns, coalescing and backoff; the browser synchronizes retained evidence without overwriting drafts. Native economic units stay separate. Configured access is distinct from runtime availability and public redistribution permission.
+The [workbench guide](docs/workbench.md) starts the local application and describes its four views: the **Brief** (landing page), **Overview**, **Quotes** and **Pricing**. The page opens a short-lived same-origin workspace session automatically; no credential is pasted. Overview and Quotes draw a locally simulated quote book (28 invented providers, about 150 live quotes) that ranks every quote by what it costs all-in, with financing and expected loss added to the quoted price. Nothing in it is real market data, and nothing executes a trade.
 
-Start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json` after installation, then open `http://127.0.0.1:8000`. No credential paste is needed. Source reads run only while the local app runs; no system jobs are installed. `--no-auto-refresh` selects manual operation. Review [source scope](docs/source-adapters.md), [session and refresh](docs/local-session-refresh.md) and [workspace workflows](docs/workspace-workflows.md).
+Start `.venv/bin/python scripts/local.py start --runtime ABSOLUTE_EXTERNAL_RUNTIME --source-config examples/source-admission.json --collection-plan examples/collection-plan.json` after installation, then open `http://127.0.0.1:8000`. Source reads run only while the local app runs; no system jobs are installed. `--no-auto-refresh` selects manual operation. Ten configured anonymous source roles feed the retained-market API (advertised GPU references, regional retail meters, native cloud tariffs, inference token rates, informational FX, model discovery, wholesale energy, publisher-derived GPU/VM catalogs and [Great Britain grid-carbon context](docs/grid-carbon-context.md)); native economic units stay separate. Review [source scope](docs/source-adapters.md), [session and refresh](docs/local-session-refresh.md) and [workspace workflows](docs/workspace-workflows.md).
 
 Open **Pricing** for three populated demonstrations: strong H100 capacity,
 balanced L40S terms and weak A4000 capacity with hourly restricted escrow.
 **Simulate** opens the assessment; **Edit terms** exposes provider, facility,
 pricing/power, settlement and dated funding inputs supplied by the backend
-contract. The modal separates purchase ceilings, cost-recovery and margin asks,
+contract. On Quotes, **Price this quote** carries the selected quote's price into the form as the supplier ask; nothing is evaluated until you press **Evaluate contract**. The modal separates purchase ceilings, cost-recovery and margin asks,
 retained native-unit provider references, unfitted sensitivity, and full cash
 paths. Each saved assessment downloads an unsigned, nonbinding compute-services
 agreement and quote schedule. Hypothetical bank/stable-asset yield and its party
@@ -55,22 +55,10 @@ Read [pricing demonstrations](docs/pricing-demonstrations.md),
 [agreement generation](docs/demo-compute-agreement.md).
 Run `.venv/bin/python scripts/pricing_demo_example.py` for the three offline cases.
 
-For the focused **Market → Deal economics → Inventory** demonstration, use the
-[demo runbook](docs/demo-sprint.md) and its four-scope collection plan:
-
-```sh
-DEMO_RUNTIME="${TMPDIR:-/tmp}/computebasis-public-demo"
-.venv/bin/python scripts/local.py start --runtime "$DEMO_RUNTIME" \
-  --source-config examples/source-admission.json \
-  --collection-plan examples/demo-collection-plan.json \
-  --auto-refresh-config examples/auto-refresh.json --port 8000
-```
-
-This schedules GetDeploying, ECB and Energinet DK1/DK2 only. Choose the invented
-deal deliberately; its costs, margin and cash diagnostics remain a **synthetic
-scenario**, with no admitted physical bid or trade. Live references never become
-owned inventory or verified counterparty evidence. Keep this dedicated runtime
-outside Git and separate from any runtime containing sensitive records.
+For the demo flow (Brief, Overview with a price war and a supply shock, Quotes, then **Price this quote** into Pricing),
+follow the [demo runbook in the workbench guide](docs/workbench.md#run-the-demo) and its four-scope collection plan. It schedules
+GetDeploying, ECB and Energinet DK1/DK2 only, on a dedicated runtime outside Git. Live references never become owned
+inventory or verified counterparty evidence.
 
 ## Try the current control plane
 
@@ -110,7 +98,7 @@ The tool does not presume a universal US premium or turn every additional factor
 
 - [Backend/frontend integration contract](docs/backend-frontend-handoff.md), [quote readiness](docs/quote-readiness.md) and [provider coverage](docs/provider-source-coverage.md)
 - [Design](docs/architecture.md)
-- [Three-screen demo runbook and sprint scope](docs/demo-sprint.md)
+- [Local workbench and demo runbook](docs/workbench.md), and [frontend architecture](docs/frontend-architecture.md)
 - [Control-plane methods and operating boundaries](docs/control-plane.md)
 - [Compact research methodology](docs/methodology.md)
 - [Conditional threshold-ladder diagnostics](docs/market-diagnostics.md)
@@ -121,19 +109,24 @@ The tool does not presume a universal US premium or turn every additional factor
 
 MIT licensed. Public samples are invented; credentials, customer records, evidence documents and raw or licensed vendor payloads belong outside Git. Only the maintainer publishes to the default branch.
 
-## Analyst workspace and flexible intake
+## Backend guides
 
-The [quality and intake guide](docs/quality-and-intake.md) covers the responsive analyst layout, exact native-unit sorting, bounded collection and schema-neutral local table evidence. Unknown columns and source meanings remain visible; arbitrary input never becomes approved pricing evidence automatically. Offline validation requires Node 24 for the dependency-free frontend behavior tests; serving the app requires no JavaScript build.
-
-The [inventory and policy guide](docs/inventory-and-policy.md) covers versioned local holdings, source controls and factor registration. Public demos are independently invented; listings never automatically become inventory. Map outlines are packaged [public-domain Natural Earth geometry](docs/third-party-notices.md), with no external tile or location request.
+The browser has four views (see above). The backend routes behind the removed advanced pages remain, with their guides:
+the [inventory and policy guide](docs/inventory-and-policy.md) (versioned local holdings, source controls and factor registration),
+the [underwriting coverage guide](docs/underwriting-assessment.md) (112 neutral requirements, dynamic scopes and caller-qualified evidence checks;
+checklist coverage does not calibrate price factors or approve a transaction) and the
+[quality and intake guide](docs/quality-and-intake.md) (bounded collection and schema-neutral local table evidence; unknown columns and
+source meanings stay visible, and arbitrary input never becomes approved pricing evidence automatically). Public demos are independently
+invented; listings never automatically become inventory. Offline validation requires Node 24 for the dependency-free frontend behavior tests;
+serving the app requires no JavaScript build.
 
 The [interface design guide](docs/interface-design.md) records typography, action hierarchy, accessible controls and visual review criteria.
-
-The [underwriting coverage guide](docs/underwriting-assessment.md) describes the 112 neutral requirements, dynamic scopes and caller-qualified evidence checks. Missing evidence remains explicit; checklist coverage does not calibrate price factors or approve a transaction. The workspace now uses top navigation and light/dark themes.
 
 Current functionality and backend curve, power and hedge boundaries are listed in [capabilities](docs/features.md).
 
 A separate [simulated quote book](docs/quote-book.md) provides independently generated
 providers, offer terms and scenario changes through authenticated `/v1/book` routes.
 These invented records remain separate from live reference collection, retained
-market evidence and declared inventory.
+market evidence and declared inventory. `GET /v1/book/desk` adds an equally invented
+desk ledger (positions, brokered bids and where supply sits) described in the
+[desk ledger contract](docs/desk-ledger-contract.md).

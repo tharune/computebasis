@@ -1,0 +1,320 @@
+/* Overview: positions, brokered bids, market state and the capacity map. Owned by the Overview page; shared rules stay in workbench.css.
+
+   Layout: one 12-column grid (32px gutters, 24px below 1100px) shared by the key figures and every section. The key-figure tiles are
+   two columns each, so tiles 1, 3 and 5 start where a four-column block starts; panels use 4, 6, 8 or 12 columns only. Text starts on
+   the page's left edge: table cells, chart labels and headings all share it.
+
+   Colour: bars and lines read --gc, set by a class. The single accent marks "best eligible", "filled" and gains; grey is "as quoted",
+   "held back" and everything that is not the point. Seller grade in a stack is an ordinal ramp (A strongest), because the shared grade
+   hues do not separate under the dataviz validator; grade chips elsewhere keep their shared colours. Light, dark and system-dark values
+   are kept in step below. Motion is opacity and transform only, only inside no-preference, and only for a section's first second. */
+
+/* Tokens --------------------------------------------------------------- */
+:root {
+  --ov-neg: #b4531f;                      /* a loss; against --accent: protan dE 8.5, normal dE 22.2 on the light canvas */
+  --og-a-ink: var(--canvas); --og-b-ink: var(--canvas); --og-c-ink: var(--ink); --og-d-ink: var(--ink);
+}
+:root[data-theme="dark"] {
+  --ov-neg: #d9854a;                      /* against --accent: deutan dE 12.8, normal dE 20.3 on the dark canvas */
+  --og-a-ink: var(--canvas); --og-b-ink: var(--canvas); --og-c-ink: var(--canvas); --og-d-ink: var(--ink);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --ov-neg: #d9854a;
+    --og-a-ink: var(--canvas); --og-b-ink: var(--canvas); --og-c-ink: var(--canvas); --og-d-ink: var(--ink);
+  }
+}
+.og-a { --gc: var(--ramp-0); --seg: var(--og-a-ink); } .og-b { --gc: var(--ramp-1); --seg: var(--og-b-ink); }
+.og-c { --gc: var(--ramp-2); --seg: var(--og-c-ink); } .og-d { --gc: var(--ramp-3); --seg: var(--og-d-ink); } .og-u { --gc: var(--faint); --seg: var(--canvas); }
+.g-u { --gc: var(--faint); }
+.ov-s-low, .ov-s-med, .ov-fill-n, .ov-one { --gc: var(--faint); }
+.ov-s-best, .ov-fill-a, .ov-gain { --gc: var(--accent); }
+.ov-loss { --gc: var(--ov-neg); }
+
+/* Page grid ------------------------------------------------------------- */
+.ov { --ov-gap: 32px; padding-bottom: 8px; }
+.ov-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px 32px; margin: 36px 0 28px; }
+.ov-head-copy { min-width: 0; }
+.ov-head-copy p { max-width: 100ch; margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.ov-head-copy .ov-clock { margin-top: 2px; font-variant-numeric: tabular-nums; }
+.ov-head-copy .ov-clock:empty { display: none; }
+.ov-controls { flex: none; }
+.ov .sim-label { font-size: 12px; letter-spacing: 0; text-transform: none; }
+
+.ov-kpis { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--ov-gap); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.ov-kpis > .empty-state { grid-column: 1 / -1; }
+.ov-kpi { position: relative; grid-column: span 2; display: flex; flex-direction: column; min-width: 0; padding: 18px 0 20px; }
+.ov-kpi + .ov-kpi::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--ov-gap) / -2); width: 1px; background: var(--border); }
+.ov-kpi-label { color: var(--muted); font-size: 12px; font-weight: 500; line-height: 16px; }
+.ov-kpi-value { display: block; margin-top: 8px; font-size: 28px; font-weight: 600; letter-spacing: -.025em; line-height: 32px; white-space: nowrap; }
+.ov-kpi-sub { margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.ov-kpi-change { margin-top: 2px; color: var(--ink-soft); font-size: 12px; line-height: 1.45; font-variant-numeric: tabular-nums; }
+
+.ov-section { margin-top: 64px; }
+.ov-section-head { margin-bottom: 24px; }
+.ov-section-head h2 { font-size: 20px; font-weight: 600; letter-spacing: -.015em; line-height: 28px; }
+.ov-section-head p { max-width: 76ch; margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.ov-last { padding-bottom: 24px; }
+
+.ov-cols { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--ov-gap); row-gap: 48px; align-items: start; }
+.ov-c4 { grid-column: span 4; } .ov-c6 { grid-column: span 6; } .ov-c8 { grid-column: span 8; } .ov-c12 { grid-column: span 12; }
+.ov-panel { position: relative; min-width: 0; padding-top: 16px; border-top: 1px solid var(--border); }
+.ov-ph { min-height: 40px; margin-bottom: 16px; }
+.ov-ph h3 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -.005em; line-height: 20px; }
+.ov-ph p { margin: 2px 0 0; color: var(--muted); font-size: 12px; line-height: 18px; }
+.ov-ph-tabs { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 16px; }
+.ov-ph-tabs .segmented { flex: none; }
+.ov-slot { min-width: 0; }
+.ov-bid-top { margin-bottom: 48px; }
+.ov-caption { max-width: 68ch; margin: 14px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.ov-footnote { max-width: 92ch; margin: 14px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.ov-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.ov-map-note { padding: 20px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.ov-map { position: relative; min-width: 0; }
+.ov-unrated { color: var(--muted); font-size: 12px; }
+.ov-absent { padding: 20px 0; border-top: 1px solid var(--border); font-size: 13px; }
+.ov-absent strong { display: block; font-weight: 600; }
+.ov-absent p { max-width: 70ch; margin: 4px 0 0; color: var(--muted); line-height: 1.55; }
+.ov-absent .ov-absent-why { font: 11.5px/1.5 var(--mono); }
+.ov-slot > .empty-state { padding: 24px 0; text-align: left; }
+
+/* Fill rate */
+.ov-figure { margin: 0; font-size: 44px; font-weight: 600; letter-spacing: -.03em; line-height: 1.05; }
+.ov-figure-note { max-width: 36ch; margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.ov-figure + .ov-figure-note { margin-top: 10px; }
+
+/* Tables --------------------------------------------------------------- */
+.ov-scroll { overflow-x: auto; }
+.ov-table { width: 100%; min-width: 0; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.ov-table th, .ov-table td { position: static; padding: 11px 16px; border: 0; border-top: 1px solid var(--border); background: none; font-weight: 400; text-align: left; vertical-align: middle; white-space: nowrap; overflow-wrap: normal; }
+.ov-table tbody tr:hover td, .ov-table tbody tr:hover th { background: var(--surface); }
+.ov-table th:first-child, .ov-table td:first-child { padding-left: 0; }
+.ov-table th:last-child, .ov-table td:last-child { padding-right: 0; }
+.ov-table thead th { padding-top: 12px; padding-bottom: 10px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; font-weight: 500; line-height: 16px; vertical-align: bottom; }
+.ov-table tbody tr:first-child th, .ov-table tbody tr:first-child td { border-top: 0; }
+.ov-table tbody th { color: var(--ink); font-size: 13px; }
+.ov-table tfoot th, .ov-table tfoot td { border-top: 1px solid var(--control-border); border-bottom: 1px solid var(--border); font-weight: 600; }
+.ov-table tfoot tr:hover td, .ov-table tfoot tr:hover th { background: none; }
+.ov-table .ov-n { text-align: right; }
+.ov-table .ov-strong { color: var(--ink); font-weight: 600; }
+.ov-unit { display: block; color: var(--faint); font-size: 11px; font-weight: 400; line-height: 14px; }
+.ov-model { font-weight: 600; }
+.ov-id { margin-left: 10px; color: var(--muted); font: 400 11.5px var(--mono); }
+.ov-link-id { font: 12px var(--mono); }
+.ov-two { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.ov-two .ov-dates { margin-left: 0; }
+.ov-two .ov-seller { font-size: 12px; }
+.ov-seller { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-soft); vertical-align: middle; }
+.ov-seller .grade { flex: none; }
+.ov-seller-name { color: var(--muted); }
+.ov-kind { margin-left: 8px; color: var(--muted); }
+.ov-why { color: var(--muted); }
+.ov-state { display: inline-flex; align-items: center; gap: 8px; }
+.ov-dates { margin-left: 12px; color: var(--muted); font-size: 12px; }
+.ov-pip { display: inline-block; width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); }
+.ov-state.is-upcoming .ov-pip, .ov-state.is-open .ov-pip { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
+.ov-state.is-declined .ov-pip { background: var(--faint); }
+.ov-state.is-expired .ov-pip { background: transparent; box-shadow: inset 0 0 0 1.5px var(--faint); }
+.ov-diff { white-space: nowrap; }
+.ov-signed { display: inline-block; vertical-align: middle; margin-right: 12px; overflow: visible; }
+.ov-diff-value { display: inline-block; min-width: 100px; text-align: right; vertical-align: middle; }
+.ov-positions { min-width: 900px; }
+.ov-bids { min-width: 960px; }
+.ov-sellers { min-width: 760px; }
+.ov-toggle { margin: 10px 0 0; padding-left: 0; }
+.ov-table .row-link { font-weight: 600; }
+.ov-table tr.recent th:first-child { box-shadow: inset 2px 0 var(--grade-c); }
+
+/* Charts --------------------------------------------------------------- */
+.chart.ov-chart text { font-family: var(--font); }
+.ov-chart .ov-lab { fill: var(--ink); font-size: 13px; font-weight: 600; }
+.ov-chart .ov-lab-light { fill: var(--ink-soft); font-weight: 500; }
+.ov-chart .ov-sub, .ov-chart .ov-note { fill: var(--muted); font-size: 11.5px; }
+.ov-chart .ov-tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ov-chart .ov-val { fill: var(--ink-soft); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ov-chart .ov-trail { fill: var(--ink); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ov-chart .ov-seg { fill: var(--seg, var(--canvas)); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; pointer-events: none; }
+.ov-chart .ov-flag-label { fill: var(--ink-soft); font-size: 11px; font-weight: 500; }
+.ov-grid, .ov-rule { stroke: var(--border); stroke-width: 1; }
+.ov-axis { stroke: var(--faint); stroke-width: 1; }
+.ov-bar { fill: var(--gc); }
+.ov-hollow { fill-opacity: .16; stroke: var(--gc); stroke-width: 1.5; }
+.ov-line { fill: none; stroke: var(--gc); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.ov-dot { fill: var(--gc); }
+.ov-ring { fill: var(--canvas); }
+.ov-gap { fill: var(--accent); fill-opacity: .1; }
+.ov-flag { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.ov-cross { stroke: var(--ink-soft); stroke-width: 1; pointer-events: none; }
+.ov-cross:not(.on), .ov-hdot:not(.on) { display: none; }
+.ov-hdot { stroke: var(--canvas); stroke-width: 2; pointer-events: none; }
+.ov-hit { fill: transparent; }
+.ov-rail { fill: var(--surface-hover); }
+.ov-leader { stroke: var(--faint); stroke-width: 1; }
+.ov-twin { min-width: 0; }
+
+.ov-legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 14px 0 0; padding: 0; list-style: none; color: var(--muted); font-size: 12px; }
+.ov-legend li { display: inline-flex; align-items: center; }
+.ov-swatch { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 2px; background: var(--gc); }
+.ov-swatch.ov-key { width: 16px; height: 2px; border-radius: 1px; }
+.ov-swatch.ov-band { width: 16px; background: var(--accent); opacity: .16; }
+
+.ov-readout { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 28px; margin: 0 0 14px; }
+.ov-readout > div { min-width: 0; }
+.ov-readout dt { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; line-height: 16px; }
+.ov-readout dt::before { content: ""; width: 12px; height: 2px; border-radius: 1px; background: var(--gc, transparent); }
+.ov-readout > div:first-child { --gc: var(--faint); } .ov-readout > .is-best { --gc: var(--accent); } .ov-readout > div:nth-child(3) dt::before { display: none; }
+.ov-readout dd { display: flex; align-items: center; gap: 8px; min-height: 28px; margin: 4px 0 0; font-size: 20px; font-weight: 600; letter-spacing: -.02em; line-height: 28px; font-variant-numeric: tabular-nums; }
+.ov-readout.is-hover .grade { display: none; }
+.ov-readout-time { margin-left: auto; align-self: flex-end; padding-bottom: 4px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* Market events */
+.ov-feed { margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+.ov-event { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-top: 1px solid var(--border); line-height: 1.45; }
+.ov-event:first-child { border-top: 0; padding-top: 0; }
+.ov-event time { color: var(--muted); font: 11.5px/1.6 var(--mono); }
+.ov-event.is-alert > span { font-weight: 600; }
+.ov-event.is-alert::before, .ov-event.is-watch::before { content: ""; position: absolute; top: 9px; bottom: 9px; left: -12px; width: 2px; border-radius: 1px; background: var(--ov-neg); }
+.ov-event.is-watch::before { background: var(--faint); }
+.ov-event:first-child::before { top: 0; }
+
+/* Motion: a section's first second only. Opacity and transform, nothing else. --------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes ov-rise { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes ov-grow { from { transform: scaleX(0); } }
+  @keyframes ov-fade { from { opacity: 0; } }
+  .ov-kpis.ov-in .ov-kpi { animation: ov-rise 600ms var(--ease) backwards; }
+  .ov-kpis.ov-in .ov-kpi:nth-child(2) { animation-delay: 60ms; } .ov-kpis.ov-in .ov-kpi:nth-child(3) { animation-delay: 120ms; }
+  .ov-kpis.ov-in .ov-kpi:nth-child(4) { animation-delay: 180ms; } .ov-kpis.ov-in .ov-kpi:nth-child(5) { animation-delay: 240ms; } .ov-kpis.ov-in .ov-kpi:nth-child(6) { animation-delay: 300ms; }
+  .ov-in .ov-bar { transform-box: fill-box; transform-origin: left center; animation: ov-grow 640ms var(--ease) backwards; }
+  .ov-in .ov-r2 { animation-delay: 60ms; } .ov-in .ov-r3 { animation-delay: 120ms; } .ov-in .ov-r4 { animation-delay: 180ms; } .ov-in .ov-r5 { animation-delay: 240ms; }
+  .ov-in .ov-r6 { animation-delay: 300ms; } .ov-in .ov-r7 { animation-delay: 360ms; } .ov-in .ov-r8 { animation-delay: 420ms; }
+  .ov-history.ov-in .ov-line, .ov-history.ov-in .ov-gap { animation: ov-fade 700ms var(--ease) backwards; }
+  .ov-table.ov-in tbody tr { animation: ov-rise 500ms var(--ease) backwards; }
+  .ov-table.ov-in tbody tr.ov-r2 { animation-delay: 50ms; } .ov-table.ov-in tbody tr.ov-r3 { animation-delay: 100ms; } .ov-table.ov-in tbody tr.ov-r4 { animation-delay: 150ms; }
+  .ov-table.ov-in tbody tr.ov-r5 { animation-delay: 200ms; } .ov-table.ov-in tbody tr.ov-r6 { animation-delay: 250ms; } .ov-table.ov-in tbody tr.ov-r7 { animation-delay: 300ms; } .ov-table.ov-in tbody tr.ov-r8 { animation-delay: 350ms; }
+}
+
+/* Responsive ------------------------------------------------------------ */
+@media (max-width: 1199px) {
+  .ov { --ov-gap: 24px; }
+  .ov-table th, .ov-table td { padding-left: 12px; padding-right: 12px; }
+  .ov-table th:first-child, .ov-table td:first-child { padding-left: 0; }
+  .ov-table th:last-child, .ov-table td:last-child { padding-right: 0; }
+  .ov-head { flex-direction: column; align-items: flex-start; }
+  .ov-controls { align-self: flex-start; }
+  .ov .sim-controls { justify-content: flex-start; }
+}
+@media (max-width: 1100px) {
+  .ov-kpis { column-gap: 0; }
+  .ov-kpi { grid-column: span 4; padding-left: 20px; padding-right: 12px; }
+  .ov-kpi + .ov-kpi::before { left: 0; }
+  .ov-kpi:nth-child(3n + 1) { padding-left: 0; }
+  .ov-kpi:nth-child(3n + 1)::before { display: none; }
+  .ov-kpi:nth-child(n + 4) { border-top: 1px solid var(--border); }
+  .ov-c6, .ov-c8 { grid-column: span 12; }
+  .ov-c4 { grid-column: span 12; }
+  .ov-c4.ov-t6 { grid-column: span 6; }
+  .ov-bid-top .ov-c4 { grid-column: span 4; } .ov-bid-top .ov-c8 { grid-column: span 8; }
+  .ov-cols { row-gap: 40px; }
+}
+@media (max-width: 720px) {
+  .ov-head { margin: 28px 0 24px; }
+  .ov-kpi { grid-column: span 6; padding-left: 16px; }
+  .ov-kpi:nth-child(3n + 1)::before { display: block; }
+  .ov-kpi:nth-child(odd) { padding-left: 0; }
+  .ov-kpi:nth-child(even) { padding-left: 16px; }
+  .ov-kpi:nth-child(odd)::before { display: none; }
+  .ov-kpi:nth-child(n + 3) { border-top: 1px solid var(--border); }
+  .ov-kpi-value { font-size: 24px; line-height: 28px; }
+  .ov-section { margin-top: 48px; }
+  .ov-bid-top .ov-c4, .ov-bid-top .ov-c8, .ov-c4.ov-t6 { grid-column: span 12; }
+  .ov-figure { font-size: 36px; }
+  .ov-ph { min-height: 0; }
+  .ov-readout { gap: 6px 20px; } .ov-readout dd { font-size: 18px; }
+  .ov-readout-time { flex-basis: 100%; margin-left: 0; padding-bottom: 0; }
+  .ov-event.is-alert::before, .ov-event.is-watch::before { left: -8px; }
+}
+
+/* Tables as cards. Where a table would scroll sideways (positions below 1010px, bids below 900px, sellers below 720px) each row becomes
+   a grid and every cell names itself through its data-label. Between 720px and the table breakpoint the grid is twelve columns and a
+   card is two lines; below 720px it is three columns. The header row stays for assistive technology. */
+.ov-table.ov-sellers { }
+@media (max-width: 860px) { .ov-table.ov-sellers th, .ov-table.ov-sellers td { padding-left: 10px; padding-right: 10px; } .ov-table.ov-sellers th:first-child, .ov-table.ov-sellers td:first-child { padding-left: 0; } .ov-table.ov-sellers th:last-child, .ov-table.ov-sellers td:last-child { padding-right: 0; } .ov-sellers { min-width: 0; } }
+
+@media (max-width: 1010px) {
+  .ov-table.ov-positions { display: block; min-width: 0; border-top: 1px solid var(--border); }
+  .ov-table.ov-positions thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .ov-table.ov-positions tbody, .ov-table.ov-positions tfoot { display: block; }
+  .ov-table.ov-positions tr { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: 10px 16px; padding: 14px 0; border-top: 1px solid var(--border); }
+  .ov-table.ov-positions tbody tr:first-child { border-top: 0; }
+  .ov-table.ov-positions tfoot tr { border-top: 1px solid var(--control-border); border-bottom: 1px solid var(--border); }
+  .ov-table.ov-positions th, .ov-table.ov-positions td { display: block; padding: 0; border: 0; white-space: normal; text-align: left; }
+  .ov-table.ov-positions td:empty { display: none; }
+  .ov-table.ov-positions td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 2px; color: var(--muted); font-size: 11px; font-weight: 400; line-height: 14px; }
+  .ov-table.ov-positions tbody tr:hover td, .ov-table.ov-positions tbody tr:hover th { background: none; }
+  .ov-table.ov-positions .ov-n { text-align: left; }
+  .ov-table.ov-positions .ov-signed { display: none; }
+  .ov-table.ov-positions .ov-diff-value { min-width: 0; }
+  .ov-table.ov-positions th:first-child { grid-column: 1 / span 3; grid-row: 1; align-self: start; padding-top: 16px; }
+  .ov-table.ov-positions td:nth-child(2) { grid-column: 4 / span 4; grid-row: 1; }
+  .ov-table.ov-positions td:nth-child(3) { grid-column: 8 / span 3; grid-row: 1; }
+  .ov-table.ov-positions td:nth-child(7) { grid-column: 11 / span 2; grid-row: 1; text-align: right; }
+  .ov-table.ov-positions td:nth-child(4) { grid-column: 1 / span 3; grid-row: 2; }
+  .ov-table.ov-positions td:nth-child(5) { grid-column: 4 / span 4; grid-row: 2; }
+  .ov-table.ov-positions td:nth-child(6) { grid-column: 8 / span 3; grid-row: 2; }
+}
+@media (max-width: 900px) {
+  .ov-table.ov-bids { display: block; min-width: 0; border-top: 1px solid var(--border); }
+  .ov-table.ov-bids thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .ov-table.ov-bids tbody { display: block; }
+  .ov-table.ov-bids tr { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: 10px 16px; padding: 14px 0; border-top: 1px solid var(--border); }
+  .ov-table.ov-bids tbody tr:first-child { border-top: 0; }
+  .ov-table.ov-bids th, .ov-table.ov-bids td { display: block; padding: 0; border: 0; white-space: normal; text-align: left; }
+  .ov-table.ov-bids td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 2px; color: var(--muted); font-size: 11px; font-weight: 400; line-height: 14px; }
+  .ov-table.ov-bids tbody tr:hover td, .ov-table.ov-bids tbody tr:hover th { background: none; }
+  .ov-table.ov-bids .ov-n { text-align: left; }
+  .ov-table.ov-bids th:first-child { grid-column: 1 / span 3; grid-row: 1; align-self: start; padding-top: 16px; }
+  .ov-table.ov-bids td:nth-child(2) { grid-column: 4 / span 4; grid-row: 1; }
+  .ov-table.ov-bids td:nth-child(7) { grid-column: 8 / span 3; grid-row: 1; }
+  .ov-table.ov-bids td:nth-child(8) { grid-column: 11 / span 2; grid-row: 1; }
+  .ov-table.ov-bids td:nth-child(3) { grid-column: 1 / span 3; grid-row: 2; }
+  .ov-table.ov-bids td:nth-child(4) { grid-column: 4 / span 4; grid-row: 2; }
+  .ov-table.ov-bids td:nth-child(5) { grid-column: 8 / span 3; grid-row: 2; }
+  .ov-table.ov-bids td:nth-child(6) { grid-column: 11 / span 2; grid-row: 2; }
+}
+@media (max-width: 720px) {
+  .ov-table.ov-sellers { display: block; border-top: 1px solid var(--border); }
+  .ov-table.ov-sellers thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .ov-table.ov-sellers tbody { display: block; }
+  .ov-table.ov-sellers tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; padding: 12px 0; border-top: 1px solid var(--border); }
+  .ov-table.ov-sellers tbody tr:first-child { border-top: 0; }
+  .ov-table.ov-sellers th, .ov-table.ov-sellers td { display: block; padding: 0; border: 0; white-space: normal; text-align: left; }
+  .ov-table.ov-sellers td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 2px; color: var(--muted); font-size: 11px; font-weight: 400; line-height: 14px; }
+  .ov-table.ov-sellers tbody tr:hover td, .ov-table.ov-sellers tbody tr:hover th { background: none; }
+  .ov-table.ov-sellers .ov-n { text-align: left; }
+  .ov-table.ov-sellers th:first-child { grid-column: 1 / span 2; grid-row: 1; align-self: start; padding-top: 16px; }
+  .ov-table.ov-sellers td:nth-child(2) { grid-column: 3; grid-row: 1; text-align: right; }
+  .ov-table.ov-sellers td:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .ov-table.ov-sellers td:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .ov-table.ov-sellers td:nth-child(5) { grid-column: 3; grid-row: 2; }
+  .ov-table.ov-sellers td:nth-child(6) { grid-column: 1; grid-row: 3; }
+  .ov-table.ov-sellers td:nth-child(7) { grid-column: 2 / span 2; grid-row: 3; }
+
+  .ov-table.ov-positions tr, .ov-table.ov-bids tr { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ov-table.ov-positions th:first-child, .ov-table.ov-bids th:first-child { grid-column: 1 / span 2; grid-row: 1; }
+  .ov-table.ov-positions td:nth-child(7) { grid-column: 3; grid-row: 1; }
+  .ov-table.ov-positions td:nth-child(2) { grid-column: 1 / span 2; grid-row: 2; }
+  .ov-table.ov-positions td:nth-child(3) { grid-column: 3; grid-row: 2; }
+  .ov-table.ov-positions td:nth-child(4) { grid-column: 1; grid-row: 3; }
+  .ov-table.ov-positions td:nth-child(5) { grid-column: 2; grid-row: 3; }
+  .ov-table.ov-positions td:nth-child(6) { grid-column: 3; grid-row: 3; }
+  .ov-table.ov-bids td:nth-child(7) { grid-column: 3; grid-row: 1; text-align: right; }
+  .ov-table.ov-bids td:nth-child(7) .ov-state { justify-content: flex-end; }
+  .ov-table.ov-bids td:nth-child(7) .ov-dates { display: block; margin: 2px 0 0; }
+  .ov-table.ov-bids td:nth-child(2) { grid-column: 1 / span 3; grid-row: 2; }
+  .ov-table.ov-bids td:nth-child(3) { grid-column: 1; grid-row: 3; }
+  .ov-table.ov-bids td:nth-child(4) { grid-column: 2; grid-row: 3; }
+  .ov-table.ov-bids td:nth-child(5) { grid-column: 3; grid-row: 3; }
+  .ov-table.ov-bids td:nth-child(6) { grid-column: 1; grid-row: 4; }
+  .ov-table.ov-bids td:nth-child(8) { grid-column: 2; grid-row: 4; }
+}

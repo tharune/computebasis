@@ -18,10 +18,6 @@
   const tip = (node, content) => { if (content) node.append(Object.assign(svg("title"), { textContent: content })); return node; };
   const round = (value) => Math.round(value * 100) / 100;
   const finite = (value) => typeof value === "number" && Number.isFinite(value);
-  const numeric = (value) => {
-    if (typeof value !== "number" && !(typeof value === "string" && /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value))) return null;
-    const parsed = Number(value); return finite(parsed) ? parsed : null;
-  };
   const root = (width, height, description, className = "chart") =>
     svg("svg", { viewBox: "0 0 " + width + " " + height, class: className, role: "img", "aria-label": description, focusable: "false" });
 
@@ -61,7 +57,6 @@
   }
 
   function sparkline(values, { width = 96, height = 26, className = "spark" } = {}) {
-    values = values.map(numeric);
     const data = values.map((value, index) => ({ value, index })).filter((point) => finite(point.value));
     const chart = root(width, height, "Trend", className + " chart-inline"); chart.setAttribute("aria-hidden", "true"); chart.removeAttribute("role"); chart.removeAttribute("aria-label");
     if (data.length < 2) return chart;
@@ -90,7 +85,6 @@
   /* Lines over market time. `gap: [upper, lower]` shades the distance between two series; `hover(index)` adds a tooltip column per step.
      The y axis is fitted to the data (never forced to zero) so movement is visible. */
   function lineChart({ points, series, gap, format = String, width = 640, height = 250, description, markers = [], xLabel = () => "", pad = 0.08, marginRight = 112, endLabels = "full", yTickCount = 4, xTickCount = 3, hover }) {
-    series = series.map((entry) => ({ ...entry, values: entry.values.map(numeric) }));
     const chart = root(width, height, description);
     const all = series.flatMap((s) => s.values).filter(finite);
     if (!all.length || points < 2) { chart.append(label("Waiting for history", width / 2, height / 2, "ch-empty", "middle")); return chart; }
@@ -134,7 +128,6 @@
      row: { label, sub, bars: [{ value, text, className, grade, title, absent }], trail, trailClass }.
      A bar without a value but with `absent` prints that note where the bar would be. `trail` is a text column on the right. */
   function groupedBars({ rows, width = 640, description, format = String, labelWidth = 108, trailWidth = 60, valueRoom = 82, trailTitle = "", barHeight = 12, barGap = 3, rowHeight = 46, tickCount = 7 }) {
-    rows = rows.map((row) => ({ ...row, bars: row.bars.map((bar) => ({ ...bar, value: numeric(bar.value) })) }));
     const head = 26; const height = head + rows.length * rowHeight + 2; const chart = root(width, height, description, "chart chart-grouped");
     const high = Math.max(0, ...rows.flatMap((row) => row.bars.map((bar) => bar.value)).filter(finite));
     const axis = zeroAxis(high || 1, tickCount); const right = width - trailWidth - valueRoom;
@@ -160,7 +153,6 @@
 
   /* Grouped columns on one zero-based axis. col: { label (grade letter), sub, bars: [{ value, text, className, title }] }. */
   function groupedColumns({ cols, width = 440, height = 240, description, format = String, tickCount = 5 }) {
-    cols = cols.map((col) => ({ ...col, bars: col.bars.map((bar) => ({ ...bar, value: numeric(bar.value) })) }));
     const margin = { left: 40, right: 6, top: 22, bottom: 46 }; const chart = root(width, height, description, "chart chart-columns");
     const high = Math.max(0, ...cols.flatMap((col) => col.bars.map((bar) => bar.value)).filter(finite));
     const axis = zeroAxis(high || 1, tickCount); const y = linear([0, axis.top], [height - margin.bottom, margin.top]); const slot = (width - margin.left - margin.right) / cols.length;
@@ -180,34 +172,32 @@
 
   /* Horizontal stacked rows. normalize: each row fills the width; otherwise rows share one scale (set `max`).
      `inside(part, share, total)` may return a label drawn in the segment when it is wide enough to hold it. */
-  function stackedBars({ rows, width = 520, description, normalize = false, max, labelWidth = 76, valueWidth = 64, rowHeight = 26, barHeight = 14, inside, valueText = (row, total) => total === null ? "—" : String(total) }) {
-    rows = rows.map((row) => ({ ...row, parts: row.parts.map((part) => ({ ...part, value: numeric(part.value) })) }));
+  function stackedBars({ rows, width = 520, description, normalize = false, max, labelWidth = 76, valueWidth = 64, rowHeight = 26, barHeight = 14, inside, valueText = (row, total) => String(total) }) {
     const height = rows.length * rowHeight + 4; const chart = root(width, height, description, "chart chart-bars");
-    const scaleMax = normalize ? 1 : numeric(max) || Math.max(1, ...rows.map((r) => r.parts.reduce((sum, p) => sum + (p.value === null ? 0 : p.value), 0)));
+    const scaleMax = normalize ? 1 : max || Math.max(1, ...rows.map((r) => r.parts.reduce((sum, p) => sum + p.value, 0)));
     const x = linear([0, scaleMax], [labelWidth, width - valueWidth]); const half = barHeight / 2;
     rows.forEach((row, index) => {
-      const cy = index * rowHeight + rowHeight / 2 + 2; const known = row.parts.every((part) => finite(part.value)); const total = row.parts.reduce((sum, p) => sum + (p.value === null ? 0 : p.value), 0);
+      const cy = index * rowHeight + rowHeight / 2 + 2; const total = row.parts.reduce((sum, p) => sum + p.value, 0);
       chart.append(label(row.label, 0, cy, "ch-row-label"));
       chart.append(svg("rect", { x: labelWidth, y: cy - half, width: width - valueWidth - labelWidth, height: barHeight, class: "ch-bed" }));
       let cursor = 0;
       row.parts.forEach((part) => {
         if (!(part.value > 0)) return;
         const size = normalize ? part.value / (total || 1) : part.value; const span = x(cursor + size) - x(cursor);
-        const rect = svg("rect", { x: round(x(cursor)), y: cy - half, width: Math.max(1, round(span - 1)), height: barHeight, class: "ch-part " + (part.className || "") });
+        const rect = svg("rect", { x: round(x(cursor)), y: cy - half, width: Math.max(1, round(span - 1)), height: barHeight, class: "ch-part " + part.className });
         chart.append(tip(rect, part.title));
-        const text = inside && known && span >= 30 ? inside(part, part.value / (total || 1), total) : ""; if (text) chart.append(label(text, x(cursor) + span / 2, cy, "ch-inside", "middle"));
+        const text = inside && span >= 30 ? inside(part, part.value / (total || 1), total) : ""; if (text) chart.append(label(text, x(cursor) + span / 2, cy, "ch-inside", "middle"));
         cursor += size;
       });
-      chart.append(label(valueText(row, known ? total : null), width, cy, "ch-value", "end"));
+      chart.append(label(valueText(row, total), width, cy, "ch-value", "end"));
     });
     return chart;
   }
 
   /* Vertical stacked columns on one shared scale; `divider` draws a rule between two column indexes; `totals` prints each column's total above it. */
   function columns({ cols, width = 520, height = 220, description, divider, dividerLabel, totals = false, axisTitle = "Key terms missing per quote" }) {
-    cols = cols.map((col) => ({ ...col, parts: col.parts.map((part) => ({ ...part, value: numeric(part.value) })) }));
     const margin = { left: 34, right: 8, top: totals ? 24 : 14, bottom: 34 }; const chart = root(width, height, description, "chart chart-columns");
-    const sums = cols.map((c) => c.parts.reduce((sum, p) => sum + (p.value === null ? 0 : p.value), 0)); const top = Math.max(1, ...sums);
+    const sums = cols.map((c) => c.parts.reduce((sum, p) => sum + p.value, 0)); const top = Math.max(1, ...sums);
     const axis = totals ? zeroAxis(top, 6) : { top: top * 1.08, ticks: ticks(0, top * 1.08, 4) };
     const y = linear([0, axis.top], [height - margin.bottom, margin.top]); const slot = (width - margin.left - margin.right) / cols.length;
     axis.ticks.forEach((value) => chart.append(svg("line", { x1: margin.left, x2: width - margin.right, y1: round(y(value)), y2: round(y(value)), class: totals && value === 0 ? "ch-axis" : "ch-grid" }), label(String(value), margin.left - 6, y(value), "ch-tick", "end")));
@@ -215,10 +205,10 @@
       let base = 0;
       col.parts.forEach((part) => {
         if (!(part.value > 0)) return;
-        chart.append(tip(svg("rect", { x: round(margin.left + index * slot + slot * 0.16), y: round(y(base + part.value)), width: round(slot * 0.68), height: Math.max(1, round(y(base) - y(base + part.value) - 1)), class: "ch-part " + (part.className || "") }), part.title));
+        chart.append(tip(svg("rect", { x: round(margin.left + index * slot + slot * 0.16), y: round(y(base + part.value)), width: round(slot * 0.68), height: Math.max(1, round(y(base) - y(base + part.value) - 1)), class: "ch-part " + part.className }), part.title));
         base += part.value;
       });
-      if (totals) chart.append(label(col.parts.every((part) => finite(part.value)) ? String(sums[index]) : "—", margin.left + index * slot + slot / 2, y(base) - 8, "ch-value-top", "middle"));
+      if (totals) chart.append(label(String(sums[index]), margin.left + index * slot + slot / 2, y(base) - 8, "ch-value-top", "middle"));
       chart.append(label(col.label, margin.left + index * slot + slot / 2, height - 20, "ch-tick", "middle"));
     });
     if (divider !== undefined) {
@@ -231,14 +221,12 @@
 
   /* Single-series horizontal bars. A row may carry its own `text` for the value label. */
   function bars({ rows, width = 520, description, labelWidth = 104, valueWidth = 30, rowHeight = 24 }) {
-    rows = rows.map((row) => ({ ...row, value: numeric(row.value) }));
-    const chart = root(width, rows.length * rowHeight + 4, description, "chart chart-bars"); const top = Math.max(1, ...rows.map((r) => r.value).filter(finite));
+    const chart = root(width, rows.length * rowHeight + 4, description, "chart chart-bars"); const top = Math.max(1, ...rows.map((r) => r.value));
     const x = linear([0, top], [labelWidth, width - valueWidth]);
     rows.forEach((row, index) => {
       const cy = index * rowHeight + rowHeight / 2 + 2;
-      const bar = row.value === null ? null : tip(svg("rect", { x: labelWidth, y: cy - 6, width: Math.max(row.value ? 2 : 0, round(x(row.value) - labelWidth)), height: 12, class: "ch-part " + (row.className || "") }), row.title);
-      chart.append(label(row.label, 0, cy, "ch-row-label")); if (bar) chart.append(bar);
-      chart.append(label(row.text === undefined ? row.value === null ? "—" : String(row.value) : row.text, width, cy, "ch-value", "end"));
+      const bar = tip(svg("rect", { x: labelWidth, y: cy - 6, width: Math.max(row.value ? 2 : 0, round(x(row.value) - labelWidth)), height: 12, class: "ch-part " + (row.className || "") }), row.title);
+      chart.append(label(row.label, 0, cy, "ch-row-label"), bar, label(row.text === undefined ? String(row.value) : row.text, width, cy, "ch-value", "end"));
     });
     return chart;
   }

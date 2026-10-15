@@ -1,172 +1,352 @@
-/* The landing page: its own header, then the Brief. Loaded after workbench.css, which owns the tokens. */
-.lp-header { display: none; position: sticky; top: 0; z-index: 40; background: var(--chrome); border-bottom: 1px solid var(--border); -webkit-backdrop-filter: saturate(1.5) blur(14px); backdrop-filter: saturate(1.5) blur(14px); }
-.lp-bar { display: flex; align-items: center; gap: 40px; width: min(100% - 2 * var(--gutter), var(--content)); height: 64px; margin-inline: auto; }
-.lp-nav { display: flex; gap: 28px; }
-.lp-link { padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; transition: color var(--fast) var(--ease); }
+/* The landing page: its own header, then the Brief. Loaded after workbench.css, which owns the shared tokens. */
+/* Landing tokens. Everything the Brief adds is named --lp-*, so no shared token is shadowed by accident; the three shared tokens it does
+   override (--content, --gutter, --gap and the hairline --border) are set in this scope only, and the app pages never see them.
+   Light, dark and the pre-script system mirror each carry the same names. */
+html[data-page="landing"] {
+  --content: 1680px;
+  --gutter: clamp(20px, 4vw - 2px, 72px);
+  --gap: clamp(16px, 1.7vw, 32px);
+  --header-h: clamp(60px, 1.4vw + 52px, 76px);
+  /* One fluid scale. Each step grows with the viewport between 390px and 2000px; none is under 13px, body copy is 17px or more from 1024px up. */
+  --fs-display: clamp(40px, 16px + 3.2vw, 84px);
+  --fs-h2: clamp(30px, 17px + 1.9vw, 54px);
+  --fs-h3: clamp(21px, 16px + .85vw, 30px);
+  --fs-lede: clamp(18px, 13px + .8vw, 27px);
+  --fs-intro: clamp(17.5px, 14.4px + .6vw, 23px);
+  --fs-body: clamp(16.5px, 12.6px + .52vw, 20px);
+  --fs-body-sm: clamp(16px, 12.8px + .45vw, 18px);
+  --fs-small: clamp(13.5px, 11.6px + .24vw, 15.5px);
+  --fs-ui: clamp(15px, 13px + .35vw, 18px);
+  --fs-fig: clamp(40px, 22px + 2.9vw, 76px);
+  --sp-section: clamp(64px, 7.5vw, 144px);
+  --sp-head: clamp(40px, 5vw, 88px);
+  --lp-band: #f0f3f4; --lp-panel: #fff; --lp-track: #e4e9ec;
+  --lp-rule: rgba(21, 26, 31, .15); --lp-rule-strong: rgba(21, 26, 31, .3);
+  --lp-deep: #11171c; --lp-deep-ink: #eef2f5; --lp-deep-muted: #a9b4bd; --lp-deep-line: rgba(238, 242, 245, .2); --lp-deep-hover: #cfd8de;
+  --border: var(--lp-rule);
+}
+html[data-page="landing"][data-theme="dark"] {
+  --lp-band: #10151a; --lp-panel: #161d23; --lp-track: #232c34;
+  --lp-rule: rgba(231, 236, 240, .14); --lp-rule-strong: rgba(231, 236, 240, .28);
+  --lp-deep: #151b21; --lp-deep-ink: #e9eef2; --lp-deep-muted: #a1acb6; --lp-deep-line: rgba(231, 236, 240, .18); --lp-deep-hover: #cbd5dc;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-page="landing"]:not([data-theme]) {
+    --lp-band: #10151a; --lp-panel: #161d23; --lp-track: #232c34;
+    --lp-rule: rgba(231, 236, 240, .14); --lp-rule-strong: rgba(231, 236, 240, .28);
+    --lp-deep: #151b21; --lp-deep-ink: #e9eef2; --lp-deep-muted: #a1acb6; --lp-deep-line: rgba(231, 236, 240, .18); --lp-deep-hover: #cbd5dc;
+  }
+}
+/* On the landing page the page itself is full width: each band draws its own background and keeps its content in .bf-wrap. */
+html[data-page="landing"] main { width: auto; margin: 0; padding-bottom: 0; }
+html[data-page="landing"] .session-card, html[data-page="landing"] .notice { width: min(100% - 2 * var(--gutter), var(--content)); margin-inline: auto; }
+
+/* Header: solid, one hairline, the page's two anchors and the way in. */
+.lp-header { display: none; position: sticky; top: 0; z-index: 40; background: var(--canvas); border-bottom: 1px solid var(--border); }
+.lp-bar { display: flex; align-items: center; gap: clamp(24px, 3vw, 56px); width: min(100% - 2 * var(--gutter), var(--content)); height: var(--header-h); margin-inline: auto; }
+.lp-nav { display: flex; gap: clamp(20px, 2.4vw, 40px); }
+.lp-link { min-height: 44px; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-ui); font-weight: 500; cursor: pointer; transition: color var(--fast) var(--ease); }
 .lp-link:hover { color: var(--ink); }
 .lp-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.lp-actions .primary-button { min-height: clamp(40px, .6vw + 34px, 46px); padding: 0 clamp(16px, 1.3vw, 24px); font-size: var(--fs-ui); }
+.lp-header .brand-name { font-size: clamp(17px, 1vw + 8px, 21px); }
+.lp-header .brand-mark { width: clamp(24px, 1vw + 14px, 28px); height: clamp(24px, 1vw + 14px, 28px); }
+.lp-header .icon-button { width: 40px; height: 40px; }
+@media (max-width: 860px) {
+  .lp-nav { display: none; }
+  .lp-bar { gap: 12px; }
+}
+@media (max-width: 480px) {
+  .lp-actions { gap: 8px; }
+  .lp-actions .primary-button { padding: 0 14px; font-size: 14px; }
+}
+@media (max-width: 380px) {
+  .lp-header .brand-name { font-size: 15px; }
+}
 
 /* Brief */
-/* The landing page. Six sizes: display, section heading, h3, lede, body, caption. Hairlines instead of cards, one accent,
-   grade colour only where it carries meaning. Charts are SVG whose text and marks take their colour from these rules. */
-.bf-hero { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 6fr); gap: 80px; align-items: center; padding: 80px 0 64px; }
-.bf-hero-copy h1 { max-width: 10.5em; font-size: clamp(40px, 4.7vw, 68px); font-weight: 600; letter-spacing: -.035em; line-height: 1.02; text-wrap: balance; }
-.bf-sub { max-width: 44ch; margin: 28px 0 0; color: var(--ink-soft); font-size: clamp(16px, 1.35vw, 19px); line-height: 1.55; }
-.bf-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 40px; }
-.bf-button { min-height: 44px; padding: 0 22px; font-size: 14px; }
+/* Grid. One 12-column grid for the page, so every block starts on a column line. Two axes carry the layout: the left margin and the
+   line at column 7, where the hero chart, the third figure, the right-hand problem charts, the third stage, the basis figure and the
+   closing buttons all begin. Spacing steps are fluid (--sp-section, --sp-head); inside a block they are 8 16 24 32 48 64. */
+.bf-wrap { width: min(100% - 2 * var(--gutter), var(--content)); margin-inline: auto; }
+.bf-cols { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gap); }
+.brief { font-size: var(--fs-body); }
+.brief h1, .brief h2, .brief h3 { margin: 0; }
+/* Surfaces. A band is a full-width tonal step; a panel holds one chart. Both reset --canvas for what they contain, so a chart's
+   text halo and its sparkline ring match the surface they sit on. */
+.bf-band { background: var(--lp-band); --canvas: var(--lp-band); border-block: 1px solid var(--lp-rule); }
+.bf-panel { background: var(--lp-panel); --canvas: var(--lp-panel); border: 1px solid var(--lp-rule); border-radius: clamp(10px, .9vw, 16px); padding: clamp(20px, 2.2vw, 40px); }
+
+/* Hero: the headline and one sentence on the left, the live basis chart on the right, both centred on the same line. */
+.bf-hero { padding: clamp(40px, 5.2vw, 104px) 0 clamp(56px, 6.4vw, 124px); }
+.bf-hero .bf-cols { align-items: center; row-gap: 48px; }
+.bf-hero-copy { grid-column: 1 / span 6; min-width: 0; }
+.bf-hero-visual { grid-column: 7 / span 6; min-width: 0; }
+.bf-hero-copy h1 { max-width: 12em; margin: -.08em 0 0 -.045em; font-size: var(--fs-display); font-weight: 600; letter-spacing: -.04em; line-height: 1.02; text-wrap: balance; }
+.bf-sub { max-width: 31em; margin: clamp(20px, 2.2vw, 36px) 0 0; color: var(--ink-soft); font-size: var(--fs-lede); line-height: 1.42; letter-spacing: -.01em; text-wrap: pretty; }
+.bf-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: clamp(28px, 3vw, 52px); }
+.bf-button { min-height: clamp(46px, 1.2vw + 34px, 56px); padding: 0 clamp(20px, 1.7vw, 32px); border-radius: 8px; font-size: var(--fs-ui); }
 .bf-hero-figure, .bf-problem-figure { min-width: 0; margin: 0; }
-.bf-hero-figure { position: relative; padding-top: 20px; }
-.bf-hero-figure::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--border); transform-origin: left center; }
-.bf-figure-head p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
-.bf-figure-head .bf-figure-title { margin-bottom: 4px; color: var(--ink); font-size: 14px; font-weight: 600; letter-spacing: -.005em; }
-.bf-live { min-height: 408px; margin-top: 20px; }
-.bf-caption { margin: 16px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.bf-figure-head p { margin: 0; color: var(--muted); font-size: var(--fs-small); line-height: 1.5; }
+.bf-figure-head .bf-figure-title { margin-bottom: 4px; color: var(--ink); font-size: clamp(17px, 14.6px + .4vw, 21px); font-weight: 600; letter-spacing: -.015em; line-height: 1.3; }
+.bf-live { display: flex; flex-direction: column; min-height: 548px; margin-top: clamp(16px, 1.6vw, 28px); }
+.bf-live > .bf-caption { margin-top: auto; padding-top: 16px; }  /* the caption rests on the panel's floor; any spare height sits above it */
+.bf-caption { margin: 16px 0 0; color: var(--muted); font-size: var(--fs-small); line-height: 1.55; text-wrap: pretty; }
 
-/* Chart marks and text */
-.bf-chart { display: block; width: 100%; height: auto; overflow: visible; }
-.bf-chart text { font-family: var(--font); fill: var(--muted); font-variant-numeric: tabular-nums; }
-.bf-chart .bf-row-label { fill: var(--ink); font-size: 14px; font-weight: 600; }
-.bf-chart .bf-row-sub { font-size: 11.5px; }
-.bf-chart .bf-tick { font-size: 11px; }
-.bf-chart .bf-value { fill: var(--ink); font-size: 14px; font-weight: 600; }
-.bf-chart .bf-note { font-size: 12.5px; }
-.bf-grid { stroke: var(--border); stroke-width: 1; }
-.bf-bar { fill: var(--gc, var(--accent)); }
-/* Motion. One entrance on first load, a quiet reveal for what sits below the fold, a short fade between pages.
-   All of it lives inside no-preference: with reduced motion nothing is hidden, moved or timed. Opacity and transform only.
-   Entrance, in order: headline, lede and buttons rise 100ms apart; the chart's rule draws and its title fades in; when the
-   book arrives each chart row lands 70ms after the one above (label, bar, then value) and the four figures follow. */
-@media (prefers-reduced-motion: no-preference) {
-  @keyframes bf-rise { from { opacity: 0; transform: translateY(12px); } }
-  @keyframes bf-fade { from { opacity: 0; } }
-  @keyframes bf-rule { from { transform: scaleX(0); } }
-  @keyframes bf-grow { from { transform: scaleX(0); } }
-  @keyframes view-in { from { opacity: 0; transform: translateY(6px); } }
-  @keyframes menu-in { from { opacity: 0; transform: translateY(-4px); } }
+/* The numbers band: four figures on the quarter lines, so the third begins where the hero chart begins. A hairline sits in each gutter. */
+.bf-numbers { --band-pad: clamp(28px, 3.4vw, 60px); min-height: calc(var(--fs-fig) * 1.04 + 2 * var(--band-pad) + 116px); padding: var(--band-pad) 0; }  /* reserved, so the figures arriving move nothing */
+.bf-number { grid-column: span 3; display: flex; flex-direction: column; min-width: 0; }
+.bf-number + .bf-number { margin-left: calc(var(--gap) / -2); padding-left: calc(var(--gap) / 2); border-left: 1px solid var(--lp-rule); }
+.bf-number-label { color: var(--muted); font-size: var(--fs-small); font-weight: 500; }
+.bf-number-value { margin: 10px 0 0 -.04em; font-size: var(--fs-fig); font-weight: 500; letter-spacing: -.035em; line-height: 1.04; white-space: nowrap; }
+.bf-number-sub { margin: 8px 0 0; color: var(--muted); font-size: var(--fs-small); }
+.bf-number .chart-inline { width: clamp(96px, 8vw, 140px); height: auto; aspect-ratio: 120 / 32; margin-top: auto; padding-top: 20px; box-sizing: content-box; }
 
-  .brief:not(.bf-entered) .bf-hero-copy h1 { animation: bf-rise 800ms var(--ease) backwards; }
-  .brief:not(.bf-entered) .bf-hero-copy .bf-sub { animation: bf-rise 800ms var(--ease) 100ms backwards; }
-  .brief:not(.bf-entered) .bf-hero-copy .bf-actions { animation: bf-rise 800ms var(--ease) 200ms backwards; }
-  .brief:not(.bf-entered) .bf-hero-figure::before { animation: bf-rule 900ms var(--ease) 150ms backwards; }
-  .brief:not(.bf-entered) .bf-hero-figure .bf-figure-head { animation: bf-fade 700ms var(--ease) 300ms backwards; }
-  .bf-live > .empty-state { animation: bf-fade 400ms var(--ease) 600ms backwards; }  /* a fast load never shows it */
+/* Sections: the heading sits on the left axis and its introduction on the column-7 axis. */
+.bf-section { padding: var(--sp-section) 0; scroll-margin-top: var(--header-h); }
+.bf-section-head { align-items: end; row-gap: 20px; }
+.bf-h2 { grid-column: 1 / span 6; margin-left: -.03em; font-size: var(--fs-h2); font-weight: 600; letter-spacing: -.035em; line-height: 1.06; text-wrap: balance; }
+.bf-intro { grid-column: 7 / span 5; max-width: 30em; margin: 0; color: var(--ink-soft); font-size: var(--fs-intro); line-height: 1.45; text-wrap: pretty; }
+.bf-h3 { font-size: var(--fs-h3); font-weight: 600; letter-spacing: -.02em; line-height: 1.2; text-wrap: balance; }
+.bf-problem-copy > p, .bf-stage > p, .bf-basis-copy > p { margin: 14px 0 0; max-width: 34em; color: var(--ink-soft); font-size: var(--fs-body-sm); line-height: 1.55; text-wrap: pretty; }
+.bf-problem-copy > p { font-size: var(--fs-body); max-width: 31em; }
 
-  .bf-grow .bf-bar-group { transform-box: fill-box; transform-origin: left center; animation: bf-grow 720ms var(--ease) backwards; }
-  .bf-grow .bf-row-label, .bf-grow .bf-row-sub { animation: bf-fade 500ms var(--ease) backwards; }
-  .bf-grow .bf-value, .bf-grow .bf-note { animation: bf-fade 400ms var(--ease) 420ms backwards; }
-  .bf-grow .bf-r1 { animation-delay: 70ms; } .bf-grow .bf-r2 { animation-delay: 140ms; } .bf-grow .bf-r3 { animation-delay: 210ms; }
-  .bf-grow .bf-r4 { animation-delay: 280ms; } .bf-grow .bf-r5 { animation-delay: 350ms; } .bf-grow .bf-r6 { animation-delay: 420ms; }
-  .bf-grow .bf-value.bf-r1, .bf-grow .bf-note.bf-r1 { animation-delay: 490ms; } .bf-grow .bf-value.bf-r2, .bf-grow .bf-note.bf-r2 { animation-delay: 560ms; }
-  .bf-grow .bf-value.bf-r3, .bf-grow .bf-note.bf-r3 { animation-delay: 630ms; } .bf-grow .bf-value.bf-r4, .bf-grow .bf-note.bf-r4 { animation-delay: 700ms; }
-  .bf-grow .bf-value.bf-r5, .bf-grow .bf-note.bf-r5 { animation-delay: 770ms; } .bf-grow .bf-value.bf-r6, .bf-grow .bf-note.bf-r6 { animation-delay: 840ms; }
-
-  .bf-number.bf-in { animation: bf-rise 700ms var(--ease) 260ms backwards; }
-  .bf-number.bf-in:nth-child(2) { animation-delay: 330ms; } .bf-number.bf-in:nth-child(3) { animation-delay: 400ms; } .bf-number.bf-in:nth-child(4) { animation-delay: 470ms; }
-
-  /* Below the fold: each block fades up once, as it scrolls in. The hidden state needs .rv-on, which the script sets only
-     when it can also reveal; the transition lives on the revealed state so that arming the page never fades content out. */
-  .brief.rv-on .rv:not(.rv-in), .brief.rv-on .rv-group:not(.rv-in) > * { opacity: 0; transform: translateY(14px); }
-  .brief.rv-on .rv.rv-in, .brief.rv-on .rv-group.rv-in > * { transition: opacity 800ms var(--ease), transform 800ms var(--ease); }
-  .brief.rv-on .rv-group.rv-in > :nth-child(2) { transition-delay: 100ms; } .brief.rv-on .rv-group.rv-in > :nth-child(3) { transition-delay: 200ms; }
-  .brief.rv-on .bf-problem.rv-in .bf-problem-figure { animation: bf-fade 900ms var(--ease) 160ms backwards; }
-
-  /* Between pages, and the menu. Opacity and a few pixels of travel; the Brief's own entrance replaces the page fade the first time. */
-  .view:not(.brief):not([hidden]), .brief.bf-entered:not([hidden]) { animation: view-in 280ms var(--ease) backwards; }
-  .more[open] .more-panel { animation: menu-in 160ms var(--ease) backwards; }
-  .tab { transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease); }
-}
-@media print { .brief.rv-on .rv:not(.rv-in), .brief.rv-on .rv-group:not(.rv-in) > * { opacity: 1; transform: none; } }
-
-/* The numbers band */
-.bf-numbers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: 188px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.bf-number { display: flex; flex-direction: column; min-width: 0; padding: 32px 32px 28px 0; }
-.bf-number + .bf-number { padding-left: 32px; border-left: 1px solid var(--border); }
-.bf-number-label { color: var(--muted); font-size: 13px; font-weight: 500; }
-.bf-number-value { margin-top: 12px; font-size: clamp(36px, 3.7vw, 54px); font-weight: 500; letter-spacing: -.035em; line-height: 1.05; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.bf-number-sub { margin: 8px 0 20px; color: var(--muted); font-size: 13px; }
-.bf-number .chart-inline { width: 120px; height: 32px; margin-top: auto; }
-
-/* Sections */
-.bf-section { padding-top: 120px; scroll-margin-top: 64px; }
-.bf-section-head { max-width: 760px; }
-.bf-h2 { max-width: 16em; font-size: clamp(28px, 3.2vw, 46px); font-weight: 600; letter-spacing: -.03em; line-height: 1.06; text-wrap: balance; }
-.bf-intro { max-width: 52ch; margin: 24px 0 0; color: var(--ink-soft); font-size: clamp(16px, 1.3vw, 18px); line-height: 1.55; }
-.bf-index { display: block; margin-bottom: 20px; color: var(--muted); font: 500 12px/1 var(--mono); letter-spacing: .04em; }
-.bf-h3 { margin: 0; font-size: clamp(20px, 1.8vw, 25px); font-weight: 600; letter-spacing: -.022em; line-height: 1.2; text-wrap: balance; }
-.bf-problem-copy > p, .bf-steps > li > p { margin: 14px 0 0; color: var(--ink-soft); font-size: 15px; line-height: 1.6; }
-
-/* The problem: three rows, copy on the left, one chart on the right */
-.bf-problems { margin: 64px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
-.bf-problem { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); gap: 96px; padding: 56px 0; border-bottom: 1px solid var(--border); }
-.bf-problem-copy { max-width: 540px; }
-.bf-stat { display: flex; flex-direction: column; margin-top: 32px; }
-.bf-stat-value { font-size: clamp(36px, 3.4vw, 48px); font-weight: 500; letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+/* The problem: three arguments, each a row of its own. Copy on the left axis, one chart panel on the column-7 axis. */
+.bf-problems { margin: var(--sp-head) 0 0; padding: 0; list-style: none; }
+.bf-problem { align-items: start; padding: clamp(36px, 4.2vw, 76px) 0; border-top: 1px solid var(--lp-rule); }
+.bf-problem:last-child { padding-bottom: 0; }
+.bf-problem-copy { grid-column: 1 / span 5; grid-row: 1; min-width: 0; }
+.bf-problem-figure { grid-column: 7 / span 6; grid-row: 1; }
+.bf-stat { display: flex; flex-direction: column; min-height: calc(var(--fs-fig) + 12px + 3 * var(--fs-small)); margin-top: clamp(28px, 3vw, 52px); }  /* a figure and two lines, reserved */
+.bf-stat-value { margin-left: -.04em; font-size: var(--fs-fig); font-weight: 500; letter-spacing: -.035em; line-height: 1; }
 .bf-nowrap { white-space: nowrap; }
-.bf-stat-text { max-width: 52ch; margin-top: 10px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
-.bf-slot { min-width: 0; margin-top: 24px; min-height: 232px; }
-.bf-split { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 24px 0 0; padding-top: 16px; border-top: 1px solid var(--border); }
-.bf-split dt { display: flex; align-items: center; color: var(--muted); font-size: 12px; }
-.bf-split dd { margin: 6px 0 0; font-size: 18px; font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.bf-stat-text { max-width: 28em; margin-top: 12px; color: var(--muted); font-size: var(--fs-small); line-height: 1.5; text-wrap: pretty; }
+.bf-slot { min-width: 0; margin-top: clamp(16px, 1.6vw, 28px); }
+#brief-gaps { min-height: 196px; } #brief-anatomy { min-height: 340px; } #brief-grades { min-height: 360px; } #brief-weights { min-height: 240px; } #brief-odds { min-height: 254px; } #brief-eligible { min-height: 200px; }  /* space for the chart, so it arriving moves nothing */
+.bf-split { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 24px 0 0; padding-top: 16px; border-top: 1px solid var(--lp-rule); }
+.bf-split dt { display: flex; align-items: center; color: var(--muted); font-size: var(--fs-small); }
+.bf-split dd { margin: 6px 0 0; font-size: clamp(17px, 14.4px + .45vw, 21px); font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 .bf-problem-figure .chart-legend { margin-top: 16px; }
 
-/* How it works */
-.bf-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 64px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
-.bf-steps > li { min-width: 0; padding: 32px 40px 0 0; }
-.bf-steps > li + li { padding-left: 40px; border-left: 1px solid var(--border); }
-.bf-steps .bf-slot { min-height: 112px; margin-top: 28px; }
-.bf-steps .chart-legend { margin-top: 14px; }
-.bf-steps .bf-stat { margin-top: 28px; }
-.bf-steps .bf-stat-value { font-size: clamp(32px, 3vw, 44px); }
-.bf-steps .bf-stat-text { margin-top: 14px; }
-.bf-sum { display: grid; gap: 6px; max-width: 280px; margin: 0; padding: 0; list-style: none; font: 500 15px/1.4 var(--mono); }
+/* How it works: four stages on the quarter lines, joined by one rule that runs through the gutters. Where the browser can,
+   each stage is a subgrid, so the headings, the copy and the visuals line up across all four. */
+.bf-pipeline { margin: var(--sp-head) 0 0; padding: 0; list-style: none; row-gap: 0; }
+.bf-stage { grid-column: span 3; position: relative; min-width: 0; padding-top: clamp(24px, 2.2vw, 36px); border-top: 1px solid var(--lp-rule-strong); }
+.bf-stage:not(:last-child) { margin-right: calc(var(--gap) * -1); padding-right: var(--gap); }
+.bf-stage::before { content: ""; position: absolute; top: -5px; left: 0; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--lp-band); }
+.bf-stage-head { display: flex; align-items: baseline; gap: 12px; }
+.bf-stage-n { flex: none; min-width: .7em; color: var(--accent); font-size: var(--fs-h3); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.bf-stage-visual { min-width: 0; margin-top: clamp(24px, 2.4vw, 40px); }
+.bf-stage-visual > .bf-slot:first-child { margin-top: 0; }
+.bf-stage .bf-stat { margin-top: 28px; }
+.bf-stage .bf-stat-text { margin-top: 12px; }
+@supports (grid-template-rows: subgrid) {
+  .bf-stage { display: grid; grid-row: span 3; grid-template-rows: subgrid; align-content: start; }
+  .bf-stage-visual { margin-top: 0; padding-top: clamp(24px, 2.4vw, 40px); align-self: start; }
+}
+.bf-sum { display: grid; gap: 8px; max-width: 18em; margin: 0; padding: 0; list-style: none; font-size: var(--fs-body-sm); font-weight: 500; line-height: 1.4; font-variant-numeric: tabular-nums; }
 .bf-sum li { display: flex; gap: 12px; }
 .bf-sum li > span { width: 1ch; color: var(--accent); }
 .bf-sum li:first-child { padding-left: calc(1ch + 12px); }
-.bf-sum-total { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--control-border); }
-.bf-basis { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 64px; align-items: end; margin-top: 72px; padding: 40px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.bf-term { margin: 0 0 14px; color: var(--accent); font-size: 15px; font-weight: 600; }
-.bf-definition { max-width: 22em; margin: 0; font-size: clamp(22px, 2.3vw, 32px); font-weight: 500; letter-spacing: -.025em; line-height: 1.2; text-wrap: balance; }
-.bf-basis-live { min-height: 76px; margin: 0; color: var(--muted); font-size: 13.5px; }
-.bf-basis-live strong { display: block; margin-bottom: 10px; color: var(--ink); font-size: clamp(36px, 3.4vw, 48px); font-weight: 500; letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
-.bf-fineprint { max-width: 70ch; margin: 24px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.bf-sum-total { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--lp-rule-strong); font-weight: 600; }
+.bf-rules { margin: 0; padding: 0; list-style: none; font-size: var(--fs-body-sm); line-height: 1.4; }
+.bf-rules li { padding: 11px 0; border-top: 1px solid var(--lp-rule); }
+.bf-rules li:first-child { padding-top: 0; border-top: 0; }
+.bf-basis { align-items: start; margin-top: clamp(56px, 6vw, 104px); padding-top: clamp(32px, 3.4vw, 56px); border-top: 1px solid var(--lp-rule-strong); }
+.bf-basis-copy { grid-column: 1 / span 5; }
+.bf-basis-live { grid-column: 7 / span 6; min-width: 0; min-height: 440px; }
+.bf-basis-live > .bf-caption { margin-top: 0; padding-top: 16px; }
+.bf-fineprint { max-width: 62em; margin: clamp(32px, 3vw, 48px) 0 0; color: var(--muted); font-size: var(--fs-small); line-height: 1.6; text-wrap: pretty; }
+.bf-fineprint p { margin: 0 0 12px; }
+.bf-fineprint p:last-child { margin-bottom: 0; }
 
-/* Closing band and footer */
-.bf-close { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 48px; align-items: end; padding: 120px 0 104px; }
-.bf-close .bf-actions { margin-top: 0; }
-.bf-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 32px; padding: 20px 0 8px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+/* Closing band: the one deep surface on the page, with the footer continuing it. */
+.bf-band-close { background: var(--lp-deep); --canvas: var(--lp-deep); color: var(--lp-deep-ink); border: 0; }
+.bf-close { align-items: center; row-gap: 32px; padding-block: clamp(64px, 8vw, 148px); }
+.bf-close-copy { grid-column: 1 / span 6; }
+.bf-close .bf-h2 { grid-column: auto; }
+.bf-close .bf-intro { margin-top: 20px; color: var(--lp-deep-muted); }
+.bf-close .bf-actions { grid-column: 7 / span 6; margin-top: 0; }
+.bf-band-close .primary-button { background: var(--lp-deep-ink); border-color: var(--lp-deep-ink); color: var(--lp-deep); }
+.bf-band-close .primary-button:hover:not(:disabled) { background: var(--lp-deep-hover); border-color: var(--lp-deep-hover); }
+.bf-band-close .secondary-button { border-color: var(--lp-deep-line); color: var(--lp-deep-ink); }
+.bf-band-close .secondary-button:hover:not(:disabled) { background: rgba(255, 255, 255, .08); }
+.bf-band-close :focus-visible, .lp-footer :focus-visible { outline-color: var(--lp-deep-ink); }
+.lp-footer { display: none; }
+html[data-page="landing"] .lp-footer { display: block; background: var(--lp-deep); color: var(--lp-deep-muted); border-top: 1px solid var(--lp-deep-line); font-size: var(--fs-small); }
+.lp-footer-inner { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gap); align-items: center; width: min(100% - 2 * var(--gutter), var(--content)); margin-inline: auto; padding: clamp(24px, 2.4vw, 40px) 0; }
+.lp-footer .brand { grid-column: 1 / span 6; color: var(--lp-deep-ink); }
+.lp-footer .brand { --ink: var(--lp-deep-ink); }  /* the mark's square reads --ink through the <use> shadow tree, so it is set on the brand, not on the path */
+.lp-top { grid-column: 7 / span 6; justify-self: start; min-height: 44px; padding: 0; border: 0; background: none; color: var(--lp-deep-muted); font: inherit; font-size: var(--fs-small); cursor: pointer; transition: color var(--fast) var(--ease); }
+.lp-top:hover { color: var(--lp-deep-ink); }
 
-@media (max-width: 1100px) {
-  .bf-hero { grid-template-columns: minmax(0, 1fr); gap: 56px; padding: 56px 0 56px; }
-  .bf-hero-copy h1 { max-width: 12em; }
-  .bf-live { min-height: 0; }
-  .bf-numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 0; }
-  .bf-number:nth-child(odd) { padding-left: 0; border-left: 0; }
-  .bf-number:nth-child(n + 3) { border-top: 1px solid var(--border); }
-  .bf-section { padding-top: 88px; }
-  .bf-problem { grid-template-columns: minmax(0, 1fr); gap: 40px; }
-  .bf-problem-copy { max-width: 620px; }
-  .bf-problem-figure { max-width: 520px; }
-  .bf-slot { min-height: 0; }
-  .bf-steps { grid-template-columns: minmax(0, 1fr); }
-  .bf-steps > li, .bf-steps > li + li { padding: 32px 0; border-left: 0; }
-  .bf-steps > li + li { border-top: 1px solid var(--border); }
-  .bf-basis { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-  .bf-basis-live { min-height: 0; }
-  .bf-close { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 88px 0 72px; }
+/* Chart marks and text */
+/* The Brief's charts (landing-charts.js) draw at the size they are shown at, so every size below is the size on screen:
+   nothing is under 13px. Series colours are scoped to the Brief; the shared tokens and classes in workbench.css are untouched.
+   Cost series: quoted price a neutral grey, financing violet, expected loss the accent. Each clears 3:1 on the canvas and the
+   neighbours stay apart under protan, deutan and greyscale. Dark values mirror the two dark scopes in workbench.css. */
+.brief { --bf-quoted: #85919a; --bf-financing: #7b65d1; }
+:root[data-theme="dark"] .brief { --bf-quoted: #6c7883; --bf-financing: #8f87ec; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .brief { --bf-quoted: #6c7883; --bf-financing: #8f87ec; } }
+.bf-tone-accent, .bf-tone-loss { --gc: var(--accent); }
+.bf-tone-quoted, .bf-tone-neutral { --gc: var(--bf-quoted); }
+.bf-tone-financing { --gc: var(--bf-financing); }
+.bf-chart-host, .bf-spark { stroke: none; }  /* stroke is inherited: a mark has no outline unless a rule below gives it one */
+.bf-chart-host { position: relative; min-width: 0; }
+.brief .g-u { --gc: var(--faint); }  /* an unrated seller: a quiet chip, never a grade colour */
+.bf-chart, .bf-hits { display: block; max-width: 100%; height: auto; overflow: visible; }
+.bf-hits { position: absolute; top: 0; left: 0; z-index: 2; pointer-events: none; }
+.bf-chart text, .bf-hits text { font-family: var(--font); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.bf-chart text { paint-order: stroke; stroke: var(--canvas); stroke-width: 4px; stroke-linejoin: round; }  /* a gridline never strikes through a label */
+.bf-chart .bf-row-label { fill: var(--ink); font-size: 15px; font-weight: 600; }
+.bf-chart .bf-row-sub, .bf-chart .bf-tick, .bf-chart .bf-note, .bf-chart .bf-seg-label { font-size: 13px; }
+.bf-chart .bf-value { fill: var(--ink); font-size: 15px; font-weight: 600; }
+.bf-chart .bf-chip-text { fill: var(--ink); stroke: none; font-size: 13px; font-weight: 700; }
+.bf-grid, .bf-sep { fill: none; stroke: var(--border); stroke-width: 1; }
+.bf-base { fill: none; stroke: var(--control-border); stroke-width: 1; }
+.bf-bar { fill: var(--gc, var(--accent)); }
+.bf-chip-box { fill: none; stroke: var(--gc); stroke-width: 1.5; }
+.bf-ref .bf-row-label { font-weight: 700; }
+/* Row targets: a wash on hover, a ring on keyboard focus, one tooltip drawn in the chart itself. */
+.bf-hit { fill: transparent; stroke: none; outline: none; pointer-events: all; }
+.bf-hit:hover { fill: var(--accent-soft); }
+.bf-hit:focus-visible { fill: var(--accent-soft); stroke: var(--focus); stroke-width: 2px; }
+.bf-tip { opacity: 0; pointer-events: none; filter: drop-shadow(0 6px 16px rgba(18, 28, 36, .16)) drop-shadow(0 1px 3px rgba(18, 28, 36, .12)); }
+.bf-tip.is-on { opacity: 1; }
+.bf-tip-bg { fill: var(--input); stroke: var(--border); stroke-width: 1; }
+.bf-hits .bf-tip-head { fill: var(--ink); font-size: 15px; font-weight: 700; }
+.bf-hits .bf-tip-line { font-size: 13px; }
+.brief .chart-legend, .brief .bf-caption, .brief .bf-split dt { font-size: 13px; }
+/* Sparklines: a faint trend, its last stretch and end dot in the accent. */
+.bf-spark { overflow: visible; }
+.bf-spark-line, .bf-spark-last { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.bf-spark-line { stroke: var(--faint); }
+.bf-spark-last { stroke: var(--accent); }
+.bf-spark-ring { fill: var(--canvas); }
+.bf-spark-dot { fill: var(--accent); }
+/* The all-in formula under the cost chart: $3.540 + $0.319 + $0.962 = $4.821 */
+.bf-problem-figure .bf-split { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: auto auto; grid-auto-flow: column; }  /* names on one row, values on the next, whatever wraps */
+.bf-split dd { position: relative; align-self: start; }
+.brief .bf-split dt { align-items: flex-start; }
+.bf-op { position: absolute; left: -15px; color: var(--muted); font-weight: 400; }
+/* Large figures use proportional numerals; tabular digits look loose at display sizes. */
+.brief .bf-number-value, .brief .bf-stat-value, .brief .bf-basis-live strong { font-variant-numeric: normal; }
+/* Motion. One entrance on first load, a quiet reveal for what sits below the fold, a short fade between pages.
+   All of it lives inside no-preference: with reduced motion nothing is hidden, moved or timed. Opacity and transform only.
+   First load, in order (steps of 60 to 90ms, finished inside about 1.2s): the header fades, then the headline, the sentence and the
+   buttons rise, the chart panel follows, and when the book arrives each chart row lands 50ms after the one above (label and bar,
+   then the value) while the four figures rise beside them. Below the fold, each block rises as it scrolls in and its children follow 90ms apart.
+   Scrolling up past the header, a block fades and drifts over its last stretch (scroll-driven, where the browser has it).
+   Leaving for the app, the whole page fades over 180ms before the app fades in; coming back, it fades in again. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes bf-rise { from { opacity: 0; transform: translateY(14px); } }
+  @keyframes bf-fade { from { opacity: 0; } }
+  @keyframes bf-grow { from { transform: scaleX(0); } }
+  @keyframes view-in { from { opacity: 0; transform: translateY(6px); } }
+
+  html[data-page="landing"] .lp-header, html[data-page="app"] .app-header { animation: bf-fade 420ms var(--ease) backwards; }
+  .brief:not(.bf-entered) .bf-hero-copy h1 { animation: bf-rise 760ms var(--ease) 60ms backwards; }
+  .brief:not(.bf-entered) .bf-hero-copy .bf-sub { animation: bf-rise 760ms var(--ease) 140ms backwards; }
+  .brief:not(.bf-entered) .bf-hero-copy .bf-actions { animation: bf-rise 760ms var(--ease) 220ms backwards; }
+  .brief:not(.bf-entered) .bf-hero-figure { animation: bf-rise 840ms var(--ease) 180ms backwards; }
+  .bf-live > .empty-state { animation: bf-fade 400ms var(--ease) 600ms backwards; }  /* a fast load never shows it */
+
+  .bf-grow .bf-bar-group { transform-box: fill-box; transform-origin: left center; animation: bf-grow 560ms var(--ease) backwards; }
+  .bf-grow .bf-row-label, .bf-grow .bf-row-sub { animation: bf-fade 380ms var(--ease) backwards; }
+  .bf-grow .bf-value, .bf-grow .bf-note, .bf-grow .bf-chip, .bf-grow .bf-seg-label { animation: bf-fade 340ms var(--ease) 260ms backwards; }
+  .bf-grow .bf-r1 { animation-delay: 50ms; } .bf-grow .bf-r2 { animation-delay: 100ms; } .bf-grow .bf-r3 { animation-delay: 150ms; }
+  .bf-grow .bf-r4 { animation-delay: 200ms; } .bf-grow .bf-r5 { animation-delay: 250ms; } .bf-grow .bf-r6 { animation-delay: 300ms; }
+  .bf-grow .bf-value.bf-r1, .bf-grow .bf-note.bf-r1, .bf-grow .bf-chip.bf-r1, .bf-grow .bf-seg-label.bf-r1 { animation-delay: 310ms; }
+  .bf-grow .bf-value.bf-r2, .bf-grow .bf-note.bf-r2, .bf-grow .bf-chip.bf-r2, .bf-grow .bf-seg-label.bf-r2 { animation-delay: 360ms; }
+  .bf-grow .bf-value.bf-r3, .bf-grow .bf-note.bf-r3, .bf-grow .bf-chip.bf-r3, .bf-grow .bf-seg-label.bf-r3 { animation-delay: 410ms; }
+  .bf-grow .bf-value.bf-r4, .bf-grow .bf-note.bf-r4, .bf-grow .bf-chip.bf-r4, .bf-grow .bf-seg-label.bf-r4 { animation-delay: 460ms; }
+  .bf-grow .bf-value.bf-r5, .bf-grow .bf-note.bf-r5, .bf-grow .bf-chip.bf-r5, .bf-grow .bf-seg-label.bf-r5 { animation-delay: 510ms; }
+  .bf-grow .bf-value.bf-r6, .bf-grow .bf-note.bf-r6, .bf-grow .bf-chip.bf-r6, .bf-grow .bf-seg-label.bf-r6 { animation-delay: 560ms; }
+
+  /* When a poll changes a number the bar slides to its new length and its label and grade chip follow; the tooltip fades. */
+  .bf-bar { transition: d 300ms var(--ease); }
+  .bf-value, .bf-note, .bf-chip, .bf-seg-label { transition: transform 300ms var(--ease); }
+  .bf-tip { transition: opacity var(--fast) var(--ease); }
+
+  .bf-number.bf-in { animation: bf-rise 600ms var(--ease) 120ms backwards; }
+  .bf-number.bf-in:nth-child(2) { animation-delay: 190ms; } .bf-number.bf-in:nth-child(3) { animation-delay: 260ms; } .bf-number.bf-in:nth-child(4) { animation-delay: 330ms; }
+
+  /* Below the fold: each block fades up once, as it scrolls in, and a group's children follow in order. The hidden state needs
+     .rv-on, which the script sets only when it can also reveal; the transition lives on the revealed state so that arming the page
+     never fades content out. */
+  .brief.rv-on .rv:not(.rv-in), .brief.rv-on .rv-group:not(.rv-in) > * { opacity: 0; transform: translateY(18px); }
+  .brief.rv-on .rv.rv-in, .brief.rv-on .rv-group.rv-in > * { transition: opacity 760ms var(--ease), transform 760ms var(--ease); }
+  .brief.rv-on .rv-group.rv-in > :nth-child(2) { transition-delay: 90ms; } .brief.rv-on .rv-group.rv-in > :nth-child(3) { transition-delay: 180ms; } .brief.rv-on .rv-group.rv-in > :nth-child(4) { transition-delay: 270ms; }
+
+  /* Between pages. Leaving, the page fades for 180ms (the script waits that long before it switches); the app, and the Brief on
+     the way back, fade in with a few pixels of travel. The Brief's own entrance replaces the page fade the first time. */
+  .view:not(.brief):not([hidden]), .brief.bf-entered:not([hidden]) { animation: view-in 280ms var(--ease) backwards; }
+  .lp-header.lp-leaving, .brief.lp-leaving, .lp-footer.lp-leaving { opacity: 0; transition: opacity 180ms cubic-bezier(.4, 0, 1, 1); }
+  .tab { transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease); }
+
+  /* Fade out. Over the last stretch of its travel past the header, a block fades and drifts up. The range is measured from the block's
+     trailing edge (a length, never a share of the block), so a block taller than the screen only fades the strip that is leaving. */
+  @supports (animation-timeline: view()) {
+    @keyframes bf-exit { to { opacity: 0; transform: translateY(-22px); } }
+    .brief .bf-hero-copy, .brief .bf-hero-visual, .brief .bf-section-head > *, .brief .bf-problem > *, .brief .bf-stage, .brief .bf-basis > *, .brief .bf-close > * {
+      animation: bf-exit linear forwards; animation-timeline: view(block var(--header-h) 0px); animation-range: cover calc(100% - 22vh) cover 100%;
+    }
+  }
 }
+@media print { .brief.rv-on .rv:not(.rv-in), .brief.rv-on .rv-group:not(.rv-in) > * { opacity: 1; transform: none; } .brief, .brief * { animation: none !important; } }
+
+/* Sizes the chart region sets (13px captions, legends and split names) are raised here on the scale, and the figures under a chart sit on the panel. */
+html[data-page="landing"] .brief .bf-caption, html[data-page="landing"] .brief .chart-legend, html[data-page="landing"] .brief .bf-split dt { font-size: var(--fs-small); }
+html[data-page="landing"] .brief .bf-split dd { font-size: clamp(17px, 14.4px + .45vw, 21px); }
+.bf-tone-loss { --gc: var(--warn); }  /* expected loss is the warning colour (the chart region maps it to the accent, which the basis total also uses) */
+html[data-page="landing"] .brief .bf-number-value, html[data-page="landing"] .brief .bf-stat-value, html[data-page="landing"] .brief .bf-basis-live strong { font-variant-numeric: normal; }
+
+/* A stage column narrower than about 370px makes the weights chart draw its stacked form, which is taller; the hero chart's height also
+   varies a little with width. Both are reserved here so that the charts arriving moves nothing. */
+@media (min-width: 1101px) and (max-width: 1599px) { #brief-weights { min-height: 360px; } #brief-odds { min-height: 336px; } }
+@media (min-width: 1700px) { .bf-live { min-height: 530px; } }
+@media (max-width: 1100px) {
+  html[data-page="landing"] { --gap: 20px; }
+  #brief-eligible { min-height: 165px; }
+  .bf-stage { grid-column: span 6; }
+  .bf-stage:not(:last-child) { margin-right: 0; padding-right: 0; }
+  .bf-stage:nth-child(n + 3) { margin-top: 48px; }
+}
+@media (max-width: 900px) {
+  .bf-hero .bf-cols { row-gap: 40px; }
+  .bf-hero-copy, .bf-hero-visual { grid-column: 1 / -1; }
+  .bf-hero-copy h1 { max-width: 14em; }
+  .bf-number { grid-column: span 6; }
+  .bf-number:nth-child(odd) { margin-left: 0; padding-left: 0; border-left: 0; }
+  .bf-number:nth-child(n + 3) { margin-top: 28px; padding-top: 28px; border-top: 1px solid var(--lp-rule); }
+  .bf-numbers { min-height: calc(2 * var(--fs-fig) * 1.04 + 2 * var(--band-pad) + 288px); }
+  .bf-h2, .bf-intro { grid-column: 1 / -1; }
+  .bf-problem { row-gap: 32px; }
+  .bf-problem-copy, .bf-problem-figure { grid-column: 1 / -1; grid-row: auto; }
+  .bf-problem-figure { max-width: 680px; }
+  .bf-basis { row-gap: 24px; }
+  .bf-basis-copy, .bf-basis-live { grid-column: 1 / -1; }
+  .bf-basis-live { min-height: 0; }
+  .bf-close-copy, .bf-close .bf-actions, .lp-footer .brand, .lp-top { grid-column: 1 / -1; }
+  .lp-footer-inner { row-gap: 12px; }
+}
+@media (min-width: 721px) and (max-width: 815px) { #brief-weights { min-height: 360px; } #brief-odds { min-height: 275px; } }
+@media (max-width: 480px) { #brief-anatomy { min-height: 400px; } .bf-basis-live { min-height: 520px; } }
+@media (max-width: 410px) { #brief-weights { min-height: 360px; } #brief-odds { min-height: 275px; } }
+@media (min-width: 721px) and (max-width: 900px) { .bf-live { min-height: 500px; } .bf-basis-live { min-height: 390px; } }
 @media (max-width: 720px) {
-  .bf-hero { gap: 40px; padding: 40px 0 40px; }
-  .bf-actions { margin-top: 32px; }
+  .bf-live { min-height: 548px; }
+  html[data-page="landing"] { --gap: 16px; }
+  .bf-hero { padding-top: 32px; }
   .bf-actions .bf-button { flex: 1 1 100%; }
-  .bf-number, .bf-number + .bf-number { padding: 24px 16px 20px 0; }
-  .bf-number:nth-child(even) { padding-left: 16px; }
-  .bf-number-value { font-size: 32px; }
-  .bf-number-sub { font-size: 12px; }
-  .bf-section { padding-top: 72px; }
-  .bf-problems, .bf-steps { margin-top: 40px; }
-  .bf-problem { padding: 40px 0; }
+  .bf-number { padding-right: 8px; }
+  .bf-number-value { white-space: normal; }
+  .bf-stage { grid-column: 1 / -1; }
+  .bf-stage:nth-child(n + 2) { margin-top: 40px; }
+  .bf-panel { padding: 18px 16px; }
   .bf-split { gap: 12px; }
-  .bf-split dd { font-size: 16px; }
-  .bf-close { padding: 72px 0 56px; }
 }
 /* end Brief */
+
+/* At 400% zoom a sticky header takes nearly half the screen, so on very short viewports it scrolls away. */
+@media (max-height: 500px) { .lp-header, .app-header { position: static; } }
