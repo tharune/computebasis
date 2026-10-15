@@ -8,8 +8,10 @@ Figures and decision states carry the visual weight; chrome stays out of the way
 
 Four primary pages in one top navigation: **Brief**, **Overview**, **Quotes**,
 **Pricing**. The Brief states the problem in the book's own numbers. Overview shows
-scale, eligibility, basis and provider health, and holds the scenario controls.
-Quotes ranks every quote for one model and opens its cost breakdown. **Price this
+what the desk holds and brokered (positions and bids from `GET /v1/book/desk`, simulated), the state of
+the market (basis, price history, eligible supply, why quotes are held back, seller health) and a US map of
+where quoted capacity sits; it holds the scenario controls. Quotes takes one model at a time: a headline, a
+quote ladder on one price axis, why quotes are not eligible, a ranked table and the selected quote's cost breakdown. **Price this
 quote** carries the selected ask to Pricing, which fills the contract form with it;
 nothing is evaluated or saved until the person presses Evaluate contract.
 There is no other page: the earlier advanced tools were removed from the browser (their API routes remain).

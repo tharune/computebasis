@@ -18,12 +18,11 @@ landing page. `VIEWS` in `workbench.js` and the `APP` pattern in `route.js` list
 | --- | --- |
 | `book-adapter.js` | The only place that knows the wire shape. `normalizeBook` (`GET /v1/book`) and `normalizeDesk` (`GET /v1/book/desk`). |
 | `demo-core.js` | Polling, `state`, helpers (`h`, `usd`, `pct`, `chip`, `fit`, ...), scenario controls, page registry. Exposes `window.ComputeDemo`. |
-| `page-brief.js` | Landing page (Brief). |
-| `page-overview.js`, `overview.css` | Overview: positions, brokered bids, market state, capacity. |
+| `page-brief.js`, `landing-charts.js`, `landing-data.js`, `landing.css` | Landing page (Brief): the renderers, its chart engine (`LandingCharts`), the figures derived from one book snapshot, and its styles. |
+| `page-overview.js`, `page-overview-desk.js`, `page-overview-market.js`, `page-overview-charts.js`, `overview.css` | Overview: the key figures, positions and brokered bids (desk ledger), the state of the market, and the capacity map section. |
 | `us-states.js`, `us-map.js`, `map.css` | The US capacity map component, `window.ComputeMap`. |
-| `page-quotes.js`, `quotes.css` | Quotes. |
+| `page-quotes.js`, `page-quotes-ladder.js`, `page-quotes-reasons.js`, `quotes.css` | Quotes: headline, quote ladder, eligibility breakdown, ranked table and quote detail for one model. |
 | `workbench-charts.js` | Shared SVG chart primitives. Change it only with the owner of the charts. |
-| `landing-data.js`, `landing.css` | Landing-only derivations and styles. |
 | `workbench.js` | The host: session bootstrap and CSRF, `api`, theme, routing, and `window.ComputeHost` (`api`, `byId`, `notify`, `showView`, `priceQuote`, `isSession`, `onView`, `onSession`). `priceQuote` is the Quotes-to-Pricing handoff (below). |
 | `workbench.css` | The shared tokens, shell, controls and the grade and chart classes. |
 | `route.js` | Runs before first paint so a reload on an app address never flashes the landing page. |
