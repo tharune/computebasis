@@ -27,6 +27,10 @@
   <script src="/workbench/assets/page-overview.js" defer></script>
   <script src="/workbench/assets/page-quotes.js" defer></script>
   <script src="/workbench/assets/pricing-demo.js" defer></script>
+  <script src="/workbench/assets/pricing-demo-fields.js" defer></script>
+  <script src="/workbench/assets/pricing-demo-charts.js" defer></script>
+  <script src="/workbench/assets/pricing-demo-view.js" defer></script>
+  <script src="/workbench/assets/pricing-demo-app.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#workspace">Skip to main content</a>
@@ -252,26 +256,59 @@
       </section>
       <section id="pricing-view" class="view" aria-labelledby="pricing-title" hidden><div class="page-heading"><div><span class="eyebrow">03 / PRICE &amp; FUND</span><h1 id="pricing-title" tabindex="-1">Pricing &amp; liquidity</h1><p>Compare the bid ceiling, selling floor and dated funding path.</p></div><div class="heading-actions"><button id="evaluate-pricing" class="primary-button" disabled hidden>Evaluate scenario</button></div></div>
 <div id="pricing-demo-root" class="pricing-demo">
-  <div class="pd-intro"><p>One supplier, one contract, one cash path. Explore three illustrative counterparties or edit every term.</p><span class="pd-demo-label">PUBLIC DEMONSTRATION</span></div>
-  <div id="pd-examples" class="pd-examples"><p class="empty-state">Loading the three example contracts…</p></div>
-  <div class="pd-workspace">
-    <div class="pd-inputs"><div class="pd-workspace-head"><div><h2>Contract terms</h2><p id="pd-selected">Choose an example to populate the complete contract.</p></div><button id="pd-blank" class="quiet-button" type="button">Blank contract</button></div>
-      <div id="pd-tabs" class="pd-tabs" role="tablist" aria-label="Contract input groups"></div>
-      <form id="pd-form" novalidate><div id="pd-fields" class="pd-fields"></div></form>
-      <div class="pd-footer"><span id="pd-input-state" role="status">Waiting for backend contract</span><button id="pd-evaluate" class="primary-button" type="button" disabled>Evaluate contract</button></div>
+  <div class="pd-layout">
+    <div class="pd-main">
+      <section class="pd-section" aria-labelledby="pd-scenarios-title">
+        <div class="pd-head"><h2 id="pd-scenarios-title">Scenarios</h2><p>Three invented counterparties. Edit terms loads one into the form; Simulate loads it and evaluates it straight away. Results are scenario estimates under the terms entered, not market bids.</p></div>
+        <div id="pd-examples" class="pd-examples" role="list"><p class="pd-empty-note">Waiting for the local workspace session.</p></div>
+      </section>
+      <section class="pd-section" aria-labelledby="pd-terms-title">
+        <div class="pd-head pd-head-row"><div><h2 id="pd-terms-title" tabindex="-1">Contract terms</h2><p id="pd-selected">Choose a scenario to fill every term, or start from a blank contract.</p></div><button id="pd-blank" class="quiet-button" type="button" disabled>Blank contract</button></div>
+        <div id="pd-tabs" class="pd-tabs" role="tablist" aria-label="Contract term groups"></div>
+        <form id="pd-form" class="pd-form" novalidate><div id="pd-fields" class="pd-fields" role="tabpanel"></div></form>
+        <div id="pd-actions" class="pd-actions-bar" hidden><p id="pd-input-state" class="pd-state" role="status">Waiting for the backend contract.</p><button id="pd-evaluate" class="primary-button" type="button" disabled>Evaluate contract</button></div>
+      </section>
     </div>
-    <aside class="pd-context"><span class="eyebrow">RETAINED MARKET</span><h2>Provider references</h2><p id="pd-market-context">Select hardware to inspect permitted current references.</p><div id="pd-live-rates"></div><p class="pd-note">Published references retain their unit, terms and age. They do not establish a buyer bid or firm availability.</p><div id="pd-last-result"></div></aside>
+    <aside class="pd-side" aria-label="Selected contract, last assessment and reference rates">
+      <section class="pd-section"><div class="pd-head"><h2>Selected contract</h2></div><div id="pd-summary"></div></section>
+      <section class="pd-section"><div class="pd-head"><h2>Last assessment</h2></div><div id="pd-last-result"></div></section>
+      <section class="pd-section"><div class="pd-head"><h2>Reference rates</h2><p id="pd-market-context">Choose hardware to see permitted retained references.</p></div><div id="pd-live-rates"></div><p class="pd-note">References keep their own unit, terms and age. They do not set a buyer bid or show firm availability.</p></section>
+    </aside>
   </div>
 </div>
-<dialog id="pd-dialog" class="pd-dialog" aria-labelledby="pd-dialog-title">
-  <header class="pd-modal-head"><div><span class="eyebrow">CONTRACT ASSESSMENT</span><h2 id="pd-dialog-title">Quote &amp; cash</h2><p id="pd-dialog-subtitle"></p></div><button id="pd-close" class="quiet-button" type="button" aria-label="Close assessment">Close ×</button></header>
-  <div id="pd-modal-status" class="pd-modal-status" role="status"></div>
-  <div id="pd-kpis" class="pd-kpis"></div>
-  <div class="pd-result-tabs" role="tablist" aria-label="Assessment sections"><button data-pd-result="quote" role="tab" aria-selected="true">Pricing</button><button data-pd-result="cash" role="tab" aria-selected="false">Cash &amp; escrow</button><button data-pd-result="terms" role="tab" aria-selected="false">Agreement terms</button></div>
-  <section id="pd-result-quote" class="pd-result-section"><div class="pd-charts"><article><div class="pd-chart-head"><h3>Contract sensitivity surface</h3><span>ILLUSTRATIVE</span></div><p id="pd-surface-caption" class="pd-note"></p><canvas id="pd-surface" width="900" height="460" aria-label="Three dimensional contract rate sensitivity surface"></canvas><label class="pd-rotation">Rotate view<input id="pd-surface-angle" type="range" min="-60" max="60" value="-18"></label><div id="pd-surface-accessible" class="sr-only"></div></article><article><h3>Rate &amp; cost composition</h3><div id="pd-rate-chart"></div><div id="pd-price-explanation"></div></article></div><h3>Current provider references</h3><div id="pd-modal-rates"></div></section>
-  <section id="pd-result-cash" class="pd-result-section" hidden><div id="pd-cash-kpis" class="pd-kpis"></div><div class="pd-charts"><article><h3>Locked principal &amp; vested cash</h3><div id="pd-escrow-chart"></div></article><article><h3>Funding path</h3><div id="pd-cash-chart"></div></article></div><div id="pd-cash-detail"></div></section>
-  <section id="pd-result-terms" class="pd-result-section" hidden><div id="pd-terms"></div><p class="pd-note">The download is an unsigned, nonbinding compute-services agreement and evaluated quote schedule. No signing, custody or money movement occurs.</p></section>
-  <div class="pd-modal-footer"><span id="pd-receipt" class="pd-note"></span><div><button id="pd-copy-json" class="secondary-button" type="button">Download assessment JSON</button><button id="pd-pdf" class="primary-button" type="button" disabled>Download agreement PDF</button></div></div>
+<dialog id="pd-dialog" class="pd-dialog" aria-labelledby="pd-dialog-title" aria-describedby="pd-modal-status">
+  <div class="pd-frame">
+    <header class="pd-modal-head"><div><h2 id="pd-dialog-title" tabindex="-1">Contract assessment</h2><p id="pd-dialog-subtitle"></p></div><button id="pd-close" class="quiet-button" type="button" aria-label="Close assessment">Close</button></header>
+    <div id="pd-modal-body" class="pd-modal-body">
+      <div id="pd-modal-status" class="pd-status" role="status"></div>
+      <div id="pd-kpis" class="pd-headline"></div>
+      <div class="pd-tabs pd-result-tabs" role="tablist" aria-label="Assessment sections">
+        <button id="pd-tab-quote" class="pd-tab" type="button" role="tab" aria-selected="true" aria-controls="pd-result-quote">Pricing</button>
+        <button id="pd-tab-cash" class="pd-tab" type="button" role="tab" aria-selected="false" aria-controls="pd-result-cash" tabindex="-1">Cash and escrow</button>
+        <button id="pd-tab-terms" class="pd-tab" type="button" role="tab" aria-selected="false" aria-controls="pd-result-terms" tabindex="-1">Agreement terms</button>
+      </div>
+      <section id="pd-result-quote" class="pd-result-section" role="tabpanel" aria-labelledby="pd-tab-quote">
+        <div class="pd-two">
+          <article class="pd-block"><h3>Rates per GPU-hour</h3><p class="pd-caption">Declared costs and the rates the assessment produced, on one dollar axis.</p><div id="pd-rate-chart" class="pd-figure"></div></article>
+          <article class="pd-block"><h3>Scenario totals</h3><p class="pd-caption">US dollars over the whole term.</p><div id="pd-ledger"></div></article>
+        </div>
+        <article class="pd-block"><h3>Rate sensitivity to tenor and shock</h3><p id="pd-surface-caption" class="pd-caption"></p><div id="pd-surface-chart" class="pd-figure"></div></article>
+        <article class="pd-block"><h3>Purchase ceiling under weaker collections</h3><p id="pd-collect-caption" class="pd-caption"></p><div id="pd-collect-chart" class="pd-figure"></div></article>
+        <article class="pd-block"><h3>Provider references</h3><p class="pd-caption">Retained observations for the same hardware. Context only: they do not change the scenario or set a bid.</p><div id="pd-modal-rates"></div></article>
+      </section>
+      <section id="pd-result-cash" class="pd-result-section" role="tabpanel" aria-labelledby="pd-tab-cash" hidden>
+        <div id="pd-cash-kpis" class="pd-headline pd-headline-sub"></div>
+        <article id="pd-escrow-block" class="pd-block"><h3>Hourly vesting</h3><p id="pd-escrow-note" class="pd-caption"></p><div id="pd-escrow-chart" class="pd-figure"></div></article>
+        <article class="pd-block"><h3>Dated cash path</h3><p id="pd-cash-note" class="pd-caption"></p><div id="pd-cash-chart" class="pd-figure"></div></article>
+        <div id="pd-cash-detail" class="pd-fact-grid"></div>
+      </section>
+      <section id="pd-result-terms" class="pd-result-section" role="tabpanel" aria-labelledby="pd-tab-terms" hidden>
+        <div id="pd-terms" class="pd-fact-grid"></div>
+        <p id="pd-terms-note" class="pd-note"></p>
+      </section>
+    </div>
+    <footer class="pd-modal-footer"><p id="pd-receipt" class="pd-receipt"></p><div class="pd-footer-actions"><button id="pd-copy-json" class="secondary-button" type="button">Download assessment JSON</button><button id="pd-pdf" class="primary-button" type="button" disabled>Download agreement PDF</button></div></footer>
+  </div>
 </dialog>
 <div class="editor-layout pricing-legacy" hidden><section class="card"><div class="section-heading"><h2>Scenario input</h2><span id="pricing-mode" class="pill">Declared input</span></div><p class="muted">Declare commercial terms and cash timing. Rates and amounts retain exact precision; no missing value becomes zero.</p><div class="editor-actions"><button id="pricing-open-market" class="secondary-button">Choose market evidence</button><button id="load-sample" class="quiet-button">Load synthetic example</button><button id="clear-pricing" class="quiet-button">Clear</button></div><div class="form-toolbar"><strong>Contract inputs</strong><div><button id="pricing-new-draft" class="quiet-button" type="button" title="Reset this unsaved draft to blank inputs">Reset inputs</button><button id="pricing-read-fields" class="quiet-button" type="button">Read draft into fields</button></div></div><p id="pricing-fields-state" class="field-help">Begin with a blank draft or load an existing request. Unknown values stay empty.</p><div id="pricing-fields" class="structured-fields"></div><details class="response-details advanced-editor"><summary>Advanced request JSON</summary><label class="sr-only" for="pricing-input">Pricing request JSON</label><textarea id="pricing-input" spellcheck="false" placeholder="Paste pricing request JSON. Advanced request input. Use fields above or supply a complete request."></textarea></details><p id="pricing-input-state" class="field-help">No input supplied.</p></section><section class="card result-card" aria-labelledby="pricing-decision"><div class="section-heading"><h2 id="pricing-decision">Decision breakdown</h2><span id="pricing-result-state" class="pill">Not evaluated</span></div><div id="pricing-summary" class="result-summary"><p class="empty-state">The result will separate economic margin from cash feasibility.</p></div><details class="response-details"><summary>Complete response &amp; snapshot</summary><pre id="pricing-output" tabindex="0" hidden></pre></details></section></div></section>
 
