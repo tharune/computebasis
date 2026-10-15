@@ -2,9 +2,9 @@
    ComputeBasis workbench: shared tokens and shell
 
    1  Tokens            5  Surfaces
-   2  Base              6  Editors & results
-   3  Shell             7  Responsive & motion
-   4  Controls          8  Brief, overview and quotes
+   2  Base              6  Responsive & motion
+   3  Shell             7  Brief, overview and quotes
+   4  Controls
 
    One container, one type scale, one accent. Surfaces are separated by thin
    rules rather than boxes. Both themes draw from the same token names, so a
@@ -60,10 +60,6 @@
   --primary-hover: #2a343d;
   --primary-press: #0d1115;
 
-  /* Code and result blocks */
-  --code-bg: #f2f4f5;
-  --code-ink: #2c3a43;
-
   --grade-a: #1f7a63; --grade-b: #44709b; --grade-c: #b0801f; --grade-d: #b4483b;
   --ramp-0: #16695e; --ramp-1: #3b8579; --ramp-2: #62a094; --ramp-3: #8dbab0; --ramp-4: #b3d2cb; --ramp-5: #d3e5e0;
 
@@ -86,7 +82,6 @@
   --warn: #dfb35e; --warn-bg: #272114; --warn-line: #6d5a30;
   --error: #ef8b7e; --error-bg: #2d1b19; --error-line: #77423b;
   --primary-hover: #cbd5dc; --primary-press: #aebac3;
-  --code-bg: #12171c; --code-ink: #c1d0d7;
   --grade-a: #62c3a4; --grade-b: #7fb0d8; --grade-c: #e0b252; --grade-d: #e8796b;
   --ramp-0: #79c8b3; --ramp-1: #5fae9a; --ramp-2: #479483; --ramp-3: #357a6b; --ramp-4: #286155; --ramp-5: #1e4a41;
   --shadow-pop: 0 12px 32px rgba(0, 0, 0, .5), 0 2px 8px rgba(0, 0, 0, .35);
@@ -107,7 +102,6 @@
     --warn: #dfb35e; --warn-bg: #272114; --warn-line: #6d5a30;
     --error: #ef8b7e; --error-bg: #2d1b19; --error-line: #77423b;
     --primary-hover: #cbd5dc; --primary-press: #aebac3;
-    --code-bg: #12171c; --code-ink: #c1d0d7;
     --grade-a: #62c3a4; --grade-b: #7fb0d8; --grade-c: #e0b252; --grade-d: #e8796b;
     --ramp-0: #79c8b3; --ramp-1: #5fae9a; --ramp-2: #479483; --ramp-3: #357a6b; --ramp-4: #286155; --ramp-5: #1e4a41;
     --shadow-pop: 0 12px 32px rgba(0, 0, 0, .5), 0 2px 8px rgba(0, 0, 0, .35);
@@ -173,7 +167,6 @@ main { flex: 1; min-width: 0; padding-bottom: 24px; }
 h1 { font-size: 24px; font-weight: 600; letter-spacing: -.02em; line-height: 1.2; }
 .page-heading p { max-width: 66ch; margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
 .page-heading .eyebrow { display: none; }
-.heading-actions { display: flex; gap: 8px; }
 
 /* Banners: session, activity and notices share one treatment. */
 .session-card, .activity-bar, .notice { margin-top: 16px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); font-size: 12px; line-height: 1.6; }
@@ -223,7 +216,6 @@ h1 { font-size: 24px; font-weight: 600; letter-spacing: -.02em; line-height: 1.2
 
 input, select, textarea { background: var(--input); border: 1px solid var(--control-border); border-radius: var(--r); color: var(--ink); }
 input, select { min-width: 0; min-height: 34px; padding: 0 10px; font-size: 13px; }
-textarea { width: 100%; min-height: 455px; padding: 14px; resize: vertical; font: 12px/1.75 var(--mono); tab-size: 2; }
 input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 0; border-color: var(--focus); }
 input[type="checkbox"] { min-height: 0; padding: 0; accent-color: var(--accent); }
@@ -232,22 +224,10 @@ input[type="checkbox"] { min-height: 0; padding: 0; accent-color: var(--accent);
 .pill.good { color: var(--good); border-color: var(--good-line); background: var(--good-bg); }
 .pill.warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
 .pill.error { color: var(--error); border-color: var(--error-line); background: var(--error-bg); }
-.section-heading > .pill { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 var(--accent-ring); } 70%, 100% { box-shadow: 0 0 0 6px transparent; } }
 
 /* 5 · Surfaces ----------------------------------------------------------- */
-.card { min-width: 0; margin: 0; padding: 24px 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: var(--panel); }
-/* The title owns a fixed 28px line and every header action matches it, so titles share one
-   baseline across columns no matter which control sits beside them. */
-.section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.section-heading h2 { font-size: 15px; font-weight: 600; letter-spacing: -.01em; line-height: 28px; }
-.section-heading p { margin: 0; font-size: 12px; line-height: 1.5; }
-.section-heading > button { min-height: 28px; }
-.section-heading > .pill { margin-block: 2px; }
-
-.field-help { margin: 12px 0 0; font-size: 12px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
-.field-help.error { color: var(--error); }
 .empty-state { padding: 28px 16px; text-align: center; font-size: 13px; line-height: 1.6; color: var(--muted); }
 
 .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: var(--r); background: var(--panel); }
@@ -263,68 +243,14 @@ summary { list-style: none; }
 summary::before { content: ""; display: inline-block; width: 5px; height: 5px; margin: 0 10px 2px 3px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); transition: transform var(--fast) var(--ease); }
 details[open] > summary::before { transform: rotate(45deg); }
 summary:focus-visible { outline-offset: 4px; border-radius: var(--r-sm); }
-pre { max-height: 600px; margin: 0; padding: 14px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r); background: var(--code-bg); color: var(--code-ink); font: 12px/1.75 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .num { display: inline-flex; align-items: baseline; font: 13px/1.5 var(--mono); font-variant-numeric: tabular-nums; }
 
-/* 6 · Editors & results ------------------------------------------------- */
-.editor-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 32px; align-items: start; }
-.editor-layout p { font-size: 12px; }
-.editor-actions { display: flex; gap: 8px; margin: 16px 0 12px; }
-
-.result-card { padding-left: 24px; border-left: 1px solid var(--border); }
-.result-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
-.result-summary .empty-state { grid-column: 1 / -1; }
-.result-metric { padding: 16px 0; border-bottom: 1px solid var(--border); }
-.result-metric span { display: block; font-size: 12px; line-height: 1.6; color: var(--muted); }
-.result-metric strong { display: block; margin-top: 6px; font: 500 18px/1.5 var(--mono); color: var(--ink); overflow-wrap: anywhere; }
-.result-blockers { grid-column: 1 / -1; margin-top: 16px; padding: 12px 14px; border-left: 3px solid var(--warn-line); border-radius: 0 var(--r) var(--r) 0; background: var(--warn-bg); color: var(--warn); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
-.result-provenance { grid-column: 1 / -1; font-size: 12px !important; line-height: 1.8; color: var(--muted); overflow-wrap: anywhere; }
-
-.response-details { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--border); }
-.advanced-editor textarea { min-height: 260px; margin-top: 14px; }
-
-.form-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0 0; }
-.form-toolbar > strong { font-size: 12px; font-weight: 600; }
-.form-toolbar > div { display: flex; flex-wrap: wrap; gap: 4px; }
-.form-toolbar button { min-height: 30px; font-size: 12px; }
-.structured-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 18px 0 24px; }
-.structured-fields > .input-group:not(.scalar-group) { grid-column: 1 / -1; }
-.structured-fields > .scalar-group { border: 0; background: none; }
-.structured-fields > .scalar-group > .input-field { margin: 0 0 6px; }
-.input-group { min-width: 0; border: 1px solid var(--border); border-radius: var(--r); background: var(--panel); }
-.input-group > summary { padding: 14px 16px; background: var(--surface); border-radius: var(--r); font-size: 12px; font-weight: 600; }
-.input-group[open] > summary { border-bottom: 1px solid var(--border); border-radius: var(--r) var(--r) 0 0; }
-.input-group > .input-grid, .input-group > .input-field { margin: 16px; }
-.input-group > .field-help, .input-group > button { margin: 16px; }
-.input-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 14px; }
-.input-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
-.input-field input, .input-field select { width: 100%; min-height: 36px; font-size: 13px; }
-.input-field small { font-size: 11px; line-height: 1.6; }
-.nested-input-group { grid-column: 1 / -1; min-width: 0; padding-top: 12px; border-top: 1px solid var(--border); }
-.nested-input-group > summary { margin-bottom: 12px; font-weight: 600; }
-.nested-input-group > button { margin-top: 12px; }
-.scalar-group { display: flex; flex-direction: column; }
-.scalar-group > .input-field { margin: 13px 16px; }
-.array-row { padding: 16px; border-bottom: 1px solid var(--border); }
-.array-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
-.array-heading strong { font-size: 12px; font-weight: 600; }
-.array-heading button { min-height: 28px; font-size: 12px; }
-.add-field { margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--border); }
-.input-group > .add-field { margin: 0 16px 16px; }
-.add-field summary { margin-bottom: 10px; font-size: 12px; color: var(--muted); }
-.add-field input, .add-field select { max-width: 45%; margin-right: 8px; font-size: 13px; }
-
-/* 7 · Responsive & motion ----------------------------------------------- */
+/* 6 · Responsive & motion ----------------------------------------------- */
 @media (max-width: 1200px) {
   :root { --gutter: 24px; }
   .page-heading { flex-direction: column; align-items: flex-start; gap: 16px; }
-
-  .editor-layout { grid-template-columns: 1fr; }
-
-  .result-card { padding-left: 0; border-left: 0; }
   .session-card { flex-direction: column; align-items: flex-start; }
-
 }
 
 @media (max-width: 720px) {
@@ -336,34 +262,12 @@ pre { max-height: 600px; margin: 0; padding: 14px; overflow: auto; border: 1px s
   .nav-item { min-height: 44px; }
   .page-heading { margin-top: 28px; }
   h1 { font-size: 24px; }
-  .heading-actions { width: 100%; flex-wrap: wrap; }
-  .heading-actions button { flex: 1; }
-
-  .card { padding: 20px 0; }
-  .section-heading { flex-wrap: wrap; align-items: flex-start; }
-  /* A wrapped link sits on its own line; bleed left by its padding so its text aligns with the copy above.
-     Unwrapped, the link stays right-aligned and the extra offset only trims the gap. */
-  .section-heading > .link-button { margin-left: -10px; }
   .activity-bar { left: var(--gutter); width: auto; bottom: 12px; }
   .primary-button, .secondary-button, .quiet-button, input, select { min-height: 44px; }
   .icon-button { width: 44px; height: 44px; }
   .link-button { min-height: 44px; }
   input, select, textarea { font-size: 16px; }
-
   .session-card { padding: 16px; }
-
-  .result-metric strong { font-size: 16px; }
-  textarea { min-height: 340px; }
-  .editor-actions { flex-wrap: wrap; }
-
-  .structured-fields, .input-grid { grid-template-columns: 1fr; }
-
-  .input-field input, .input-field select { min-height: 44px; font-size: 16px; }
-  .form-toolbar { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .form-toolbar > div { width: 100%; justify-content: space-between; }
-  .form-toolbar button { min-height: 44px; padding-left: 0; padding-right: 0; }
-  .add-field input, .add-field select { width: 100%; max-width: 100%; margin: 4px 0; font-size: 16px; }
-
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -371,7 +275,7 @@ pre { max-height: 600px; margin: 0; padding: 14px; overflow: auto; border: 1px s
   *, ::before, ::after { animation: none !important; transition: none !important; }
 }
 
-/* 8 · Brief, overview and quotes ----------------------------------------
+/* 7 · Brief, overview and quotes ----------------------------------------
    Hairlines instead of cards. Grade is carried by a letter and a colour, never colour alone.
    --gc is the one grade variable: chips, bars, bubbles, legends and the grade strip all read it. */
 .g-a { --gc: var(--grade-a); } .g-b { --gc: var(--grade-b); } .g-c { --gc: var(--grade-c); } .g-d { --gc: var(--grade-d); }

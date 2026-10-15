@@ -581,7 +581,7 @@ test("a quote that arrives while an evaluation runs waits for it to finish", asy
 });
 
 test("the markup is structurally safe: no inline style or handlers, every id the scripts read exists, chart tokens have light, dark and mirror values", () => {
-  const root = html.slice(html.indexOf('<div id="pricing-demo-root"'), html.indexOf('<div class="editor-layout pricing-legacy"'));
+  const root = html.slice(html.indexOf('<div id="pricing-demo-root"'), html.indexOf("</main>"));
   assert.ok(root.length > 1000);
   assert.doesNotMatch(root, /\sstyle=|\son[a-z]+=|<script|<canvas/);
   const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
@@ -590,7 +590,9 @@ test("the markup is structurally safe: no inline style or handlers, every id the
   ["quote", "cash", "terms"].forEach((name) => { used.add("pd-tab-" + name); used.add("pd-result-" + name); });
   const missing = [...used].filter((id) => !ids.has(id));
   assert.deepEqual(missing, [], "every id the Pricing scripts read is in index.html");
-  ["pricing-mode", "pricing-input", "evaluate-pricing", "load-sample", "clear-pricing", "pricing-fields", "pricing-summary"].forEach((id) => assert.ok(ids.has(id), "legacy id " + id + " is untouched"));
+  const view = html.slice(html.indexOf('<section id="pricing-view"'), html.indexOf("</main>"));
+  const unprefixed = [...view.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]).filter((id) => !id.startsWith("pd-"));
+  assert.deepEqual(unprefixed, ["pricing-view", "pricing-title", "pricing-demo-root"], "the Pricing page holds only its own pd- elements and its heading");
   const css = fs.readFileSync(path.join(assets, "pricing-demo.css"), "utf8");
   const block = (head) => { const start = css.indexOf(head); assert.ok(start >= 0, head); return css.slice(css.indexOf("{", start) + 1, css.indexOf("}", start)); };
   const names = (body) => [...body.matchAll(/(--pd-[a-z0-9-]+):/g)].map((match) => match[1]).sort();

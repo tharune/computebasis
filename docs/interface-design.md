@@ -10,8 +10,8 @@ Four primary pages in one top navigation: **Brief**, **Overview**, **Quotes**,
 **Pricing**. The Brief states the problem in the book's own numbers. Overview shows
 scale, eligibility, basis and provider health, and holds the scenario controls.
 Quotes ranks every quote for one model and opens its cost breakdown. **Price this
-quote** carries the selected ask to Pricing, which loads the labelled example in
-the editor only; nothing is evaluated or saved until the person presses Evaluate.
+quote** carries the selected ask to Pricing, which fills the contract form with it;
+nothing is evaluated or saved until the person presses Evaluate contract.
 There is no other page: the earlier advanced tools were removed from the browser (their API routes remain).
 
 Changing page starts at the top of the new page. Choosing the page already showing
@@ -37,7 +37,7 @@ unit and its finding in the text beside it, not only in the marks.
 ## Actions
 
 Filled buttons mark the principal action on a page: **Launch the overview**,
-**Price this quote**, **Evaluate scenario**. Outlined buttons start a scenario or
+**Price this quote**, **Evaluate contract**. Outlined buttons start a scenario or
 open a related page. Quiet text buttons are utilities such as Pause and Reset. Each
 has visible hover, pressed, disabled and keyboard-focus states. Controls carry no
 decorative gradient, glow or shadow, and no motion beyond a short colour change.
@@ -75,9 +75,8 @@ and nothing on screen implies an executed trade. A hold is explained, not hidden
 ## Checks
 
 Working text in the app is 12–14px on desktop. The Brief has its own fluid scale in `landing.css` (display, h2, h3, lede, intro, body, small, figure), which grows with the viewport from 390 to 2000px: nothing is under 13px and body copy is 17px or more from 1024px up. The Brief sits on full-width tonal bands (canvas, band, panel, one deep closing band); each surface resets `--canvas` so a chart's text halo matches it. On mobile, buttons, tabs and form fields outside
-tables are at least 44px tall and inputs use 16px text; table rows stay compact, and
-the disclosure rows in the advanced editors are smaller than 44px. Tables and editors
-scroll inside their own region, and the page never scrolls sideways.
+tables are at least 44px tall and inputs use 16px text; table rows stay compact.
+Tables scroll inside their own region, and the page never scrolls sideways.
 
 Tests enforce the structural rules: no inline style or script, no `innerHTML`, no
 `localStorage`, every `byId` id present in `index.html`, and light, dark and

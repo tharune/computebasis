@@ -24,11 +24,10 @@ landing page. `VIEWS` in `workbench.js` and the `APP` pattern in `route.js` list
 | `page-quotes.js`, `quotes.css` | Quotes. |
 | `workbench-charts.js` | Shared SVG chart primitives. Change it only with the owner of the charts. |
 | `landing-data.js`, `landing.css` | Landing-only derivations and styles. |
-| `workbench.js` | The host: session bootstrap and CSRF, `api`, theme, routing, and `window.ComputeHost` (`api`, `byId`, `notify`, `showView`, `priceQuote`, `isSession`, `onView`, `onSession`). It also still drives the hidden `.pricing-legacy` editor in `index.html`. |
+| `workbench.js` | The host: session bootstrap and CSRF, `api`, theme, routing, and `window.ComputeHost` (`api`, `byId`, `notify`, `showView`, `priceQuote`, `isSession`, `onView`, `onSession`). `priceQuote` is the Quotes-to-Pricing handoff (below). |
 | `workbench.css` | The shared tokens, shell, controls and the grade and chart classes. |
 | `route.js` | Runs before first paint so a reload on an app address never flashes the landing page. |
-| `pricing-demo.js`, `pricing-demo.css` | Pricing: the example contracts, the editable terms, the assessment dialog (`/v1/pricing/demo/*`). Hands a quote over through `ComputePricingDemo.loadQuote`. |
-| `workbench-drafts.js`, `synthetic-pricing-request.json` | The structural request editor and the labelled invented scenario behind `priceQuote` and the hidden `.pricing-legacy` editor. |
+| `pricing-demo.js`, `pricing-demo-fields.js`, `pricing-demo-charts.js`, `pricing-demo-view.js`, `pricing-demo-app.js`, `pricing-demo.css` | Pricing: the example contracts, the editable terms, the assessment dialog (`/v1/pricing/demo/*`). The only owner of the Pricing form; it takes a quote through `ComputePricingDemo.loadQuote`. |
 
 A page file is one IIFE: read helpers from `window.ComputeDemo`, draw into the elements `index.html` gives it, and end with
 `ComputeDemo.register("desk", { render, resize: true })`. `render` is called on every new book, every view switch and (if `resize`) on
@@ -37,6 +36,15 @@ resize, so it must be idempotent and must cope with `state.data === null` (not l
 New script or stylesheet files go on their own line in the `<head>` of `index.html`; a name that starts `page-`, `us-` or `desk-` is
 picked up by the test harness automatically. Put page styles in the page's own CSS file, reuse the tokens in `workbench.css`
 (`--border`, `--surface`, `--text`, `--muted`, grade colours `--g-a`..), and give both themes a value for every colour you add.
+
+## Handoff: Quotes to Pricing
+
+**Price this quote** calls `ComputeHost.priceQuote(quote)` with the normalised quote and its exact price string. The host shows Pricing and
+returns `ComputePricingDemo.loadQuote(quote)`, a `Promise<boolean>`: `true` when the form was filled now, `false` when the quote was queued
+(no session yet, contract not loaded, an evaluation running) or rejected (no usable price). Pricing applies a queued quote the moment it can.
+The quote's price becomes the fixed supplier ask, its GPU the hardware model and its stated down payment the supplier deposit; every other
+term comes from the backend's invented example, and the form says so. Nothing is evaluated or saved until the person presses **Evaluate
+contract**. If the Pricing scripts are missing the host says so in the notice bar.
 
 ## Data: what the pages may rely on
 
@@ -50,7 +58,7 @@ cannot be). Never read the raw response.
 - A grade is `A`..`D`, or `U` for an unrated seller. `U` is never counted as a grade and never coloured as one.
 - A quote's `missing` is the list of key terms it leaves out; `reason_codes` and the readable `reasons` say why it is not eligible
   (`contract start has passed`, `quote has expired`, `no down payment stated`, ...). `quote.ref` is the short label (`Q0149`) to
-  print; `quote.id` is the key and the handoff to Pricing.
+  print; `quote.id` is the key.
 - A figure the server does not know is `null`. Draw "—" or say why, never `NaN`, `$NaN`, `undefined` or `0`.
 - The book is simulated: every page says so, and nothing is executable (`execution_enabled: false`).
 - The desk ledger is specified in `desk-ledger-contract.md`.
@@ -62,7 +70,7 @@ cannot be). Never read the raw response.
   `assertClean` (fails on `NaN`/`undefined` in text or attributes), `book` (normalised snapshots) and `deskFixture`
   (`tests/fixtures/desk-ledger.json`). Add a `tests/workbench_<page>.test.js` for your page.
 - `node --test tests/workbench_behavior.test.js` (with `COMPUTEBASIS_WORKBENCH_ASSETS` set to the assets directory) covers the host script:
-  session and CSRF handling, routing, scroll, theme, titles and the Pricing editor.
+  session and CSRF handling, routing, scroll, theme, titles and the Quotes-to-Pricing handoff.
 - `python scripts/validate.py` is the full offline gate. Run it before you hand work back.
 - Look at it. The tests do not see layout. Serve with `python scripts/serve.py --store <path outside the repo>/decisions.sqlite --port <p>
   --no-auto-refresh`, open it in Playwright (Chromium is installed; `require('/opt/node-tools/node_modules/playwright')`,

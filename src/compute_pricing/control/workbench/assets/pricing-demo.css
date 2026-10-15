@@ -1,7 +1,6 @@
 /* Pricing demonstration. Hairlines and type, as on Overview and Quotes: no tracked capitals, no monospace figures, tabular numerals
    only where figures line up in a column. Colour comes from the workbench tokens plus the chart tokens below, which are defined for
    light, dark and the system-mirror block, and were checked with the dataviz validator (series: categorical; heat ramp: ordinal). */
-.pricing-legacy[hidden] { display: none !important; }
 
 /* Chart tokens. Series: teal, orange, blue (adjacent CVD delta E 10.6 light, 12.7 dark; every mark 3:1 or better on its surface).
    Heat ramp: one teal hue, six steps, lightness monotone, lightest step 2.0:1 on the page. Cell text is chosen per step for 4.5:1. */

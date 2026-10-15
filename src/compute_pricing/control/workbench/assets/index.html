@@ -14,7 +14,6 @@
   <link rel="stylesheet" href="/workbench/assets/quotes.css">
   <link rel="stylesheet" href="/workbench/assets/map.css">
   <link rel="stylesheet" href="/workbench/assets/pricing-demo.css">
-  <script src="/workbench/assets/workbench-drafts.js" defer></script>
   <script src="/workbench/assets/workbench-charts.js" defer></script>
   <script src="/workbench/assets/landing-charts.js" defer></script>
   <script src="/workbench/assets/workbench.js" defer></script>
@@ -251,7 +250,7 @@
           <aside id="quotes-detail" class="qx-panel qx-detail" aria-label="Selected quote"></aside>
         </div>
       </section>
-      <section id="pricing-view" class="view" aria-labelledby="pricing-title" hidden><div class="page-heading"><div><span class="eyebrow">03 / PRICE &amp; FUND</span><h1 id="pricing-title" tabindex="-1">Pricing &amp; liquidity</h1><p>Compare the bid ceiling, selling floor and dated funding path.</p></div><div class="heading-actions"><button id="evaluate-pricing" class="primary-button" disabled hidden>Evaluate scenario</button></div></div>
+      <section id="pricing-view" class="view" aria-labelledby="pricing-title" hidden><div class="page-heading"><div><span class="eyebrow">03 / PRICE &amp; FUND</span><h1 id="pricing-title" tabindex="-1">Pricing &amp; liquidity</h1><p>Compare the bid ceiling, selling floor and dated funding path.</p></div></div>
 <div id="pricing-demo-root" class="pricing-demo">
   <div class="pd-layout">
     <div class="pd-main">
@@ -307,7 +306,7 @@
     <div class="pd-modal-footer"><p id="pd-receipt" class="pd-receipt"></p><div class="pd-footer-actions"><button id="pd-copy-json" class="secondary-button" type="button">Download assessment JSON</button><button id="pd-pdf" class="primary-button" type="button" disabled>Download agreement PDF</button></div></div>
   </div>
 </dialog>
-<div class="editor-layout pricing-legacy" hidden><section class="card"><div class="section-heading"><h2>Scenario input</h2><span id="pricing-mode" class="pill">Declared input</span></div><p class="muted">Declare commercial terms and cash timing. Rates and amounts retain exact precision; no missing value becomes zero.</p><div class="editor-actions"><button id="pricing-open-market" class="secondary-button">Choose market evidence</button><button id="load-sample" class="quiet-button">Load synthetic example</button><button id="clear-pricing" class="quiet-button">Clear</button></div><div class="form-toolbar"><strong>Contract inputs</strong><div><button id="pricing-new-draft" class="quiet-button" type="button" title="Reset this unsaved draft to blank inputs">Reset inputs</button><button id="pricing-read-fields" class="quiet-button" type="button">Read draft into fields</button></div></div><p id="pricing-fields-state" class="field-help">Begin with a blank draft or load an existing request. Unknown values stay empty.</p><div id="pricing-fields" class="structured-fields"></div><details class="response-details advanced-editor"><summary>Advanced request JSON</summary><label class="sr-only" for="pricing-input">Pricing request JSON</label><textarea id="pricing-input" spellcheck="false" placeholder="Paste pricing request JSON. Advanced request input. Use fields above or supply a complete request."></textarea></details><p id="pricing-input-state" class="field-help">No input supplied.</p></section><section class="card result-card" aria-labelledby="pricing-decision"><div class="section-heading"><h2 id="pricing-decision">Decision breakdown</h2><span id="pricing-result-state" class="pill">Not evaluated</span></div><div id="pricing-summary" class="result-summary"><p class="empty-state">The result will separate economic margin from cash feasibility.</p></div><details class="response-details"><summary>Complete response &amp; snapshot</summary><pre id="pricing-output" tabindex="0" hidden></pre></details></section></div></section>
+</section>
     </main>
     <footer id="lp-footer" class="lp-footer">
       <div class="lp-footer-inner">

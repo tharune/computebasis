@@ -84,7 +84,8 @@ short-lived local session; there is no credential to paste.
   you can watch the basis move.
 - **Quotes** lists every live quote for one GPU model, ranked by all-in cost or by quoted price. Select a quote to see
   its all-in cost breakdown (price, financing, expected loss), the seller's scorecard, its terms and missing terms,
-  and whether it is eligible and why not. **Price this quote** sends that quote to Pricing.
+  and whether it is eligible and why not. **Price this quote** opens Pricing with that quote's price as the supplier ask;
+  nothing is evaluated until you press **Evaluate contract**.
 - **Pricing** opens three populated example contracts (strong H100 capacity, balanced L40S terms, weak A4000 capacity
   with hourly restricted escrow) or a blank one. Edit any term, press **Simulate**, and read the assessment: purchase
   ceiling, cost-recovery and margin asks, provider reference rates, the sensitivity surface and the dated cash path.

@@ -1,5 +1,5 @@
 "use strict";
-// Drive the shipped host script's event handlers (session, routing, theme, the Pricing editor); every fetch is an offline fixture.
+// Drive the shipped host script's event handlers (session, routing, theme, the Quotes-to-Pricing handoff); every fetch is an offline fixture.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -9,7 +9,6 @@ const assets = process.env.COMPUTEBASIS_WORKBENCH_ASSETS;
 assert.ok(assets, "COMPUTEBASIS_WORKBENCH_ASSETS must point to the checked-out workbench assets");
 const html = fs.readFileSync(path.join(assets, "index.html"), "utf8");
 const script = fs.readFileSync(path.join(assets, "workbench.js"), "utf8");
-const draftScript = fs.readFileSync(path.join(assets, "workbench-drafts.js"), "utf8");
 
 class Node {
   constructor(tag = "div", attributes = {}) {
@@ -64,7 +63,6 @@ function harness({ prefersDark = false, hash = "" } = {}) {
     const response = responses.shift(); assert.ok(response, "Unexpected request: " + url); return response(options);
   };
   const context = vm.createContext({ document: { get title() { return pageDocument.title; }, set title(value) { pageDocument.title = value; }, documentElement, getElementById: (id) => { assert.ok(nodes.has(id), "Missing DOM element " + id); return nodes.get(id); }, createElement: (tag) => new Node(tag), createElementNS: (_, tag) => new Node(tag), querySelectorAll: () => nav }, window, fetch, AbortController, structuredClone, setTimeout: (fn, delay) => { timers.set(++timerId, { fn, delay }); return timerId; }, clearTimeout: (id) => timers.delete(id), console });
-  vm.runInContext(draftScript, context, { filename: "workbench-drafts.js" });
   vm.runInContext(script, context, { filename: "workbench.js" });
   function reply(body, status = 200, headers = {}) { responses.push(async () => ({ ok: status >= 200 && status < 300, status, headers: headerBag(headers), json: async () => structuredClone(body), text: async () => typeof body === "string" ? body : JSON.stringify(body) })); }
   function pending(ignoreAbort = false) {
@@ -82,12 +80,11 @@ function harness({ prefersDark = false, hash = "" } = {}) {
 }
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
-const descendants = (root) => [root, ...root.children.flatMap(descendants)];
-const field = (h, kind, location) => descendants(h.node(kind + "-fields")).find((entry) => entry.attributes["data-field-path"] === location);
 const evaluated = (overrides = {}) => ({ snapshot_id: "synthetic-result", result: { status: "indicative", economics: { currency: "USD" }, ...overrides } });
 
-test("startup is locked and performs no fetch or sample insertion", () => {
-  const h = harness(); assert.equal(h.calls.length, 0); assert.equal(h.node("pricing-input").value, ""); assert.equal(h.window.listeners.get("load").length, 1); assert.equal(h.node("evaluate-pricing").disabled, true);
+test("startup is locked: no fetch happens before the load event, and the workspace opens once on it", async () => {
+  const h = harness(); assert.equal(h.allCalls.length, 0); assert.equal(h.window.listeners.get("load").length, 1);
+  assert.equal(h.window.ComputeHost.isSession(), false); assert.equal(h.node("cancel-request").disabled, true); assert.equal(h.node("activity-bar").hidden, true);
 });
 
 test("theme starts from system preference and toggles without fetch or session retention", async () => {
@@ -100,7 +97,6 @@ test("theme starts from system preference and toggles without fetch or session r
   assert.equal(h.calls.length, 0);
   await h.connect(); await h.node("theme-toggle").emit("click"); await h.node("disconnect").emit("click");
   assert.equal(h.documentElement.attributes["data-theme"], "dark");
-  assert.equal(h.node("pricing-input").value, "");
   const fresh = harness(); assert.equal(fresh.documentElement.attributes["data-theme"], "light");
 });
 
@@ -187,13 +183,12 @@ test("browser load bootstraps an HttpOnly session with one handshake and no othe
   assert.equal(h.sessionCalls[0].url, "/v1/session/bootstrap"); assert.equal(h.sessionCalls[0].options.credentials, "same-origin");
   assert.equal(h.sessionCalls[0].options.body, "{}"); assert.equal(h.sessionCalls[0].options.headers.Authorization, undefined);
   assert.equal(h.allCalls.length, 1, "opening the workspace reads no market index, inventory or catalog");
-  assert.equal(JSON.parse(h.node("pricing-input").value).commercial, null);
 });
 
 test("a failed handshake leaves the workspace paused with the reason, not half open", async () => {
   const h = harness(); h.reply({ detail: "not_available" }, 503); await h.window.emit("load");
   assert.equal(h.node("session-card").hidden, false); assert.equal(h.node("session-state").textContent, "Offline");
-  assert.match(h.node("session-help").textContent, /503/); assert.equal(h.node("pricing-input").value, "");
+  assert.match(h.node("session-help").textContent, /503/);
 });
 
 test("a conditional read sends its validator, and a 304 returns nothing to parse", async () => {
@@ -206,63 +201,41 @@ test("a conditional read sends its validator, and a 304 returns nothing to parse
   assert.equal(fresh.etag, 'W/"two"'); assert.equal(h.calls[1].options.headers["If-None-Match"], undefined);
 });
 
-test("money-looking JSON is submitted byte-for-byte and edited responses are labelled previous input", async () => {
-  const h = harness(); await h.connect(); const raw = '{"amount":"12345678901234567890.000000000000001","field":1,"field":2}';
-  h.node("pricing-input").value = raw; await h.node("pricing-input").emit("input");
-  h.reply({ snapshot_id: "synthetic-result", result: { status: "indicative", pricing_provenance: {source_evidence_eligible: true}, economics: { currency: "EUR" }, bid: { submitted_limit: "0.93000000000000000001" } } });
-  await h.node("evaluate-pricing").emit("click"); assert.equal(h.calls[0].options.body, raw); assert.match(h.node("pricing-summary").textContent, /0\.93000000000000000001 EUR/);
-  h.node("pricing-input").value = "{}"; await h.node("pricing-input").emit("input"); assert.equal(h.node("pricing-result-state").textContent, "Previous input");
-});
-
-test("invalid JSON gives an actionable editor error and makes no request", async () => {
-  const h = harness(); await h.connect(); h.node("pricing-input").value = "{"; await h.node("pricing-input").emit("input"); await h.node("evaluate-pricing").emit("click");
-  assert.equal(h.calls.length, 0); assert.match(h.node("pricing-input-state").textContent, /Invalid JSON/); assert.equal(h.node("pricing-input").focused, true);
-});
-
-test("logout aborts active requests and late responses cannot restore old data or feedback", async () => {
-  const h = harness(); await h.connect(); const delayed = h.pending(true); const running = h.node("evaluate-pricing").emit("click"); await tick();
+test("ending the session aborts active requests, and a late response cannot restore old data", async () => {
+  const h = harness(); await h.connect(); const delayed = h.pending(true);
+  const running = h.window.ComputeHost.api("/v1/pricing/demo/evaluate", { method: "POST", body: "{}" }).then(() => "answered", (error) => error.message); await tick();
   await h.node("disconnect").emit("click"); assert.equal(h.calls[0].options.signal.aborted, true);
-  delayed.resolve({ snapshot_id: "SECRET-OLD", result: { status: "indicative" } }); await running;
-  assert.doesNotMatch(h.node("pricing-summary").textContent, /SECRET-OLD/); assert.equal(h.node("pricing-output").textContent, ""); assert.match(h.node("notice").textContent, /Session ended/); assert.equal(h.node("pricing-input").value, "");
+  delayed.resolve({ snapshot_id: "SECRET-OLD", result: { status: "indicative" } });
+  assert.match(await running, /session ended while this request was running/, "the late answer is discarded, not returned");
+  assert.match(h.node("notice").textContent, /Session ended/); assert.doesNotMatch(h.node("notice").textContent, /SECRET-OLD/);
 });
 
 test("late failed bootstrap cannot clear a newer connected workspace", async () => {
   const h = harness(); const old = h.pending(true); const first = h.node("connect-session").emit("click"); await tick();
   await h.node("disconnect").emit("click"); const resumed = h.connect();
   old.resolve({ detail: "old rejected" }, 401); await first; await resumed;
-  assert.equal(h.node("session-state").textContent, "Connected"); assert.equal(h.node("session-card").hidden, true); assert.equal(h.node("evaluate-pricing").disabled, false);
+  assert.equal(h.node("session-state").textContent, "Connected"); assert.equal(h.node("session-card").hidden, true); assert.equal(h.window.ComputeHost.isSession(), true);
 });
 
-test("stop waiting and timeout retain drafts and abort transport", async () => {
-  const h = harness(); await h.connect(); h.node("pricing-input").value = '{"draft":"kept"}';
-  h.pending(); const running = h.node("evaluate-pricing").emit("click"); await tick(); await h.node("cancel-request").emit("click"); await running;
-  assert.match(h.node("notice").textContent, /Server work may continue/); assert.equal(h.node("pricing-input").value, '{"draft":"kept"}'); assert.equal(h.calls.length, 1);
-  h.pending(); const again = h.node("evaluate-pricing").emit("click"); await tick(); const timer = [...h.timers.values()][0]; assert.equal(timer.delay, 30000); timer.fn(); await again;
-  assert.match(h.node("notice").textContent, /timed out/); assert.equal(h.node("evaluate-pricing").disabled, false); assert.equal(h.node("pricing-input").value, '{"draft":"kept"}');
+test("stop waiting and a timeout abort the opening handshake and leave the workspace paused with the reason", async () => {
+  const h = harness(); h.pending(); const opening = h.window.emit("load"); await tick();
+  assert.equal(h.node("activity-bar").hidden, false, "waiting shows the activity bar");
+  await h.node("cancel-request").emit("click"); await opening;
+  assert.match(h.node("session-help").textContent, /Server work may continue/); assert.equal(h.node("session-card").hidden, false); assert.equal(h.window.ComputeHost.isSession(), false);
+  assert.equal(h.node("activity-bar").hidden, true); assert.equal(h.sessionCalls.length, 1);
+  h.pending(); const again = h.node("connect-session").emit("click"); await tick();
+  const timer = [...h.timers.values()][0]; assert.equal(timer.delay, 30000); timer.fn(); await again;
+  assert.match(h.node("session-help").textContent, /timed out/); assert.equal(h.node("connect-session").disabled, false);
 });
 
 test("expired read sessions renew once, while mutations are never replayed", async () => {
-  const h = harness(); await h.connect(); h.node("pricing-input").value = '{"sensitive":"draft"}';
+  const h = harness(); await h.connect(); const api = h.window.ComputeHost.api;
   h.reply({ detail: "unauthorized" }, 401); h.reply({ auth_mode: "local_session", csrf_token: "renewed-marker" }); h.reply({ meta: { tick: 2 } });
-  assert.deepEqual(await h.window.ComputeHost.api("/v1/book"), { meta: { tick: 2 } }); assert.equal(h.node("pricing-input").value, '{"sensitive":"draft"}');
-  h.node("pricing-input").value = "{}"; await h.node("pricing-input").emit("input"); h.reply({ detail: "unauthorized" }, 401); h.reply({ auth_mode: "local_session", csrf_token: "mutation-renewed-marker" });
-  await h.node("evaluate-pricing").emit("click"); assert.match(h.node("notice").textContent, /no mutation was retried/);
+  assert.deepEqual(await api("/v1/book"), { meta: { tick: 2 } });
+  h.reply({ detail: "unauthorized" }, 401); h.reply({ auth_mode: "local_session", csrf_token: "mutation-renewed-marker" });
+  await assert.rejects(api("/v1/pricing/demo/evaluate", { method: "POST", body: "{}" }), /no mutation was retried/);
   assert.equal(h.sessionCalls.filter((call) => call.url.includes("bootstrap")).length, 3);
-  assert.equal(h.calls.filter((call) => call.url === "/v1/pricing/evaluate").length, 1);
-});
-
-test("synthetic load is explicit, unauthenticated, separate, and discarded after pagehide", async () => {
-  const h = harness(); const delayed = h.pending(true); const loading = h.node("load-sample").emit("click"); await tick();
-  assert.equal(h.calls[0].options.headers.Authorization, undefined); await h.window.emit("pagehide"); delayed.resolve('{"synthetic":"late"}'); await loading;
-  assert.equal(h.node("pricing-input").value, ""); assert.equal(h.node("notice").hidden, true);
-});
-
-test("the shipped synthetic scenario opens in the editor", async () => {
-  const sample = fs.readFileSync(path.join(assets, "synthetic-pricing-request.json"), "utf8");
-  const h = harness(); await h.connect(); h.node("pricing-input").value = ""; h.reply(sample);
-  await h.node("load-sample").emit("click");
-  assert.equal(h.node("notice").className, "notice"); assert.match(h.node("pricing-mode").textContent, /^SYNTHETIC EXAMPLE/);
-  assert.equal(h.node("pricing-input").value, sample); assert.ok(field(h, "pricing", "target.gpu_count"), "the editor draws the scenario's fields");
+  assert.equal(h.calls.filter((call) => call.url === "/v1/pricing/demo/evaluate").length, 1);
 });
 
 test("Price this quote shows Pricing and hands the very same quote, with its exact price string, to the Pricing page", async () => {
@@ -292,84 +265,57 @@ test("if the Pricing page is missing, Price this quote still opens Pricing and s
   assert.equal(h.node("notice").hidden, false); assert.equal(h.node("notice").className, "notice error"); assert.match(h.node("notice").textContent, /Pricing page is not available/);
 });
 
-test("mutations send memory CSRF while exact request bytes and decimals are preserved", async () => {
-  const h = harness(); await h.connect(); h.node("pricing-input").value = '{"amount":"0.000000000000000000001"}'; await h.node("pricing-input").emit("input");
-  h.reply(evaluated()); await h.node("evaluate-pricing").emit("click");
-  const call = h.calls.at(-1); assert.equal(call.url, "/v1/pricing/evaluate"); assert.equal(call.options.headers["X-Compute-CSRF"], "invented-csrf-marker"); assert.equal(call.options.credentials, "same-origin");
-  assert.equal(call.options.body, '{"amount":"0.000000000000000000001"}');
+test("mutations send memory CSRF while the exact request bytes and decimals are preserved", async () => {
+  const h = harness(); await h.connect(); const raw = '{"amount":"12345678901234567890.000000000000001","field":1,"field":2}';
+  h.reply(evaluated({ bid: { submitted_limit: "0.93000000000000000001" } }));
+  const receipt = await h.window.ComputeHost.api("/v1/pricing/demo/evaluate", { method: "POST", body: raw });
+  const call = h.calls.at(-1); assert.equal(call.url, "/v1/pricing/demo/evaluate"); assert.equal(call.options.method, "POST");
+  assert.equal(call.options.headers["X-Compute-CSRF"], "invented-csrf-marker"); assert.equal(call.options.headers["Content-Type"], "application/json");
+  assert.equal(call.options.credentials, "same-origin"); assert.equal(call.options.redirect, "error");
+  assert.equal(call.options.body, raw, "the body is sent as written, never re-serialised");
+  assert.equal(receipt.result.bid.submitted_limit, "0.93000000000000000001");
+  h.reply({ meta: { tick: 1 } }); await h.window.ComputeHost.api("/v1/book");
+  assert.equal(h.calls.at(-1).options.headers["X-Compute-CSRF"], undefined, "a read carries no protection token");
 });
 
-test("structured monetary edits distinguish unknown from explicit zero and retain extensions", async () => {
-  const h = harness(); await h.connect(); h.node("pricing-input").value = '{"target":{"gpu_count":null},"extensions":{"unknown":"12345678901234567890.000000000001"}}'; await h.node("pricing-read-fields").emit("click");
-  const count = field(h, "pricing", "target.gpu_count"); assert.equal(count.value, "");
-  count.value = "0"; await count.emit("input"); let result = JSON.parse(h.node("pricing-input").value); assert.equal(result.target.gpu_count, "0"); assert.equal(result.extensions.unknown, "12345678901234567890.000000000001");
-  count.value = ""; await count.emit("input"); result = JSON.parse(h.node("pricing-input").value); assert.equal(result.target.gpu_count, null);
-});
-
-test("structured fields cannot overwrite a changed advanced draft or round unsafe literals", async () => {
-  const h = harness(); await h.connect(); const before = h.node("pricing-input").value; const count = field(h, "pricing", "target.gpu_count");
-  h.node("pricing-input").value = '{"amount":"user changed"}'; count.value = "12"; await count.emit("input");
-  assert.equal(h.node("pricing-input").value, '{"amount":"user changed"}'); assert.match(h.node("notice").textContent, /advanced draft changed/);
-  h.node("pricing-input").value = '{"target":{"gpu_count":9007199254740993}}'; await h.node("pricing-read-fields").emit("click"); assert.match(h.node("notice").textContent, /exact decimal strings/);
-  assert.notEqual(before, h.node("pricing-input").value);
-});
-
-test("unknown Boolean choices and prototype-named extension keys remain explicit inputs", async () => {
-  const h = harness(); await h.connect(); h.node("pricing-input").value = '{"facility":{"revolving":"unknown assertion"},"extensions":{"toString":null}}'; await h.node("pricing-read-fields").emit("click");
-  const revolving = field(h, "pricing", "facility.revolving"); revolving.value = "unknown assertion"; await revolving.emit("change");
-  assert.equal(JSON.parse(h.node("pricing-input").value).facility.revolving, "unknown assertion");
-  const extension = field(h, "pricing", "extensions.toString"); extension.value = "kept"; await extension.emit("input"); assert.equal(JSON.parse(h.node("pricing-input").value).extensions.toString, "kept");
-});
-
-test("logout clears structured field nodes along with raw input", async () => {
-  const h = harness(); await h.connect(); const count = field(h, "pricing", "target.gpu_count"); count.value = "19"; await count.emit("input");
-  await h.node("disconnect").emit("click"); assert.equal(h.node("pricing-fields").children.length, 0); assert.equal(h.node("pricing-input").value, "");
+test("ending the session revokes it with the memory CSRF and leaves the workspace paused", async () => {
+  const h = harness(); await h.connect(); assert.equal(h.window.ComputeHost.isSession(), true);
+  const seen = []; h.window.ComputeHost.onSession((on) => seen.push(on));
+  await h.node("disconnect").emit("click");
   assert.equal(h.sessionCalls.at(-1).url, "/v1/session/logout"); assert.equal(h.sessionCalls.at(-1).options.headers["X-Compute-CSRF"], "invented-csrf-marker");
+  assert.deepEqual(seen, [false], "the pages hear that the session ended");
+  assert.equal(h.window.ComputeHost.isSession(), false); assert.equal(h.node("session-card").hidden, false); assert.equal(h.node("disconnect").hidden, true);
+  assert.equal(h.node("session-state").textContent, "Offline"); assert.match(h.node("notice").textContent, /Session ended/);
+  await assert.rejects(h.window.ComputeHost.api("/v1/book"), /session is unavailable/, "nothing is sent once the session has ended");
 });
 
-test("ending a session while the workspace opens cannot recreate cleared drafts", async () => {
+test("ending a session while the workspace opens cannot recreate the session", async () => {
   const h = harness(); const handshake = h.pending(true); const opening = h.window.emit("load"); await tick();
   await h.node("disconnect").emit("click"); handshake.resolve({ auth_mode: "local_session", csrf_token: "invented-csrf-marker" }); await opening;
-  assert.equal(h.node("pricing-input").value, ""); assert.match(h.node("notice").textContent, /Session ended/); assert.equal(h.node("session-card").hidden, false);
+  assert.equal(h.window.ComputeHost.isSession(), false); assert.match(h.node("notice").textContent, /Session ended/); assert.equal(h.node("session-card").hidden, false);
 });
 
-test("a failed first structured mount leaves no private fields before or after ending a session", async () => {
-  const h = harness(); await h.connect(); let nested = { value: "invented-sensitive-nested" };
-  for (let i = 0; i < 12; i++) nested = { next: nested };
-  h.node("pricing-input").value = JSON.stringify({ buyer_entity_id: "invented-sensitive-entity", extensions: nested });
-  await h.node("pricing-read-fields").emit("click"); assert.match(h.node("notice").textContent, /budget/);
-  assert.equal(h.node("pricing-fields").children.length, 0); await h.node("disconnect").emit("click"); assert.equal(h.node("pricing-fields").children.length, 0);
-});
-
-test("evicted protection tokens renew without replaying a mutation or discarding the draft", async () => {
-  const h = harness(); await h.connect(); const draft = '{"opening_cash":"0.000000000000000000004"}';
-  h.node("pricing-input").value = draft; await h.node("pricing-input").emit("input");
+test("evicted protection tokens renew without replaying a mutation", async () => {
+  const h = harness(); await h.connect(); const draft = '{"opening_cash":"0.000000000000000000004"}'; const api = h.window.ComputeHost.api;
   h.reply({ detail: "browser_csrf_required" }, 403); h.reply({ auth_mode: "local_session", csrf_token: "replacement-csrf" });
-  await h.node("evaluate-pricing").emit("click");
-  assert.match(h.node("notice").textContent, /Workspace resumed/); assert.match(h.node("notice").textContent, /no mutation was retried/);
-  assert.equal(h.node("pricing-input").value, draft); assert.equal(h.calls.filter((call) => call.url === "/v1/pricing/evaluate").length, 1);
-  h.reply(evaluated()); await h.node("evaluate-pricing").emit("click");
+  await assert.rejects(api("/v1/pricing/demo/evaluate", { method: "POST", body: draft }), /Workspace resumed.*no mutation was retried/s);
+  assert.equal(h.calls.filter((call) => call.url === "/v1/pricing/demo/evaluate").length, 1);
+  h.reply(evaluated()); await api("/v1/pricing/demo/evaluate", { method: "POST", body: draft });
   assert.equal(h.calls.at(-1).options.headers["X-Compute-CSRF"], "replacement-csrf"); assert.equal(h.calls.at(-1).options.body, draft);
 });
 
 test("a non-CSRF forbidden response cannot trigger session renewal", async () => {
-  const h = harness(); await h.connect(); h.node("pricing-input").value = "{}"; await h.node("pricing-input").emit("input");
-  h.reply({ detail: "browser_origin_not_allowed" }, 403); await h.node("evaluate-pricing").emit("click");
-  assert.equal(h.sessionCalls.filter((call) => call.url.includes("bootstrap")).length, 1); assert.match(h.node("notice").textContent, /browser_origin_not_allowed/);
+  const h = harness(); await h.connect();
+  h.reply({ detail: "browser_origin_not_allowed" }, 403);
+  await assert.rejects(h.window.ComputeHost.api("/v1/pricing/demo/evaluate", { method: "POST", body: "{}" }), /browser_origin_not_allowed/);
+  assert.equal(h.sessionCalls.filter((call) => call.url.includes("bootstrap")).length, 1);
 });
 
-test("logout renews an evicted token solely to revoke without restoring page state", async () => {
-  const h = harness(); await h.connect(); h.node("pricing-input").value = JSON.stringify({ opening_cash: "17.0000000000000003" });
+test("logout renews an evicted token solely to revoke without reconnecting", async () => {
+  const h = harness(); await h.connect();
   h.replyLogout({ detail: "browser_csrf_required" }, 403); h.reply({ auth_mode: "local_session", csrf_token: "e".repeat(64) });
   await h.node("disconnect").emit("click"); for (let i = 0; i < 8; i++) await tick();
   assert.equal(h.sessionCalls.filter((call) => call.url.endsWith("logout")).length, 2);
   assert.equal(h.sessionCalls.at(-1).options.headers["X-Compute-CSRF"], "e".repeat(64));
-  assert.equal(h.node("pricing-input").value, ""); assert.equal(h.node("session-card").hidden, false);
-});
-
-test("missing source eligibility cannot label a qualified reference or purchase bid", async () => {
-  const h = harness(); await h.connect(); h.node("pricing-input").value = "{}"; await h.node("pricing-input").emit("input");
-  h.reply({ result: { status: "indicative", benchmark: { price: "9.123456789", currency: "EUR" }, bid: { submitted_limit: "8.333333333" }, economics: { currency: "EUR" } } });
-  await h.node("evaluate-pricing").emit("click");
-  assert.match(h.node("pricing-summary").textContent, /Scenario reference/); assert.doesNotMatch(h.node("pricing-summary").textContent, /8\.333333333/);
+  assert.equal(h.window.ComputeHost.isSession(), false); assert.equal(h.node("session-card").hidden, false);
 });

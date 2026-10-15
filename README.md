@@ -44,7 +44,7 @@ Open **Pricing** for three populated demonstrations: strong H100 capacity,
 balanced L40S terms and weak A4000 capacity with hourly restricted escrow.
 **Simulate** opens the assessment; **Edit terms** exposes provider, facility,
 pricing/power, settlement and dated funding inputs supplied by the backend
-contract. The modal separates purchase ceilings, cost-recovery and margin asks,
+contract. On Quotes, **Price this quote** carries the selected quote's price into the form as the supplier ask; nothing is evaluated until you press **Evaluate contract**. The modal separates purchase ceilings, cost-recovery and margin asks,
 retained native-unit provider references, unfitted sensitivity, and full cash
 paths. Each saved assessment downloads an unsigned, nonbinding compute-services
 agreement and quote schedule. Hypothetical bank/stable-asset yield and its party

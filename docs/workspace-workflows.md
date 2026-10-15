@@ -51,13 +51,12 @@ page for steps 1 to 3 and 5 to 7.
 
 ## Exact inputs
 
-Structured inputs begin blank. Money and registered decimal/integer evidence
-remain exact strings; JSON count fields remain bounded integer literals. Null,
-zero and false are distinct. Additional fields preserve their supplied meaning;
-they do not become arbitrary pricing multipliers. Large or specialized packets
-remain editable in advanced JSON.
+Money and registered decimal/integer evidence remain exact strings; JSON count
+fields remain bounded integer literals. Null, zero and false are distinct.
+Additional fields preserve their supplied meaning; they do not become arbitrary
+pricing multipliers.
 
-Evaluation submits the original JSON bytes and preserves an immutable response.
+An evaluation keeps an immutable response.
 Expired read sessions may renew once; mutations are never automatically replayed.
 
 See [source admission](source-adapters.md), [session/refresh behavior](local-session-refresh.md),

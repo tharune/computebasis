@@ -1,6 +1,5 @@
 """Workbench shell security and dynamic API wiring, without external reads."""
 from html.parser import HTMLParser
-import json
 from pathlib import Path
 import re
 import sys
@@ -81,23 +80,24 @@ class WorkbenchV2Tests(unittest.TestCase):
         self.assertIn('credentials: "same-origin"', self.script)
         self.assertIn('redirect: "error"', self.script)
 
-    def test_static_assets_and_labelled_sample_available_without_market_collection(self):
-        for name, content_type in (("workbench.js", "javascript"), ("workbench.css", "text/css"), ("synthetic-pricing-request.json", "application/json")):
-            response = self.client.get("/workbench/assets/" + name)
-            self.assertEqual(response.status_code, 200)
-            self.assertIn(content_type, response.headers["content-type"])
-        sample = self.client.get("/workbench/assets/synthetic-pricing-request.json").json()
-        self.assertEqual(sample["extensions"]["workbench_sample"]["kind"], "synthetic")
-        self.assertTrue(all(row["source_id"].startswith("source:invented") for row in sample["market"]["observations"]))
-        self.assertIn('byId("load-sample").addEventListener("click"', self.script)
-        self.assertIn("Market evidence and retained source snapshots are unchanged", self.script)
+    def test_every_page_script_and_stylesheet_the_shell_loads_is_served(self):
+        parser = ShellParser()
+        parser.feed(self.client.get("/").text)
+        loaded = [url for url in parser.asset_urls if url.startswith("/workbench/assets/") and url.endswith((".js", ".css"))]
+        self.assertIn("/workbench/assets/workbench.js", loaded)
+        self.assertIn("/workbench/assets/workbench.css", loaded)
+        self.assertEqual(len(loaded), len(set(loaded)), "no script or stylesheet is loaded twice")
+        for url in loaded:
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200, url)
+            self.assertIn("javascript" if url.endswith(".js") else "text/css", response.headers["content-type"], url)
 
     def test_every_dom_reference_matches_a_static_element(self):
         parser = ShellParser()
         parser.feed(self.client.get("/").text)
         explicit_ids = set(re.findall(r'byId\("([a-z-]+)"\)', self.script))
         self.assertFalse(explicit_ids - parser.ids, explicit_ids - parser.ids)
-        for suffix in ("input", "output", "summary", "result-state", "view"):
+        for suffix in ("title", "view"):
             self.assertIn("pricing-" + suffix, parser.ids)
 
     def test_every_routed_view_has_a_page_and_nothing_else_is_a_page(self):
@@ -112,9 +112,7 @@ class WorkbenchV2Tests(unittest.TestCase):
         navigation = set(re.findall(r'data-view="([a-z]+)"', html))
         self.assertLessEqual(navigation, set(views))
 
-    def test_original_editor_body_is_sent_without_json_round_trip(self):
-        self.assertIn('body: raw', self.script)
-        self.assertNotIn("body: JSON.stringify(JSON.parse(raw))", self.script)
+    def test_a_page_hide_or_session_end_discards_late_work(self):
         self.assertIn('window.addEventListener("pagehide"', self.script)
         self.assertIn('state.epoch++', self.script)
         self.assertIn("epoch !== state.epoch", self.script)
@@ -124,14 +122,6 @@ class WorkbenchV2Tests(unittest.TestCase):
         self.assertNotEqual(response.status_code, 200)
         response = self.client.get("/workbench/assets/%2e%2e/%2e%2e/api/app.py")
         self.assertNotEqual(response.status_code, 200)
-
-    def test_sample_is_valid_pricing_scenario_but_never_firm(self):
-        from compute_pricing.control.pricing import evaluate_pricing
-        sample = json.loads((ASSETS / "synthetic-pricing-request.json").read_text())
-        result = evaluate_pricing(sample)
-        self.assertEqual(result["status"], "indicative")
-        self.assertFalse(result["firm_price_eligible"])
-        self.assertFalse(result["executable"])
 
 
 if __name__ == "__main__":
