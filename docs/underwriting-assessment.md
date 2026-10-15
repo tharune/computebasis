@@ -12,10 +12,10 @@ type, unit, ownership and evidence requirements. It contains no provider facts,
 personal identities, market prices, calibrated coefficients or default holdings.
 The catalog is a starting point rather than an exhaustive legal/financial policy.
 
-## Use the local interface
+## Use the API
 
-1. Open the local workspace and its Underwriting view. The browser establishes
-   a scoped local session; explicit API clients can use their configured bearer key.
+1. Call the underwriting routes (the browser app has no Underwriting page). A local
+   browser-style client establishes a scoped session; explicit API clients use their configured bearer key.
 2. Load the neutral template explicitly. Select the relevant scopes and supply
    real reviewed subject IDs outside Git: transaction, supplier, buyer, site,
    lot, workload, market, portfolio and any relevant instrument/facility/issuer.

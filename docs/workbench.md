@@ -1,10 +1,9 @@
-# Local workbench and live coverage
+# Local workbench
 
-The October 14 release adds the ComputeBasis browser workbench to the existing
-read-only/paper kernels. It starts a loopback application, indexes explicit
-admitted public scopes and lets actual retained observations drive an indicative
-reference evaluation. It does not enable trades or turn unknown quantities,
-GPU counts, performance, counterparty credit or demand into defaults.
+The workbench is the browser app that ships with the local ComputeBasis API. It has four views: the **Brief** (the
+landing page), **Overview**, **Quotes** and **Pricing**. Overview and Quotes run on a locally simulated quote book;
+Pricing evaluates one editable contract on the pricing engine. Everything is read-only or paper: nothing here executes
+a trade, and no unknown quantity, GPU count, performance figure, counterparty credit or demand is turned into a default.
 
 ## Start, connect and manage
 
@@ -68,25 +67,60 @@ the live snapshots or client source data. The required metadata/byte limits,
 verified TLS with the pinned CA bundle, public DNS pinning, exact endpoint/query
 redirect constraints, cooldowns and explicit bounded pagination remain enforced.
 
-## What the browser does
+## What the browser shows
 
-The market page displays source admission, retained scopes, current-policy
-freshness, native units, exclusions/coverage, and snapshot provenance. Filters
-and pagination operate on received rows. FX and model discovery remain separate
-from compute price support. Synthetic examples never fill an empty live index.
+The top navigation switches between three app views; the logo returns to the Brief. Each view has its own address
+(`/#desk`, `/#quotes`, `/#pricing`), so a refresh or the back button lands where you were. The page opens its own
+short-lived local session; there is no credential to paste.
 
-**Evaluate live reference** builds an editable request from the chosen admitted
-current aggregate GPU model and exact billing/reservation term. Its single-source
-exploration weights are explicitly unvalidated; the result is a global reference
-with no commercial bid, ask or regional premium. The separate pricing editor can
-load a clearly labelled invented scenario and calculate the declared bid/ask and
-full cash waterfall. Inference and cash editors use their existing pure kernels.
+- **Brief** (`/`) explains the problem with figures measured on the live simulated book: a quote's price is only part of
+  what it costs, because sellers ask for down payments, can fail, and leave terms blank. It then walks through the four
+  steps that turn a quoted price into an all-in cost (grade the seller, set the odds of failure, price the risk, rank
+  what is eligible) and links to Overview and Quotes.
+- **Overview** shows the whole book at a glance: live quotes, GPUs on offer, contract value, the share of quotes that
+  are eligible, the market basis (the gap between the lowest quote and the best eligible all-in cost) by GPU model and
+  over time, supply and cost by seller grade, quote completeness, provider health, time to expiry and a feed of recent
+  moves. The Simulate buttons (price war, supply shock, provider downgrade, pause, reset) change the simulated book so
+  you can watch the basis move.
+- **Quotes** lists every live quote for one GPU model, ranked by all-in cost or by quoted price. Select a quote to see
+  its all-in cost breakdown (price, financing, expected loss), the seller's scorecard, its terms and missing terms,
+  and whether it is eligible and why not. **Price this quote** sends that quote to Pricing.
+- **Pricing** opens three populated example contracts (strong H100 capacity, balanced L40S terms, weak A4000 capacity
+  with hourly restricted escrow) or a blank one. Edit any term, press **Simulate**, and read the assessment: purchase
+  ceiling, cost-recovery and margin asks, provider reference rates, the sensitivity surface and the dated cash path.
+  The assessment downloads as JSON and as an unsigned, nonbinding compute-services agreement. See
+  [pricing demonstrations](pricing-demonstrations.md), [hourly vesting](hourly-vesting.md) and
+  [agreement generation](demo-compute-agreement.md).
 
-All result panels show the immutable snapshot, versions, holds and full JSON.
-Vendor text is rendered as text, not executable HTML. The shell uses restrictive
-same-origin CSP, no external assets, and no form credential field name/value.
-Browser automation environments may block loopback navigation; HTTP, assets,
-auth, live collection and pricing can still be verified through the local API.
+Overview and Quotes read `GET /v1/book` and `GET /v1/book/desk` every two seconds (conditional requests, paused while the
+tab is hidden); the numbers come from the server, the pages only draw them. See [quote book](quote-book.md) and
+[desk ledger contract](desk-ledger-contract.md). Pricing reads `/v1/pricing/demo/*`. Vendor text is rendered as text, not
+HTML. The shell uses a same-origin content security policy, loads no external asset, and stores nothing in browser
+storage. Browser automation environments may block loopback navigation; HTTP, assets, auth, live collection and pricing
+can still be verified through the local API.
+
+Earlier builds also had pages for live feeds, market evidence, inventory, underwriting, model policy, inference, dated cash
+and portfolio under a More menu. They were removed from the browser. Their API routes are unchanged and documented in
+[inventory and policy](inventory-and-policy.md), [underwriting assessment](underwriting-assessment.md),
+[portfolio and inference diagnostics](portfolio-and-inference-diagnostics.md) and the contracts below.
+
+## Run the demo
+
+For the demo flow (Brief, Overview, press **Price war** then **Supply shock**, Quotes, **Price this quote**, Pricing),
+start the app with the four-scope demo collection plan on a dedicated runtime outside Git:
+
+```sh
+DEMO_RUNTIME="${TMPDIR:-/tmp}/computebasis-public-demo"
+.venv/bin/python scripts/local.py start --runtime "$DEMO_RUNTIME" \
+  --source-config examples/source-admission.json \
+  --collection-plan examples/demo-collection-plan.json \
+  --auto-refresh-config examples/auto-refresh.json --port 8000
+.venv/bin/python scripts/local.py stop --runtime "$DEMO_RUNTIME"
+```
+
+The [demo collection plan](../examples/demo-collection-plan.json) schedules GetDeploying, ECB and Energinet DK1/DK2 only.
+Pass `--no-auto-refresh` for an offline rehearsal; the simulated book and Pricing still work. If port 8000 belongs to
+another service, choose another port; do not replace an unknown listener.
 
 ## Index and refresh contracts
 
@@ -111,11 +145,3 @@ Current lookup/display budgets are explicit in the index, not claims of complete
 worldwide market coverage. Firm procurement still needs admitted verified physical
 offers, complete contracts/buyer demand, independently validated risk inputs and
 durable capacity/treasury/execution acceptance described in the broader plan.
-
-The [quality/intake release](quality-and-intake.md) adds precise native-price ordering, explicit draft/result states and bounded-history coverage.
-
-## Inventory and model policy
-
-The [inventory/policy workspace](inventory-and-policy.md) adds declared physical units, local site map, sold/reserved/maintenance/available states, contract intervals and immutable plan revisions. Load an explicit synthetic demo to explore; it cannot save holdings. Follow-current-UTC mode only reloads the local ledger while this pane is visible and idle. It never schedules external feed collection.
-
-Model Policy versions the estimator, source quality and recency, concentration/support gates and typed feature ownership. Structured controls explicitly write to JSON; validation and saving are separate from applying a saved policy to a pricing draft. Extra features remain unpriced until their registered owning method is qualified. Collection scopes have an editable JSON panel; its original bytes pass the strict shared API parser.
