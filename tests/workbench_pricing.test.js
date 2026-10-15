@@ -592,7 +592,11 @@ test("the markup is structurally safe: no inline style or handlers, every id the
   assert.deepEqual(missing, [], "every id the Pricing scripts read is in index.html");
   const view = html.slice(html.indexOf('<section id="pricing-view"'), html.indexOf("</main>"));
   const unprefixed = [...view.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]).filter((id) => !id.startsWith("pd-"));
-  assert.deepEqual(unprefixed, ["pricing-view", "pricing-title", "pricing-demo-root"], "the Pricing page holds only its own pd- elements and its heading");
+  assert.deepEqual(unprefixed, ["pricing-view", "pricing-title", "pricing-lede", "pricing-demo-root"], "the Pricing page holds only its own pd- elements and its heading");
+  const heading = view.slice(0, view.indexOf('<div id="pricing-demo-root"'));
+  assert.match(heading, /<h1 id="pricing-title" tabindex="-1">[^<]+<\/h1>/, "the title keeps its id: routing reads it for the tab title");
+  assert.match(heading, /<p id="pricing-lede">[^<]*scenario estimate[^<]*<\/p>/, "one plain lede that says the figures are estimates");
+  assert.doesNotMatch(heading, /eyebrow|\b\d\d \/ |<span/, "no numbered kicker, as on Overview and Quotes");
   const css = fs.readFileSync(path.join(assets, "pricing-demo.css"), "utf8");
   const block = (head) => { const start = css.indexOf(head); assert.ok(start >= 0, head); return css.slice(css.indexOf("{", start) + 1, css.indexOf("}", start)); };
   const names = (body) => [...body.matchAll(/(--pd-[a-z0-9-]+):/g)].map((match) => match[1]).sort();

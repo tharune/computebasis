@@ -166,7 +166,6 @@ main { flex: 1; min-width: 0; padding-bottom: 24px; }
 .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin: 36px 0 28px; }
 h1 { font-size: 24px; font-weight: 600; letter-spacing: -.02em; line-height: 1.2; }
 .page-heading p { max-width: 66ch; margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
-.page-heading .eyebrow { display: none; }
 
 /* Banners: session, activity and notices share one treatment. */
 .session-card, .activity-bar, .notice { margin-top: 16px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); font-size: 12px; line-height: 1.6; }
