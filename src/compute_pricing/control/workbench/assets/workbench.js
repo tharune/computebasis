@@ -283,7 +283,15 @@
     byId("pricing-input").value = body; readFields("pricing"); state.synthetic = true; inputChanged("pricing"); text("pricing-mode", mode); notify(message);
   }
   byId("load-sample").addEventListener("click", () => runAction("Loading the labelled synthetic example…", () => loadPricingExample(null)));
-  function priceQuote(quote) { showView("pricing"); return runAction("Loading the labelled synthetic example…", () => loadPricingExample(quote)); }
+  /* "Price this quote" on the Quotes page. The Pricing page owns the form, so the quote goes to it: it fills the supplier ask now, or holds
+     the quote until the workspace session, the backend contract and any running evaluation allow it. Resolves true only when the form was
+     filled now. */
+  function priceQuote(quote) {
+    showView("pricing");
+    const pricing = window.ComputePricingDemo;
+    if (!pricing || typeof pricing.loadQuote !== "function") { notify("The Pricing page is not available, so this quote was not loaded. Reload the page and try again.", true); return Promise.resolve(false); }
+    return pricing.loadQuote(quote);
+  }
   byId("pricing-input").addEventListener("input", () => text("pricing-mode", state.synthetic ? "Edited synthetic scenario · declared inputs" : "Edited declared input · review evidence scope"));
   byId("clear-pricing").addEventListener("click", () => { byId("pricing-input").value = ""; state.forms.get("pricing")?.clear(); state.synthetic = false; inputChanged("pricing"); text("pricing-mode", "Declared input · no example loaded"); });
   byId("evaluate-pricing").addEventListener("click", () => evaluate("pricing")); byId("pricing-input").addEventListener("input", () => inputChanged("pricing"));

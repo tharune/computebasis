@@ -257,16 +257,39 @@ test("synthetic load is explicit, unauthenticated, separate, and discarded after
   assert.equal(h.node("pricing-input").value, ""); assert.equal(h.node("notice").hidden, true);
 });
 
-test("the shipped synthetic scenario opens in the editor, and a simulated quote replaces only the supplier ask", async () => {
+test("the shipped synthetic scenario opens in the editor", async () => {
   const sample = fs.readFileSync(path.join(assets, "synthetic-pricing-request.json"), "utf8");
   const h = harness(); await h.connect(); h.node("pricing-input").value = ""; h.reply(sample);
   await h.node("load-sample").emit("click");
   assert.equal(h.node("notice").className, "notice"); assert.match(h.node("pricing-mode").textContent, /^SYNTHETIC EXAMPLE/);
   assert.equal(h.node("pricing-input").value, sample); assert.ok(field(h, "pricing", "target.gpu_count"), "the editor draws the scenario's fields");
-  h.node("pricing-input").value = ""; h.reply(sample);
-  await h.window.ComputeHost.priceQuote({ id: "Q0149", price: "3.1234" });
-  const packet = JSON.parse(h.node("pricing-input").value); assert.equal(packet.commercial.supplier_ask, "3.1234");
-  assert.match(h.node("pricing-mode").textContent, /Q0149/); assert.equal(h.node("pricing-view").hidden, false);
+});
+
+test("Price this quote shows Pricing and hands the very same quote, with its exact price string, to the Pricing page", async () => {
+  const h = harness(); const quote = { id: "q-149", ref: "Q0149", gpu: "H100", price: "3.123456789012", exact: { price: "3.123456789012" } };
+  const outcome = Promise.resolve(true); const calls = [];
+  h.window.ComputePricingDemo = { loadQuote: (given) => { calls.push({ given, pricingShown: h.node("pricing-view").hidden === false }); return outcome; } };
+  const result = h.window.ComputeHost.priceQuote(quote);
+  assert.equal(result, outcome, "the Pricing page's own promise comes back");
+  assert.equal(calls.length, 1); assert.equal(calls[0].given, quote, "the same object, not a copy"); assert.equal(calls[0].given.price, "3.123456789012");
+  assert.equal(calls[0].pricingShown, true, "Pricing is already showing when the quote reaches it");
+  assert.equal(h.node("pricing-view").hidden, false); assert.equal(h.node("quotes-view").hidden, true); assert.equal(h.node("brief-view").hidden, true);
+  assert.deepEqual([...h.window.pushed], ["#pricing"]);
+  assert.equal(h.allCalls.length, 0, "the host sends no request of its own"); assert.equal(h.node("notice").hidden, true);
+  assert.equal(await result, true);
+});
+
+test("a quote the Pricing page can only queue still opens Pricing and passes the answer through without a host error", async () => {
+  const h = harness(); h.window.ComputePricingDemo = { loadQuote: () => Promise.resolve(false) };
+  assert.equal(await h.window.ComputeHost.priceQuote({ id: "q-1", price: "2.5" }), false);
+  assert.equal(h.node("pricing-view").hidden, false); assert.equal(h.node("notice").hidden, true);
+});
+
+test("if the Pricing page is missing, Price this quote still opens Pricing and says why nothing was loaded", async () => {
+  const h = harness(); assert.equal(h.window.ComputePricingDemo, undefined);
+  assert.equal(await h.window.ComputeHost.priceQuote({ id: "q-1", price: "2.5" }), false);
+  assert.equal(h.node("pricing-view").hidden, false);
+  assert.equal(h.node("notice").hidden, false); assert.equal(h.node("notice").className, "notice error"); assert.match(h.node("notice").textContent, /Pricing page is not available/);
 });
 
 test("mutations send memory CSRF while exact request bytes and decimals are preserved", async () => {
